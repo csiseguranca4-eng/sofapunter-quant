@@ -96,6 +96,11 @@ async function obterEstatisticasEquipa(teamId, leagueId, season) {
   const marcados = stats.goals?.for?.average || {};
   const sofridos = stats.goals?.against?.average || {};
   const jogos = numero(stats.fixtures?.played?.total) || 0;
+  const cantosFavor = lerBlocoCantos(stats.corners?.for);
+  const cantosContra = lerBlocoCantos(stats.corners?.against);
+  const amarelos = somarFaixas(stats.cards?.yellow);
+  const vermelhos = somarFaixas(stats.cards?.red);
+  const cartoesTotais = (amarelos || 0) + (vermelhos || 0);
   return {
     teamId: team,
     leagueId: league,
@@ -105,8 +110,158 @@ async function obterEstatisticasEquipa(teamId, leagueId, season) {
     golosMarcadosFora: numero(marcados.away),
     golosSofridosCasa: numero(sofridos.home),
     golosSofridosFora: numero(sofridos.away),
-    form: typeof stats.form === 'string' ? stats.form : ''
+    form: typeof stats.form === 'string' ? stats.form : '',
+    cantosAFavorCasa: cantosFavor.casa,
+    cantosAFavorFora: cantosFavor.fora,
+    cantosContraCasa: cantosContra.casa,
+    cantosContraFora: cantosContra.fora,
+    cantosPorJogo: cantosFavor.jogo,
+    cartoesPorJogo: jogos > 0 && (amarelos != null || vermelhos != null)
+      ? Number((cartoesTotais / jogos).toFixed(2))
+      : null
   };
+}
+
+function somarFaixas(bloco) {
+  if (!bloco || typeof bloco !== 'object') return null;
+  const valores = Object.values(bloco).map((faixa) => numero(faixa?.total)).filter((item) => item != null);
+  if (!valores.length) return null;
+  return valores.reduce((total, item) => total + item, 0);
+}
+
+function lerBlocoCantos(bloco) {
+  if (!bloco || typeof bloco !== 'object') return { casa: null, fora: null, jogo: null };
+  const media = bloco.average || {};
+  return {
+    casa: numero(media.home),
+    fora: numero(media.away),
+    jogo: numero(media.total ?? bloco.total?.total ?? bloco.total)
+  };
+}
+
+function dataCurta(iso) {
+  const encontrada = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!encontrada) return '';
+  return `${encontrada[3]}/${encontrada[2]}/${encontrada[1].slice(2)}`;
+}
+
+function resumirFixture(jogo) {
+  const golsCasa = numero(jogo?.goals?.home);
+  const golsFora = numero(jogo?.goals?.away);
+  if (golsCasa == null || golsFora == null) return null;
+  const casa = jogo.teams?.home?.name || 'Casa';
+  const fora = jogo.teams?.away?.name || 'Fora';
+  const vencedor = jogo.teams?.home?.winner ? casa : jogo.teams?.away?.winner ? fora : 'Empate';
+  return {
+    data: dataCurta(jogo.fixture?.date),
+    casa,
+    fora,
+    golsCasa,
+    golsFora,
+    placar: `${golsCasa}x${golsFora}`,
+    vencedor,
+    totalGols: golsCasa + golsFora
+  };
+}
+
+function percentual(parte, total) {
+  if (!(total > 0)) return null;
+  return Number(((parte / total) * 100).toFixed(1));
+}
+
+async function obterClassificacao(leagueId, season, teamId) {
+  const league = Number(leagueId);
+  const ano = Number(season);
+  const team = Number(teamId);
+  if (!Number.isFinite(league) || !Number.isFinite(ano) || !Number.isFinite(team)) return null;
+
+  const dados = await pedir(`/standings?league=${league}&season=${ano}`);
+  const grupos = dados?.response?.[0]?.league?.standings;
+  const linhas = Array.isArray(grupos) ? grupos.flat() : [];
+  const linha = linhas.find((item) => Number(item?.team?.id) === team);
+  if (!linha) return null;
+  const forma = String(linha.form || '').replace(/\s+/g, '');
+  return {
+    posicao: numero(linha.rank),
+    pontos: numero(linha.points),
+    jogos: numero(linha.all?.played),
+    saldoGols: numero(linha.goalsDiff),
+    forma: forma.slice(-5)
+  };
+}
+
+async function obterH2H(mandanteId, visitanteId, limite = 5) {
+  const casa = Number(mandanteId);
+  const fora = Number(visitanteId);
+  const last = Number(limite) > 0 ? Number(limite) : 5;
+  if (!Number.isFinite(casa) || !Number.isFinite(fora)) return [];
+
+  const dados = await pedir(`/fixtures/headtohead?h2h=${casa}-${fora}&last=${last}`);
+  const lista = Array.isArray(dados?.response) ? dados.response : [];
+  return lista.map(resumirFixture).filter(Boolean);
+}
+
+async function obterUltimosJogos(teamId, limite = 10) {
+  const team = Number(teamId);
+  const last = Number(limite) > 0 ? Number(limite) : 10;
+  if (!Number.isFinite(team)) return { jogos: [], over25: null, btts: null };
+
+  const dados = await pedir(`/fixtures?team=${team}&last=${last}`);
+  const jogos = (Array.isArray(dados?.response) ? dados.response : []).map(resumirFixture).filter(Boolean);
+  return {
+    jogos,
+    over25: percentual(jogos.filter((jogo) => jogo.totalGols >= 3).length, jogos.length),
+    btts: percentual(jogos.filter((jogo) => jogo.golsCasa > 0 && jogo.golsFora > 0).length, jogos.length)
+  };
+}
+
+function valorCorner(statistics) {
+  const item = (statistics || []).find((linha) => linha?.type === 'Corner Kicks');
+  return numero(item?.value);
+}
+
+async function mediasCantosRecentes(teamId, leagueId, season) {
+  const dados = await pedir(`/fixtures?team=${teamId}&league=${leagueId}&season=${season}&last=8&status=FT`);
+  const jogos = Array.isArray(dados?.response) ? dados.response : [];
+  if (jogos.length < 3) return null;
+
+  const amostras = (await Promise.all(jogos.map(async (jogo) => {
+    try {
+      const corpo = await pedir(`/fixtures/statistics?fixture=${jogo.fixture.id}`);
+      const times = Array.isArray(corpo?.response) ? corpo.response : [];
+      const proprio = times.find((item) => Number(item?.team?.id) === Number(teamId));
+      const adversario = times.find((item) => Number(item?.team?.id) !== Number(teamId));
+      const aFavor = valorCorner(proprio?.statistics);
+      const contra = valorCorner(adversario?.statistics);
+      if (aFavor == null || contra == null) return null;
+      return { emCasa: Number(jogo.teams?.home?.id) === Number(teamId), aFavor, contra };
+    } catch (_) {
+      return null;
+    }
+  }))).filter(Boolean);
+
+  if (amostras.length < 3) return null;
+  const media = (lista) => (
+    lista.length ? Number((lista.reduce((total, item) => total + item, 0) / lista.length).toFixed(2)) : null
+  );
+  const casa = amostras.filter((item) => item.emCasa);
+  const fora = amostras.filter((item) => !item.emCasa);
+  return {
+    cantosAFavorCasa: media(casa.map((item) => item.aFavor)),
+    cantosContraCasa: media(casa.map((item) => item.contra)),
+    cantosAFavorFora: media(fora.map((item) => item.aFavor)),
+    cantosContraFora: media(fora.map((item) => item.contra)),
+    cantosPorJogo: media(amostras.map((item) => item.aFavor))
+  };
+}
+
+async function anexarCantos(stats) {
+  if (!stats || Number.isFinite(stats.cantosPorJogo) || Number.isFinite(stats.cantosAFavorCasa)) return stats;
+  try {
+    const medias = await mediasCantosRecentes(stats.teamId, stats.leagueId, stats.season);
+    if (medias) Object.assign(stats, medias);
+  } catch (_) { /* cantos vazios não derrubam o confronto */ }
+  return stats;
 }
 
 const TEMPORADA_PRIORITARIA = [2026, 2025];
@@ -217,6 +372,8 @@ async function calcularMediasConfronto(mandanteId, visitanteId, leagueId, season
     estatisticasNaTemporadaDisponivel(visitanteId, ligas.visitante.leagueId, ligas.visitante.season)
   ]);
 
+  await Promise.all([anexarCantos(mandante), anexarCantos(visitante)]);
+
   const lambdaReal = mediaPonderada(mandante.golosMarcadosCasa, visitante.golosSofridosFora);
   const muReal = mediaPonderada(visitante.golosMarcadosFora, mandante.golosSofridosCasa);
   if (lambdaReal == null || muReal == null) {
@@ -229,7 +386,10 @@ async function calcularMediasConfronto(mandanteId, visitanteId, leagueId, season
 module.exports = {
   buscarIdEquipa,
   obterEstatisticasEquipa,
-  calcularMediasConfronto
+  calcularMediasConfronto,
+  obterClassificacao,
+  obterH2H,
+  obterUltimosJogos
 };
 
 if (require.main === module) {

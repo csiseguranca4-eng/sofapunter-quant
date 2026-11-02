@@ -139,6 +139,87 @@ function buildDailyRecapText({ date, entries, greens, reds, cashouts, balance, u
   ].join('\n');
 }
 
+function rotuloTabela(nome, linha) {
+  if (!linha || !Number.isFinite(Number(linha.pos))) return nome;
+  const pts = Number.isFinite(Number(linha.pts)) ? ` (${linha.pts} pts)` : '';
+  return `${linha.pos}º ${nome}${pts}`;
+}
+
+function BarraClassificacao({ quant, home, away }) {
+  const tabela = quant?.tabela;
+  if (!tabela?.mandante && !tabela?.visitante) return null;
+  return (
+    <div className="text-[11px] font-semibold text-gray-200 bg-[#0d1117] border border-gray-800 rounded-lg px-2.5 py-1.5 mb-2">
+      [ {rotuloTabela(home, tabela.mandante)} vs {rotuloTabela(away, tabela.visitante)} ]
+    </div>
+  );
+}
+
+function MercadoExtra({ titulo, bloco }) {
+  if (!bloco || !(Number(bloco.mediaEsperada) > 0)) return null;
+  const linhas = Array.isArray(bloco.linhas) ? bloco.linhas : [];
+  const valiosos = linhas.filter((linha) => linha.temValor);
+  const referencia = linhas.find((linha) => /Over/.test(linha.nome || '') && linha.oddJusta);
+  return (
+    <div className="rounded-lg border border-gray-700 bg-[#0d1117] p-2.5 flex-1 min-w-[180px]">
+      <div className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">{titulo}</div>
+      <div className="text-sm font-bold text-white mt-1">Média {Number(bloco.mediaEsperada).toFixed(1)}</div>
+      {referencia && !valiosos.length && (
+        <div className="text-[10px] text-gray-400 mt-1">
+          {referencia.nome}: justa {Number(referencia.oddJusta).toFixed(2)}
+        </div>
+      )}
+      {valiosos.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {valiosos.map((linha) => (
+            <span key={linha.nome} className="text-[10px] font-bold text-black bg-[#00c853] rounded px-1.5 py-0.5">
+              {linha.nome} {linha.margemEV}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetalheQuantExtra({ quant, home, away }) {
+  if (!quant) return null;
+  const h2h = Array.isArray(quant.h2h) ? quant.h2h : [];
+  const cantos = quant.mercadosAdicionais?.cantos;
+  const cartoes = quant.mercadosAdicionais?.cartoes;
+  const ultimos = quant.ultimos10;
+  const temMercado = Number(cantos?.mediaEsperada) > 0 || Number(cartoes?.mediaEsperada) > 0;
+  if (!h2h.length && !temMercado && !ultimos?.mandante && !ultimos?.visitante) return null;
+  return (
+    <div className="mt-2.5 space-y-2">
+      {(ultimos?.mandante || ultimos?.visitante) && (
+        <div className="text-[10px] text-gray-400 leading-relaxed">
+          {ultimos?.mandante && <div>Últimos 10 · {home}: Over 2.5 {ultimos.mandante.over25 ?? '—'}% · Ambas {ultimos.mandante.btts ?? '—'}%</div>}
+          {ultimos?.visitante && <div>Últimos 10 · {away}: Over 2.5 {ultimos.visitante.over25 ?? '—'}% · Ambas {ultimos.visitante.btts ?? '—'}%</div>}
+        </div>
+      )}
+      {h2h.length > 0 && (
+        <details className="rounded-lg border border-gray-700 bg-[#0d1117] px-2.5 py-1.5">
+          <summary className="text-[11px] font-bold text-gray-200 cursor-pointer">Histórico Recente (H2H)</summary>
+          <div className="mt-1.5 space-y-1">
+            {h2h.map((jogo, indice) => (
+              <div key={`${jogo.data}-${indice}`} className="text-[11px] text-gray-300">
+                {jogo.data}: {jogo.casa} {jogo.golsCasa}x{jogo.golsFora} {jogo.fora}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      {temMercado && (
+        <div className="flex flex-wrap gap-2">
+          <MercadoExtra titulo="Mercado de Escanteios" bloco={cantos} />
+          <MercadoExtra titulo="Mercado de Cartões" bloco={cartoes} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('sheet'); // 'opps', 'sheet', 'markets'
   const [activeShift, setActiveShift] = useState(() => {
@@ -1121,6 +1202,7 @@ export default function App() {
                   </div>
 
                   <h3 className="font-bold text-lg text-white mb-1.5">{game.home} vs {game.away}</h3>
+                  <BarraClassificacao quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                   {loadingAI[game.id] ? (
                     <p className="text-xs text-purple-300 italic mb-4">Analisando com I.A...</p>
                   ) : (
@@ -1262,6 +1344,7 @@ export default function App() {
                             })}
                           </div>
                         )}
+                        <DetalheQuantExtra quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                       </div>
                     )}
 

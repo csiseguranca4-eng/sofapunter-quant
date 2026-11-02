@@ -207,10 +207,126 @@ function analisarOportunidadesQuant(lambdaMandante, muVisitante, oddsMercado) {
   };
 }
 
+function probabilidadeAte(media, maximo) {
+  const intensidade = validarIntensidade('media', media);
+  let termo = Math.exp(-intensidade);
+  let soma = termo;
+  for (let k = 1; k <= maximo; k += 1) {
+    termo *= intensidade / k;
+    soma += termo;
+  }
+  return Math.min(1, Math.max(0, soma));
+}
+
+function linhasDeContagem(media, linhas, rotulo) {
+  if (!(media > 0)) return [];
+  return linhas.flatMap((linha) => {
+    const under = probabilidadeAte(media, Math.floor(linha));
+    const over = Math.max(0, 1 - under);
+    return [
+      { nome: `${rotulo} Over ${linha}`, ...cotacao(over) },
+      { nome: `${rotulo} Under ${linha}`, ...cotacao(under) }
+    ];
+  });
+}
+
+function aplicarCotacaoCasa(linha, oddCasa) {
+  const base = {
+    nome: linha.nome,
+    oddJusta: linha.oddJusta,
+    probabilidade: linha.probabilidade,
+    probabilidadeModelo: linha.probabilidade > 0 ? `${(linha.probabilidade * 100).toFixed(1)}%` : null,
+    oddCasa: oddCasa > 1 ? oddCasa : null,
+    margemEV: null,
+    ev: null,
+    temValor: false,
+    selo: 'Sem Valor'
+  };
+  if (!(oddCasa > 1) || !(linha.probabilidade > 0)) return base;
+  const ev = calcularEV(oddCasa, linha.probabilidade);
+  return {
+    ...base,
+    margemEV: ev.percentual,
+    ev: ev.valor,
+    temValor: ev.temValor,
+    selo: classificarSelo(ev.valor, ev.temValor)
+  };
+}
+
+function mediaDisponivel(...valores) {
+  const numeros = valores.filter((item) => Number.isFinite(Number(item))).map(Number);
+  if (!numeros.length) return null;
+  return numeros.reduce((total, item) => total + item, 0) / numeros.length;
+}
+
+function expectativaCantos(mandante, visitante) {
+  const casa = mediaDisponivel(mandante?.cantosAFavorCasa, visitante?.cantosContraFora);
+  const fora = mediaDisponivel(visitante?.cantosAFavorFora, mandante?.cantosContraCasa);
+  if (casa != null && fora != null) return arredondar(casa + fora, 2);
+  if (Number.isFinite(mandante?.cantosPorJogo) && Number.isFinite(visitante?.cantosPorJogo)) {
+    return arredondar(mandante.cantosPorJogo + visitante.cantosPorJogo, 2);
+  }
+  return null;
+}
+
+function expectativaCartoes(mandante, visitante) {
+  if (!Number.isFinite(mandante?.cartoesPorJogo) || !Number.isFinite(visitante?.cartoesPorJogo)) return null;
+  return arredondar(mandante.cartoesPorJogo + visitante.cartoesPorJogo, 2);
+}
+
+function calibrarLambdasH2H(lambdaMandante, muVisitante, confrontos) {
+  const lambda = validarIntensidade('lambdaMandante', lambdaMandante);
+  const mu = validarIntensidade('muVisitante', muVisitante);
+  const jogos = (Array.isArray(confrontos) ? confrontos : []).filter((jogo) => Number.isFinite(Number(jogo?.totalGols)));
+  if (jogos.length < 3) return { lambda, mu, fator: 1, motivo: null };
+
+  const taxaOver = jogos.filter((jogo) => Number(jogo.totalGols) >= 3).length / jogos.length;
+  let fator = 1;
+  let motivo = null;
+  if (taxaOver >= 0.8) {
+    fator = 1.08;
+    motivo = 'H2H fortemente Over';
+  } else if (taxaOver >= 0.65) {
+    fator = 1.05;
+    motivo = 'H2H Over';
+  } else if (taxaOver <= 0.2) {
+    fator = 0.92;
+    motivo = 'H2H fortemente Under';
+  } else if (taxaOver <= 0.35) {
+    fator = 0.95;
+    motivo = 'H2H Under';
+  }
+
+  return {
+    lambda: arredondar(lambda * fator, 2),
+    mu: arredondar(mu * fator, 2),
+    fator,
+    motivo
+  };
+}
+
+function montarMercadosAdicionais(mandante, visitante, oddsPorNome = {}) {
+  const cantosEsperados = expectativaCantos(mandante, visitante);
+  const cartoesEsperados = expectativaCartoes(mandante, visitante);
+  const cotar = (linhas) => linhas.map((linha) => aplicarCotacaoCasa(linha, Number(oddsPorNome?.[linha.nome])));
+  return {
+    cantos: {
+      mediaEsperada: cantosEsperados,
+      linhas: cotar(linhasDeContagem(cantosEsperados, [8.5, 9.5, 10.5], 'Cantos'))
+    },
+    cartoes: {
+      mediaEsperada: cartoesEsperados,
+      linhas: cotar(linhasDeContagem(cartoesEsperados, [3.5, 4.5], 'Cartões'))
+    }
+  };
+}
+
 module.exports = {
   calcularOddsQuant,
   calcularEV,
-  analisarOportunidadesQuant
+  analisarOportunidadesQuant,
+  calibrarLambdasH2H,
+  montarMercadosAdicionais
 };
 
 if (require.main === module) {

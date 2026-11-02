@@ -7,8 +7,8 @@ import { createRequire } from 'module';
 import { fetch1WinMatchOdds } from './1win-client.js';
 
 const require = createRequire(import.meta.url);
-const { analisarOportunidadesQuant } = require('./services/quantEngine.js');
-const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto } = require('./services/apiFootball.js');
+const { analisarOportunidadesQuant, calibrarLambdasH2H, montarMercadosAdicionais } = require('./services/quantEngine.js');
+const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos } = require('./services/apiFootball.js');
 const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
 const app = express();
@@ -597,6 +597,98 @@ function estimarLambdaMu(odds) {
   };
 }
 
+function oddNaLinha(allMarkets, teste, linha, over) {
+  const sentido = over ? /acima|over|>/i : /abaixo|under|</i;
+  const item = allMarkets.find((row) => (
+    (teste.test(row.market || '') || teste.test(row.selection || '')) &&
+    sentido.test(row.selection || '') &&
+    linhaNumerica(row.selection) === linha &&
+    row.odd > 1
+  ));
+  return item ? item.odd : null;
+}
+
+function oddsCantosECartoes(allMarkets) {
+  const mapa = {};
+  const cantos = /escanteio|corner|canto/i;
+  const cartoes = /cart[aã]o|card|amarelo|yellow/i;
+  [[8.5, 'Cantos'], [9.5, 'Cantos'], [10.5, 'Cantos']].forEach(([linha]) => {
+    const over = oddNaLinha(allMarkets, cantos, linha, true);
+    const under = oddNaLinha(allMarkets, cantos, linha, false);
+    if (over) mapa[`Cantos Over ${linha}`] = over;
+    if (under) mapa[`Cantos Under ${linha}`] = under;
+  });
+  [[3.5, 'Cartões'], [4.5, 'Cartões']].forEach(([linha]) => {
+    const over = oddNaLinha(allMarkets, cartoes, linha, true);
+    const under = oddNaLinha(allMarkets, cartoes, linha, false);
+    if (over) mapa[`Cartões Over ${linha}`] = over;
+    if (under) mapa[`Cartões Under ${linha}`] = under;
+  });
+  return mapa;
+}
+
+function linhaTabela(nome, linha) {
+  if (!linha) return null;
+  return {
+    nome,
+    pos: linha.posicao,
+    pts: linha.pontos,
+    sg: linha.saldoGols,
+    jogos: linha.jogos,
+    forma: linha.forma
+  };
+}
+
+async function montarContextoFootball({ ids, confrontoReal, lambda, mu, allMarkets }) {
+  const vazio = {
+    tabela: { mandante: null, visitante: null },
+    h2h: [],
+    ultimos10: null,
+    ajusteH2H: null,
+    mercadosAdicionais: { cantos: { mediaEsperada: null, linhas: [] }, cartoes: { mediaEsperada: null, linhas: [] } }
+  };
+  if (!ids?.idMandante || !ids?.idVisitante) return { ...vazio, lambda, mu };
+
+  const leagueId = confrontoReal?.mandante?.leagueId;
+  const season = confrontoReal?.mandante?.season;
+  const [classCasa, classFora, h2h, ultCasa, ultFora] = await Promise.all([
+    leagueId ? obterClassificacao(leagueId, season, ids.idMandante).catch(() => null) : null,
+    leagueId ? obterClassificacao(leagueId, season, ids.idVisitante).catch(() => null) : null,
+    obterH2H(ids.idMandante, ids.idVisitante, 5).catch(() => []),
+    obterUltimosJogos(ids.idMandante, 10).catch(() => null),
+    obterUltimosJogos(ids.idVisitante, 10).catch(() => null)
+  ]);
+
+  let ajusteH2H = null;
+  let lambdaFinal = lambda;
+  let muFinal = mu;
+  if (lambda > 0 && mu > 0 && Array.isArray(h2h) && h2h.length) {
+    ajusteH2H = calibrarLambdasH2H(lambda, mu, h2h);
+    lambdaFinal = ajusteH2H.lambda;
+    muFinal = ajusteH2H.mu;
+  }
+
+  return {
+    tabela: {
+      mandante: linhaTabela(null, classCasa),
+      visitante: linhaTabela(null, classFora)
+    },
+    h2h: Array.isArray(h2h) ? h2h : [],
+    ultimos10: {
+      mandante: ultCasa,
+      visitante: ultFora
+    },
+    ajusteH2H,
+    mercadosAdicionais: montarMercadosAdicionais(
+      confrontoReal?.mandante,
+      confrontoReal?.visitante,
+      oddsCantosECartoes(allMarkets || [])
+    ),
+    lambda: lambdaFinal,
+    mu: muFinal
+  };
+}
+
 function linhaNumerica(selection) {
   const encontrado = String(selection || '').replace(',', '.').match(/(\d+(?:\.\d+)?)/);
   return encontrado ? Number(encontrado[1]) : null;
@@ -667,6 +759,8 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
   let lambda = null;
   let mu = null;
   let fonteDados = 'Sintético (Odds 1win)';
+  let idsTimes = null;
+  let confrontoReal = null;
 
   try {
     const nomeMandanteRaspado = homeTeam;
@@ -675,7 +769,8 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
     const idVisitante = await buscarIdEquipa(nomeVisitanteRaspado);
 
     if (idMandante && idVisitante) {
-      const confrontoReal = await calcularMediasConfronto(idMandante, idVisitante);
+      idsTimes = { idMandante, idVisitante };
+      confrontoReal = await calcularMediasConfronto(idMandante, idVisitante);
       if (confrontoReal && confrontoReal.lambdaReal && confrontoReal.muReal) {
         lambda = confrontoReal.lambdaReal;
         mu = confrontoReal.muReal;
@@ -691,6 +786,23 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
     lambda = sintetico.lambda;
     mu = sintetico.mu;
     fonteDados = 'Sintético (Odds 1win)';
+  }
+
+  let contexto = {
+    tabela: { mandante: null, visitante: null },
+    h2h: [],
+    ultimos10: null,
+    ajusteH2H: null,
+    mercadosAdicionais: { cantos: { mediaEsperada: null, linhas: [] }, cartoes: { mediaEsperada: null, linhas: [] } }
+  };
+  try {
+    contexto = await montarContextoFootball({ ids: idsTimes, confrontoReal, lambda, mu, allMarkets });
+    if (contexto.lambda > 0 && contexto.mu > 0) {
+      lambda = contexto.lambda;
+      mu = contexto.mu;
+    }
+  } catch (errApi) {
+    console.log('Aviso API-Football: contexto parcial ignorado.', errApi.message);
   }
 
   const resultadoQuant = analisarOportunidadesQuant(lambda, mu, oddsCasa);
@@ -719,7 +831,12 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
     mercadosAuditados: resultadoQuant.mercados,
     ritmo,
     tatica,
-    fonteDados
+    fonteDados,
+    tabela: contexto.tabela,
+    h2h: contexto.h2h,
+    ultimos10: contexto.ultimos10,
+    ajusteH2H: contexto.ajusteH2H?.motivo ? contexto.ajusteH2H : null,
+    mercadosAdicionais: contexto.mercadosAdicionais
   };
 }
 
