@@ -49,22 +49,34 @@ function mediaPonderada(primeiro, segundo) {
   return Number((soma / valores.length).toFixed(2));
 }
 
-async function pedir(caminho) {
-  const resposta = await fetch(`${BASE_URL}${caminho}`, {
-    headers: cabecalhos(),
-    signal: AbortSignal.timeout(15000)
-  });
-  const corpo = await resposta.json().catch(() => null);
-  if (!resposta.ok) {
-    const detalhe = corpo?.message || resposta.statusText || 'falha HTTP';
-    throw new Error(`API-Football ${resposta.status}: ${detalhe}`);
+function erroTransitorio(error) {
+  return /429|500|502|503|504|timeout|fetch failed|ECONN|ETIMEDOUT/i.test(String(error?.message || error));
+}
+
+async function pedir(caminho, tentativa = 0) {
+  try {
+    const resposta = await fetch(`${BASE_URL}${caminho}`, {
+      headers: cabecalhos(),
+      signal: AbortSignal.timeout(15000)
+    });
+    const corpo = await resposta.json().catch(() => null);
+    if (!resposta.ok) {
+      const detalhe = corpo?.message || resposta.statusText || 'falha HTTP';
+      throw new Error(`API-Football ${resposta.status}: ${detalhe}`);
+    }
+    const erros = corpo?.errors;
+    const temErro = Array.isArray(erros) ? erros.length > 0 : erros && typeof erros === 'object' && Object.keys(erros).length > 0;
+    if (temErro) {
+      throw new Error(`API-Football: ${typeof erros === 'string' ? erros : JSON.stringify(erros)}`);
+    }
+    return corpo;
+  } catch (error) {
+    if (tentativa < 1 && erroTransitorio(error)) {
+      await new Promise((resolver) => setTimeout(resolver, 400));
+      return pedir(caminho, tentativa + 1);
+    }
+    throw error;
   }
-  const erros = corpo?.errors;
-  const temErro = Array.isArray(erros) ? erros.length > 0 : erros && typeof erros === 'object' && Object.keys(erros).length > 0;
-  if (temErro) {
-    throw new Error(`API-Football: ${typeof erros === 'string' ? erros : JSON.stringify(erros)}`);
-  }
-  return corpo;
 }
 
 async function buscarIdEquipa(nomeEquipa) {
@@ -169,16 +181,21 @@ function percentual(parte, total) {
   return Number(((parte / total) * 100).toFixed(1));
 }
 
-async function obterClassificacao(leagueId, season, teamId) {
-  const league = Number(leagueId);
-  const ano = Number(season);
-  const team = Number(teamId);
-  if (!Number.isFinite(league) || !Number.isFinite(ano) || !Number.isFinite(team)) return null;
+const tabelaEmVoo = new Map();
 
-  const dados = await pedir(`/standings?league=${league}&season=${ano}`);
+async function carregarTabela(league, ano) {
+  const chave = `${league}:${ano}`;
+  if (!tabelaEmVoo.has(chave)) {
+    const tarefa = pedir(`/standings?league=${league}&season=${ano}`)
+      .finally(() => tabelaEmVoo.delete(chave));
+    tabelaEmVoo.set(chave, tarefa);
+  }
+  const dados = await tabelaEmVoo.get(chave);
   const grupos = dados?.response?.[0]?.league?.standings;
-  const linhas = Array.isArray(grupos) ? grupos.flat() : [];
-  const linha = linhas.find((item) => Number(item?.team?.id) === team);
+  return Array.isArray(grupos) ? grupos.flat() : [];
+}
+
+function formatarClassificacao(linha) {
   if (!linha) return null;
   const forma = String(linha.form || '').replace(/\s+/g, '');
   return {
@@ -188,6 +205,17 @@ async function obterClassificacao(leagueId, season, teamId) {
     saldoGols: numero(linha.goalsDiff),
     forma: forma.slice(-5)
   };
+}
+
+async function obterClassificacao(leagueId, season, teamId) {
+  const league = Number(leagueId);
+  const ano = Number(season);
+  const team = Number(teamId);
+  if (!Number.isFinite(league) || !Number.isFinite(ano) || !Number.isFinite(team)) return null;
+
+  const linhas = await carregarTabela(league, ano);
+  const linha = linhas.find((item) => Number(item?.team?.id) === team);
+  return formatarClassificacao(linha);
 }
 
 async function obterH2H(mandanteId, visitanteId, limite = 5) {

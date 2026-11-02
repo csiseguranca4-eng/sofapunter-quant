@@ -4,6 +4,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 import { fetch1WinMatchOdds } from './1win-client.js';
 
 const require = createRequire(import.meta.url);
@@ -611,7 +612,7 @@ function oddNaLinha(allMarkets, teste, linha, over) {
 function oddsCantosECartoes(allMarkets) {
   const mapa = {};
   const cantos = /escanteio|corner|canto/i;
-  const cartoes = /cart[aã]o|card|amarelo|yellow/i;
+  const cartoes = /cart(?:ao|ão|oes|ões)|card|amarelo|yellow/i;
   [[8.5, 'Cantos'], [9.5, 'Cantos'], [10.5, 'Cantos']].forEach(([linha]) => {
     const over = oddNaLinha(allMarkets, cantos, linha, true);
     const under = oddNaLinha(allMarkets, cantos, linha, false);
@@ -627,10 +628,9 @@ function oddsCantosECartoes(allMarkets) {
   return mapa;
 }
 
-function linhaTabela(nome, linha) {
+function linhaTabela(linha) {
   if (!linha) return null;
   return {
-    nome,
     pos: linha.posicao,
     pts: linha.pontos,
     sg: linha.saldoGols,
@@ -652,8 +652,14 @@ async function montarContextoFootball({ ids, confrontoReal, lambda, mu, allMarke
   const leagueId = confrontoReal?.mandante?.leagueId;
   const season = confrontoReal?.mandante?.season;
   const [classCasa, classFora, h2h, ultCasa, ultFora] = await Promise.all([
-    leagueId ? obterClassificacao(leagueId, season, ids.idMandante).catch(() => null) : null,
-    leagueId ? obterClassificacao(leagueId, season, ids.idVisitante).catch(() => null) : null,
+    leagueId ? obterClassificacao(leagueId, season, ids.idMandante).catch((erro) => {
+      console.log('Aviso API-Football: classificação do mandante indisponível.', erro.message);
+      return null;
+    }) : null,
+    leagueId ? obterClassificacao(leagueId, season, ids.idVisitante).catch((erro) => {
+      console.log('Aviso API-Football: classificação do visitante indisponível.', erro.message);
+      return null;
+    }) : null,
     obterH2H(ids.idMandante, ids.idVisitante, 5).catch(() => []),
     obterUltimosJogos(ids.idMandante, 10).catch(() => null),
     obterUltimosJogos(ids.idVisitante, 10).catch(() => null)
@@ -670,8 +676,8 @@ async function montarContextoFootball({ ids, confrontoReal, lambda, mu, allMarke
 
   return {
     tabela: {
-      mandante: linhaTabela(null, classCasa),
-      visitante: linhaTabela(null, classFora)
+      mandante: linhaTabela(classCasa),
+      visitante: linhaTabela(classFora)
     },
     h2h: Array.isArray(h2h) ? h2h : [],
     ultimos10: {
@@ -1212,6 +1218,13 @@ app.post('/api/telegram/send-daily-recap', async (req, res) => {
 // =========================================================================
 // INICIALIZAÇÃO DO SERVIDOR NA PORTA 3001
 // =========================================================================
-app.listen(PORT, () => {
-  console.log(`✅ SofaPunter Motor 1WIN ativo em http://localhost:${PORT}`);
-});
+const executadoDiretamente = process.argv[1]
+  && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+
+if (executadoDiretamente) {
+  app.listen(PORT, () => {
+    console.log(`✅ SofaPunter Motor 1WIN ativo em http://localhost:${PORT}`);
+  });
+}
+
+export { montarBlocoQuant };
