@@ -3,7 +3,12 @@ import cors from 'cors';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import { fetch1WinMatchOdds } from './1win-client.js';
+
+const require = createRequire(import.meta.url);
+const { analisarOportunidadesQuant } = require('./services/quantEngine.js');
+const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
 const app = express();
 app.use(cors());
@@ -436,6 +441,258 @@ Responda apenas com o texto do scout, sem título, sem markdown e sem aspas.
   return buildDynamicTacticalReading(homeTeam, awayTeam);
 }
 
+function normalizarNomeQuant(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function selecaoEhTime(selection, team) {
+  const nomeSelecao = normalizarNomeQuant(String(selection || '').replace(/\s+0(?:\.0)?$/, ''));
+  const nomeTime = normalizarNomeQuant(team);
+  if (!nomeSelecao || !nomeTime) return false;
+  if (nomeSelecao === nomeTime || nomeSelecao.startsWith(`${nomeTime} `)) return true;
+  const tokens = nomeTime.split(' ').filter((token) => token.length >= 4);
+  return tokens.length > 0 && tokens.every((token) => nomeSelecao.includes(token));
+}
+
+function ehMercadoResultado(market) {
+  const nome = normalizarNomeQuant(market);
+  if (!nome) return false;
+  if (/primeiro|segundo|1 tempo|2 tempo|intervalo|escanteio|cartao|canto|handicap|total|gols|ambas|ambos|dupla|hipotese|double|paridade|exato|placar/.test(nome)) {
+    return false;
+  }
+  if (/tempo regulamentar|resultado final|full time/.test(nome)) return true;
+  return /^(resultado|1x2|vencedor|match winner|resultado da partida)$/.test(nome);
+}
+
+function escolher1x2(rows, homeTeam, awayTeam) {
+  const porCodigo = {
+    casa: rows.find((row) => row.outcome === '1'),
+    empate: rows.find((row) => String(row.outcome || '').toUpperCase() === 'X'),
+    fora: rows.find((row) => row.outcome === '2')
+  };
+  if (porCodigo.casa && porCodigo.empate && porCodigo.fora) return porCodigo;
+  return {
+    casa: rows.find((row) => selecaoEhTime(row.selection, homeTeam)),
+    empate: rows.find((row) => /empate|draw/i.test(row.selection || '')),
+    fora: rows.find((row) => selecaoEhTime(row.selection, awayTeam))
+  };
+}
+
+function extrairOddsQuant(allMarkets, homeTeam, awayTeam) {
+  const odds = {};
+  const grupos = new Map();
+  allMarkets.forEach((item) => {
+    if (!grupos.has(item.market)) grupos.set(item.market, []);
+    grupos.get(item.market).push(item);
+  });
+
+  const candidatos = [...grupos.entries()]
+    .filter(([market]) => ehMercadoResultado(market))
+    .sort((a, b) => {
+      const prioridade = (nome) => (/tempo regulamentar|resultado final|full time/i.test(nome) ? 0 : 1);
+      return prioridade(a[0]) - prioridade(b[0]);
+    });
+
+  for (const [, rows] of candidatos) {
+    const escolhido = escolher1x2(rows, homeTeam, awayTeam);
+    const distintos = new Set([escolhido.casa, escolhido.empate, escolhido.fora]);
+    if (distintos.size === 3 && [...distintos].every((row) => row && row.odd > 1)) {
+      odds.casa = escolhido.casa.odd;
+      odds.empate = escolhido.empate.odd;
+      odds.fora = escolhido.fora.odd;
+      break;
+    }
+  }
+
+  const dnb = allMarkets.filter((item) => (
+    /handicap/i.test(item.market || '') &&
+    item.odd > 1 &&
+    (String(item.selection || '').trim().endsWith(' 0') || String(item.selection || '').includes(' 0.0'))
+  ));
+  dnb.forEach((row) => {
+    if (!odds.dnbMandante && selecaoEhTime(row.selection, homeTeam)) odds.dnbMandante = row.odd;
+    else if (!odds.dnbVisitante && selecaoEhTime(row.selection, awayTeam)) odds.dnbVisitante = row.odd;
+  });
+  dnb.forEach((row) => {
+    if (!odds.dnbMandante && row.outcome === '1') odds.dnbMandante = row.odd;
+    else if (!odds.dnbVisitante && row.outcome === '2') odds.dnbVisitante = row.odd;
+  });
+
+  const totais = allMarkets.filter((item) => item.market === 'Total' || /total de gol/i.test(item.market || ''));
+  const over25 = totais.find((item) => /acima de 2\.5|>\s*2\.5/i.test(item.selection || ''));
+  const under25 = totais.find((item) => /abaixo de 2\.5|<\s*2\.5/i.test(item.selection || ''));
+  if (over25?.odd > 1) odds.over25 = over25.odd;
+  if (under25?.odd > 1) odds.under25 = under25.odd;
+
+  const btts = allMarkets.filter((item) => /ambos os times|ambas as equipes|both teams/i.test(item.market || ''));
+  const bttsSim = btts.find((item) => /sim|^yes$/i.test(item.selection || '') || item.outcome === '1');
+  if (bttsSim?.odd > 1) odds.bttsSim = bttsSim.odd;
+
+  return odds;
+}
+
+function probabilidadePoissonAte(media, limite) {
+  let termo = Math.exp(-media);
+  let soma = termo;
+  for (let gols = 1; gols <= limite; gols += 1) {
+    termo *= media / gols;
+    soma += termo;
+  }
+  return soma;
+}
+
+function totalGolsPorOver25(probabilidadeOver) {
+  const alvo = Math.min(0.97, Math.max(0.03, probabilidadeOver));
+  let minimo = 0.3;
+  let maximo = 6;
+  for (let passo = 0; passo < 48; passo += 1) {
+    const meio = (minimo + maximo) / 2;
+    const chanceOver = 1 - probabilidadePoissonAte(meio, 2);
+    if (chanceOver < alvo) minimo = meio;
+    else maximo = meio;
+  }
+  return (minimo + maximo) / 2;
+}
+
+function estimarLambdaMu(odds) {
+  let pCasa = 0.46;
+  let pEmpate = 0.26;
+  let pFora = 0.28;
+  if (odds.casa > 1 && odds.empate > 1 && odds.fora > 1) {
+    const bruto = [1 / odds.casa, 1 / odds.empate, 1 / odds.fora];
+    const soma = bruto[0] + bruto[1] + bruto[2];
+    pCasa = bruto[0] / soma;
+    pEmpate = bruto[1] / soma;
+    pFora = bruto[2] / soma;
+  }
+
+  let total = null;
+  if (odds.over25 > 1) {
+    let pOver = 1 / odds.over25;
+    if (odds.under25 > 1) {
+      const pUnder = 1 / odds.under25;
+      pOver = pOver / (pOver + pUnder);
+    } else {
+      pOver = Math.min(0.92, Math.max(0.08, pOver / 1.06));
+    }
+    total = totalGolsPorOver25(pOver);
+  }
+  if (!(total > 0)) {
+    total = Math.min(4.2, Math.max(1.6, 3.15 - pEmpate * 2.1));
+  }
+
+  const peso = pCasa + pFora;
+  const lambda = Math.min(4.5, Math.max(0.2, peso > 0 ? total * (pCasa / peso) : total * 0.55));
+  const mu = Math.min(4.5, Math.max(0.2, peso > 0 ? total * (pFora / peso) : total * 0.45));
+  return {
+    lambda: Number(lambda.toFixed(2)),
+    mu: Number(mu.toFixed(2))
+  };
+}
+
+function linhaNumerica(selection) {
+  const encontrado = String(selection || '').replace(',', '.').match(/(\d+(?:\.\d+)?)/);
+  return encontrado ? Number(encontrado[1]) : null;
+}
+
+function expectativaDaLinha(allMarkets, testeMercado, minimo, maximo) {
+  const linhas = allMarkets.filter((item) => testeMercado.test(item.market || '') || testeMercado.test(item.selection || ''));
+  const overs = linhas.filter((item) => item.odd > 1 && /acima|over|>/i.test(item.selection || ''));
+  if (!overs.length) return null;
+  overs.sort((a, b) => Math.abs(a.odd - 1.9) - Math.abs(b.odd - 1.9));
+  const over = overs[0];
+  const linha = linhaNumerica(over.selection);
+  if (!(linha > 0)) return null;
+  const under = linhas.find((item) => (
+    item.odd > 1 &&
+    /abaixo|under|</i.test(item.selection || '') &&
+    linhaNumerica(item.selection) === linha
+  ));
+  let pOver = 1 / over.odd;
+  if (under) pOver = pOver / (pOver + (1 / under.odd));
+  else pOver = Math.min(0.92, Math.max(0.08, pOver / 1.05));
+  const expectativa = linha + (pOver - 0.5) * 3.2;
+  if (expectativa < minimo || expectativa > maximo) return null;
+  return expectativa;
+}
+
+function estimarEstatisticasRitmo(allMarkets, lambda, mu) {
+  const totalGols = lambda + mu;
+  const escanteios = expectativaDaLinha(allMarkets, /escanteio|corner/i, 7, 16)
+    ?? (7.2 + totalGols * 1.55);
+  const chutes = expectativaDaLinha(allMarkets, /chute.*alvo|shots on target|finalizac|remate/i, 6, 16)
+    ?? (4.2 + totalGols * 2.15);
+  const posse = Math.min(70, Math.max(28, 30 + totalGols * 7));
+  return {
+    escanteiosTotais: Number(escanteios.toFixed(1)),
+    chutesNoAlvo: Number(chutes.toFixed(1)),
+    posseTercoFinal: Number(posse.toFixed(1))
+  };
+}
+
+function parseTaticaQuant(raw) {
+  const fonte = String(raw || '').trim();
+  if (!fonte) return null;
+  const limpo = fonte.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const inicio = limpo.indexOf('{');
+  const fim = limpo.lastIndexOf('}');
+  if (inicio === -1 || fim <= inicio) return null;
+  const parsed = JSON.parse(limpo.slice(inicio, fim + 1));
+  const estilo = String(parsed?.estiloConfronto || '').trim().split(/\s+/).filter(Boolean).slice(0, 8).join(' ');
+  const validacao = String(parsed?.validacaoTatica || '').trim();
+  const resumo = String(parsed?.resumoVisual || '').split('\n')[0].trim().slice(0, 160);
+  const notaBruta = Number(parsed?.scoreConfianca);
+  const scoreConfianca = Number.isFinite(notaBruta)
+    ? Math.max(0, Math.min(100, Math.round(notaBruta)))
+    : null;
+  if (!estilo && !validacao && !resumo && scoreConfianca == null) return null;
+  return { estiloConfronto: estilo, validacaoTatica: validacao, scoreConfianca, resumoVisual: resumo };
+}
+
+async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justification }) {
+  const oddsBrutas = extrairOddsQuant(allMarkets, homeTeam, awayTeam);
+  const oddsCasa = {};
+  ['casa', 'empate', 'fora', 'dnbMandante', 'dnbVisitante', 'over25', 'bttsSim'].forEach((chave) => {
+    if (oddsBrutas[chave] > 1) oddsCasa[chave] = oddsBrutas[chave];
+  });
+  if (!Object.keys(oddsCasa).length) return null;
+
+  const { lambda, mu } = estimarLambdaMu(oddsBrutas);
+  const resultadoQuant = analisarOportunidadesQuant(lambda, mu, oddsCasa);
+  const estatisticas = estimarEstatisticasRitmo(allMarkets, lambda, mu);
+  const ritmo = calcularIndiceRitmo(estatisticas);
+
+  let tatica = null;
+  try {
+    const contexto = String(justification || '').trim();
+    const prompt = gerarPromptTaticoQuant({
+      mandante: homeTeam || 'Mandante',
+      visitante: awayTeam || 'Visitante',
+      liga: league || '',
+      estatisticas,
+      ritmo,
+      taticaMandante: /volume de ataque constante como mandante/i.test(contexto) ? '' : contexto
+    }, resultadoQuant);
+    tatica = parseTaticaQuant(await requestGeminiTacticalText(prompt, { json: true }));
+  } catch (error) {
+    console.error('⚠️ [QUANT] Leitura tática estruturada indisponível:', error?.message || error);
+  }
+
+  console.log(`📈 [QUANT] λ ${lambda} | μ ${mu} | +EV ${resultadoQuant.melhoresEntradas.length}`);
+  return {
+    melhoresEntradas: resultadoQuant.melhoresEntradas,
+    mercadosAuditados: resultadoQuant.mercados,
+    ritmo,
+    tatica
+  };
+}
+
 // =========================================================================
 // ROTA 2: AUDITORIA REAL VIA WEBSOCKET (FAVORITO + MERCADOS DE GOLS)
 // =========================================================================
@@ -569,13 +826,22 @@ app.post('/api/check-1win-match', async (req, res) => {
       });
     }
 
+    let quant = null;
+    try {
+      quant = await montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justification });
+    } catch (error) {
+      console.error('⚠️ [QUANT] Auditoria segue sem o motor:', error?.message || error);
+      quant = null;
+    }
+
     res.json({
       success: true,
       matchId,
       totalMarketsCaptured: allMarkets.length,
       markets: auditedMarkets,
       tacticalReading: tacticalReading || null,
-      aiScout: tacticalReading || null
+      aiScout: tacticalReading || null,
+      quant
     });
 
   } catch (error) {
