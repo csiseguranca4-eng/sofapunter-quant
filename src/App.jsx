@@ -45,6 +45,61 @@ function formatMarketName(rawName, teams = {}) {
   return original;
 }
 
+const CATEGORIAS_MONITORADAS = ['Over/Under Gols', 'Ambas Marcam', 'Cantos', 'Cartões', 'Handicap'];
+
+function categoriaMercado(nome, tipo) {
+  const texto = `${nome || ''} ${tipo || ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (/canto|escanteio|corner/.test(texto)) return 'Cantos';
+  if (/cartao|card/.test(texto)) return 'Cartões';
+  if (/ambas|ambos|btts/.test(texto)) return 'Ambas Marcam';
+  if (/handicap|empate anula|\bdnb\b/.test(texto)) return 'Handicap';
+  if (/gol|\bover\b|\bunder\b|acima de|abaixo de/.test(texto)) return 'Over/Under Gols';
+  return '';
+}
+
+function evPercentualLinha(linha) {
+  const texto = String(linha?.margemEV || '').trim().replace('%', '').replace(',', '.');
+  const daMargem = Number(texto);
+  if (Number.isFinite(daMargem)) return Number(daMargem.toFixed(1));
+  const bruto = Number(linha?.ev);
+  if (Number.isFinite(bruto)) return Number((bruto * 100).toFixed(1));
+  return 0;
+}
+
+function linhasOperacionaisQuant(quant, gameId) {
+  const blocos = [
+    ['Cantos', quant?.mercadosAdicionais?.cantos],
+    ['Cartões', quant?.mercadosAdicionais?.cartoes]
+  ];
+  const saida = [];
+  blocos.forEach(([categoria, bloco]) => {
+    (bloco?.linhas || []).forEach((linha) => {
+      const evPercent = evPercentualLinha(linha);
+      const odd1win = Number(linha?.oddCasa);
+      if (!(evPercent > 0) || !(odd1win > 1)) return;
+      const lado = /under/i.test(linha?.nome || '') ? 'Under' : 'Over';
+      const linhaNum = String(linha?.nome || '').match(/(\d+(?:\.\d+)?)/)?.[1] || '';
+      const slug = `${categoria}-${lado}-${linhaNum}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9.]+/g, '-');
+      saida.push({
+        id: `quant_${gameId}_${slug}`,
+        name: `${categoria}: ${lado} ${linhaNum}`.trim(),
+        marketType: categoria,
+        odd1win: Number(odd1win.toFixed(2)),
+        fairOdd: Number(linha?.oddJusta) > 1 ? Number(Number(linha.oddJusta).toFixed(2)) : 0,
+        evPercent,
+        isTopEV: evPercent > 8
+      });
+    });
+  });
+  return saida;
+}
+
 function entryNetProfit(bet) {
   const stake = Number(Number(bet?.stake).toFixed(2)) || 0;
   const odd = Number(bet?.odd) || 0;
@@ -162,7 +217,7 @@ function MercadoExtra({ titulo, bloco }) {
   const referencia = linhas.find((linha) => /Over/.test(linha.nome || '') && linha.oddJusta);
   return (
     <div className="rounded-lg border border-gray-700 bg-[#0d1117] p-2.5 flex-1 min-w-[180px]">
-      <div className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">{titulo}</div>
+      <div className="text-[10px] tracking-wide text-gray-400 font-bold">{titulo}</div>
       <div className="text-sm font-bold text-white mt-1">Média {Number(bloco.mediaEsperada).toFixed(1)}</div>
       {referencia && !valiosos.length && (
         <div className="text-[10px] text-gray-400 mt-1">
@@ -200,11 +255,11 @@ function DetalheQuantExtra({ quant, home, away }) {
       )}
       {h2h.length > 0 && (
         <details className="rounded-lg border border-gray-700 bg-[#0d1117] px-2.5 py-1.5">
-          <summary className="text-[11px] font-bold text-gray-200 cursor-pointer">Histórico Recente (H2H)</summary>
+          <summary className="text-[11px] font-bold text-gray-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">▶ Histórico Recente (H2H)</summary>
           <div className="mt-1.5 space-y-1">
             {h2h.map((jogo, indice) => (
               <div key={`${jogo.data}-${indice}`} className="text-[11px] text-gray-300">
-                {jogo.data}: {jogo.casa} {jogo.golsCasa}x{jogo.golsFora} {jogo.fora}
+                {jogo.data}: {jogo.casa} {jogo.golsCasa} x {jogo.golsFora} {jogo.fora}
               </div>
             ))}
           </div>
@@ -212,8 +267,8 @@ function DetalheQuantExtra({ quant, home, away }) {
       )}
       {temMercado && (
         <div className="flex flex-wrap gap-2">
-          <MercadoExtra titulo="Mercado de Escanteios" bloco={cantos} />
-          <MercadoExtra titulo="Mercado de Cartões" bloco={cartoes} />
+          <MercadoExtra titulo="MERCADO DE ESCANTEIOS" bloco={cantos} />
+          <MercadoExtra titulo={"MERCADO DE CART\u00d5ES"} bloco={cartoes} />
         </div>
       )}
     </div>
@@ -552,7 +607,7 @@ export default function App() {
       match: `${game.home} x ${game.away}`,
       league: game.league,
       market: formattedName,
-      marketType: market.marketType || 'Outro',
+      marketType: categoriaMercado(formattedName, market.marketType) || market.marketType || 'Outro',
       fairOdd: Number(market.fairOdd) || 0,
       evPercent: Number(market.evPercent) || 0,
       isTopPick: !!(market.isTopPick || market.isTopEV),
@@ -1064,6 +1119,65 @@ export default function App() {
     }).sort((a, b) => b.profit - a.profit);
   }, [sheetBets]);
 
+  const desempenhoPorMercado = useMemo(() => {
+    const mapa = Object.fromEntries(CATEGORIAS_MONITORADAS.map((categoria) => [categoria, {
+      categoria,
+      entradas: 0,
+      greens: 0,
+      reds: 0,
+      cashouts: 0,
+      pendentes: 0,
+      apostado: 0,
+      lucro: 0
+    }]));
+
+    sheetBets.forEach((aposta) => {
+      const tipo = String(aposta?.marketType || '');
+      const jogo = String(aposta?.match || '');
+      if (tipo === 'Múltipla' || jogo.startsWith('MÚLTIPLA')) return;
+      const categoria = categoriaMercado(aposta?.market, aposta?.marketType);
+      const linha = mapa[categoria];
+      if (!linha) return;
+      linha.entradas += 1;
+      const lucro = entryNetProfit(aposta);
+      if (aposta.status === 'GREEN') {
+        linha.greens += 1;
+        linha.apostado += Number(aposta.stake) || 0;
+        linha.lucro += lucro;
+      } else if (aposta.status === 'RED') {
+        linha.reds += 1;
+        linha.apostado += Number(aposta.stake) || 0;
+        linha.lucro += lucro;
+      } else if (aposta.status === 'CASHOUT') {
+        linha.cashouts += 1;
+        linha.apostado += Number(aposta.stake) || 0;
+        linha.lucro += lucro;
+      } else {
+        linha.pendentes += 1;
+      }
+    });
+
+    return CATEGORIAS_MONITORADAS.map((categoria) => {
+      const linha = mapa[categoria];
+      const decididos = linha.greens + linha.reds;
+      const winRate = decididos > 0 ? (linha.greens / decididos) * 100 : null;
+      const roi = linha.apostado > 0 ? (linha.lucro / linha.apostado) * 100 : null;
+      let viabilidade = { tom: 'cinza', texto: 'Amostra em andamento' };
+      if (linha.entradas < 30) viabilidade = { tom: 'amarelo', texto: 'Amostra Insuficiente' };
+      else if (linha.entradas >= 100 && roi != null && roi < 0) viabilidade = { tom: 'vermelho', texto: 'Descartar Mercado' };
+      else if (roi != null && roi > 0) viabilidade = { tom: 'verde', texto: 'Lucrativo' };
+      return {
+        ...linha,
+        lucro: Number(linha.lucro.toFixed(2)),
+        apostado: Number(linha.apostado.toFixed(2)),
+        winRate: winRate == null ? null : Number(winRate.toFixed(1)),
+        roi: roi == null ? null : Number(roi.toFixed(1)),
+        progresso: Math.min(100, (linha.entradas / 100) * 100),
+        viabilidade
+      };
+    });
+  }, [sheetBets]);
+
   return (
     <div className="min-h-screen bg-[#0d1117] text-gray-100 font-sans pb-12">
       <header className="border-b border-gray-800 bg-[#161b22] sticky top-0 z-50 px-4 py-3">
@@ -1156,7 +1270,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex border-b border-gray-800 mt-6 gap-6 text-sm font-semibold">
+        <div className="flex flex-wrap border-b border-gray-800 mt-6 gap-x-6 gap-y-2 text-sm font-semibold">
           <button 
             onClick={() => setActiveTab('opps')}
             className={`pb-2.5 transition ${activeTab === 'opps' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
@@ -1174,6 +1288,12 @@ export default function App() {
             className={`pb-2.5 transition ${activeTab === 'markets' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             📊 Mercados & Win Rate ({marketPerformance.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('desempenho')}
+            className={`pb-2.5 transition ${activeTab === 'desempenho' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            📊 Desempenho por Mercado
           </button>
         </div>
 
@@ -1202,7 +1322,6 @@ export default function App() {
                   </div>
 
                   <h3 className="font-bold text-lg text-white mb-1.5">{game.home} vs {game.away}</h3>
-                  <BarraClassificacao quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                   {loadingAI[game.id] ? (
                     <p className="text-xs text-purple-300 italic mb-4">Analisando com I.A...</p>
                   ) : (
@@ -1304,6 +1423,7 @@ export default function App() {
                     {onewinQuants[game.id] && (
                       <div className="mt-3 rounded-lg border border-[#00c853]/35 bg-[#122319] p-3">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-[#00c853] mb-2">SofaPunter Quant</div>
+                        <BarraClassificacao quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                         <div className="flex flex-wrap items-center gap-2">
                           {onewinQuants[game.id].ritmo && (
                             <span className="text-[11px] font-bold text-white bg-[#0d1117] border border-gray-700 px-2.5 py-1 rounded-full">
@@ -1349,10 +1469,10 @@ export default function App() {
                     )}
 
                     {/* Mercados Auditados na 1win */}
-                    {onewinAudits[game.id] && (
+                    {(onewinAudits[game.id] || linhasOperacionaisQuant(onewinQuants[game.id], game.id).length > 0) && (
                       <div className="mt-3 space-y-2 border-t border-gray-800 pt-3">
                         <div className="text-[11px] text-gray-400 font-semibold">Mercados Encontrados na 1win:</div>
-                        {onewinAudits[game.id].map(m => {
+                        {[...(onewinAudits[game.id] || []), ...linhasOperacionaisQuant(onewinQuants[game.id], game.id)].map(m => {
                           const stakeValue = customInputs[m.id]?.stake ?? recommendedStake;
                           return (
                           <div 
@@ -1812,6 +1932,61 @@ export default function App() {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'desempenho' && (
+          <div className="mt-5 space-y-3">
+            <div>
+              <h3 className="text-sm font-bold text-white">Desempenho por Mercado</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Amostra alvo de 100 apostas por categoria. A leitura agrega a planilha salva, sem regravar o histórico.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {desempenhoPorMercado.map((linha) => {
+                const tom = linha.viabilidade.tom === 'verde'
+                  ? 'bg-[#00c853]/15 text-[#00c853]'
+                  : linha.viabilidade.tom === 'vermelho'
+                    ? 'bg-red-500/15 text-red-400'
+                    : linha.viabilidade.tom === 'amarelo'
+                      ? 'bg-yellow-500/15 text-yellow-300'
+                      : 'bg-gray-800 text-gray-300';
+                const icone = linha.viabilidade.tom === 'verde' ? '🟢' : linha.viabilidade.tom === 'vermelho' ? '🔴' : linha.viabilidade.tom === 'amarelo' ? '🟡' : '⚪';
+                return (
+                  <div key={linha.categoria} className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-sm font-bold text-white">{linha.categoria}</div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${tom}`}>{icone} {linha.viabilidade.texto}</span>
+                    </div>
+                    <div className="text-[11px] text-gray-300 mt-2">{linha.entradas} / 100 apostas</div>
+                    <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mt-1.5">
+                      <div className="h-full bg-[#00c853]" style={{ width: `${linha.progresso}%` }} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-3 text-[11px]">
+                      <div>
+                        <div className="text-gray-500">Acerto</div>
+                        <div className="font-bold text-white">{linha.winRate == null ? '—' : `${linha.winRate}%`}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Líquido</div>
+                        <div className={`font-bold ${linha.lucro >= 0 ? 'text-[#00c853]' : 'text-red-400'}`}>{signedMoney(linha.lucro)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">ROI</div>
+                        <div className={`font-bold ${linha.roi == null ? 'text-gray-400' : linha.roi >= 0 ? 'text-[#00c853]' : 'text-red-400'}`}>
+                          {linha.roi == null ? '—' : `${linha.roi > 0 ? '+' : ''}${linha.roi.toFixed(1)}%`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-2">
+                      {linha.greens}G · {linha.reds}R · {linha.cashouts}C
+                      {linha.pendentes > 0 ? ` · ${linha.pendentes} pendentes` : ''}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

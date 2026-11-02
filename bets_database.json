@@ -1,6 +1,25 @@
 {
   "bets": [
     {
+      "id": "bet_1793624698938dh4",
+      "match": "Atalanta x Parma",
+      "league": "Futebol",
+      "market": "Ambos os Times Marcam: Sim",
+      "marketType": "Ambas Marcam",
+      "fairOdd": 1.54,
+      "evPercent": 8.4,
+      "isTopPick": true,
+      "odd": 1.67,
+      "stake": 5.32,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-02",
+      "timestamp": 1793624698939,
+      "gameLink": "https://1win.io/betting/match/sport/atalanta-vs-parma-42092866",
+      "tacticalReading": "A Atalanta deve impor um ritmo de pressão alta e transições rápidas contra um Parma que tende a se retrair, cenário que favorece o mercado de gols e o domínio dos mandantes desde o primeiro tempo. Com base na precificação da 1win, o maior valor (+EV 9%) reside no Over 2.5 gols, refletindo a expectativa de um jogo aberto onde a fragilidade defensiva do visitante deve ser punida pela intensidade ofensiva da Dea."
+    },
+    {
       "id": "bet_1793574515491u8h",
       "match": "MÚLTIPLA: Lanus x Atletico Gimnasia y Esgrima de Mendoza (Total de Gols: Acima de 1.5) + Independiente Medellín x Alianza FC Valledupar (Total de Gols: Acima de 1.5)",
       "league": "Múltipla",
