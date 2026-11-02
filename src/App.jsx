@@ -244,7 +244,6 @@ function DetalheQuantExtra({ quant, home, away }) {
   const cartoes = quant.mercadosAdicionais?.cartoes;
   const ultimos = quant.ultimos10;
   const temMercado = Number(cantos?.mediaEsperada) > 0 || Number(cartoes?.mediaEsperada) > 0;
-  if (!h2h.length && !temMercado && !ultimos?.mandante && !ultimos?.visitante) return null;
   return (
     <div className="mt-2.5 space-y-2">
       {(ultimos?.mandante || ultimos?.visitante) && (
@@ -253,18 +252,18 @@ function DetalheQuantExtra({ quant, home, away }) {
           {ultimos?.visitante && <div>Últimos 10 · {away}: Over 2.5 {ultimos.visitante.over25 ?? '—'}% · Ambas {ultimos.visitante.btts ?? '—'}%</div>}
         </div>
       )}
-      {h2h.length > 0 && (
-        <details className="rounded-lg border border-gray-700 bg-[#0d1117] px-2.5 py-1.5">
-          <summary className="text-[11px] font-bold text-gray-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">▶ Histórico Recente (H2H)</summary>
-          <div className="mt-1.5 space-y-1">
-            {h2h.map((jogo, indice) => (
-              <div key={`${jogo.data}-${indice}`} className="text-[11px] text-gray-300">
-                {jogo.data}: {jogo.casa} {jogo.golsCasa} x {jogo.golsFora} {jogo.fora}
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      <details className="rounded-lg border border-gray-700 bg-[#0d1117] px-2.5 py-1.5">
+        <summary className="text-[11px] font-bold text-gray-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">▶ Histórico Recente (H2H)</summary>
+        <div className="mt-1.5 space-y-1">
+          {h2h.length > 0 ? h2h.map((jogo, indice) => (
+            <div key={`${jogo.data}-${indice}`} className="text-[11px] text-gray-300">
+              {jogo.data}: {jogo.casa} {jogo.golsCasa} x {jogo.golsFora} {jogo.fora}
+            </div>
+          )) : (
+            <div className="text-[11px] text-gray-400">Nenhum confronto direto recente retornado pela API para este cruzamento.</div>
+          )}
+        </div>
+      </details>
       {temMercado && (
         <div className="flex flex-wrap gap-2">
           <MercadoExtra titulo="MERCADO DE ESCANTEIOS" bloco={cantos} />
