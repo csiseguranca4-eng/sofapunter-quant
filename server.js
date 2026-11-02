@@ -8,6 +8,7 @@ import { fetch1WinMatchOdds } from './1win-client.js';
 
 const require = createRequire(import.meta.url);
 const { analisarOportunidadesQuant } = require('./services/quantEngine.js');
+const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto } = require('./services/apiFootball.js');
 const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
 const app = express();
@@ -663,7 +664,35 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
   });
   if (!Object.keys(oddsCasa).length) return null;
 
-  const { lambda, mu } = estimarLambdaMu(oddsBrutas);
+  let lambda = null;
+  let mu = null;
+  let fonteDados = 'Sintético (Odds 1win)';
+
+  try {
+    const nomeMandanteRaspado = homeTeam;
+    const nomeVisitanteRaspado = awayTeam;
+    const idMandante = await buscarIdEquipa(nomeMandanteRaspado);
+    const idVisitante = await buscarIdEquipa(nomeVisitanteRaspado);
+
+    if (idMandante && idVisitante) {
+      const confrontoReal = await calcularMediasConfronto(idMandante, idVisitante);
+      if (confrontoReal && confrontoReal.lambdaReal && confrontoReal.muReal) {
+        lambda = confrontoReal.lambdaReal;
+        mu = confrontoReal.muReal;
+        fonteDados = 'API-Football (Histórico Real)';
+      }
+    }
+  } catch (errApi) {
+    console.log('Aviso API-Football: usando fallback de odds sintéticas.', errApi.message);
+  }
+
+  if (!(lambda > 0) || !(mu > 0)) {
+    const sintetico = estimarLambdaMu(oddsBrutas);
+    lambda = sintetico.lambda;
+    mu = sintetico.mu;
+    fonteDados = 'Sintético (Odds 1win)';
+  }
+
   const resultadoQuant = analisarOportunidadesQuant(lambda, mu, oddsCasa);
   const estatisticas = estimarEstatisticasRitmo(allMarkets, lambda, mu);
   const ritmo = calcularIndiceRitmo(estatisticas);
@@ -684,12 +713,13 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
     console.error('⚠️ [QUANT] Leitura tática estruturada indisponível:', error?.message || error);
   }
 
-  console.log(`📈 [QUANT] λ ${lambda} | μ ${mu} | +EV ${resultadoQuant.melhoresEntradas.length}`);
+  console.log(`📈 [QUANT] λ ${lambda} | μ ${mu} | ${fonteDados} | +EV ${resultadoQuant.melhoresEntradas.length}`);
   return {
     melhoresEntradas: resultadoQuant.melhoresEntradas,
     mercadosAuditados: resultadoQuant.mercados,
     ritmo,
-    tatica
+    tatica,
+    fonteDados
   };
 }
 

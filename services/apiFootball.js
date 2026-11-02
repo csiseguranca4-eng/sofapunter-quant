@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const BASE_URL = 'https://v3.football.api-sports.io';
-const CHAVE_RESERVA = 'f2f0dc8980b6f9d785e69183e046badf';
+const CHAVE_RESERVA = '6ae436cbf2752144b1c89b761207b84b';
 
 function carregarChave() {
   if (process.env.API_FOOTBALL_KEY) return process.env.API_FOOTBALL_KEY;
@@ -95,10 +95,12 @@ async function obterEstatisticasEquipa(teamId, leagueId, season) {
 
   const marcados = stats.goals?.for?.average || {};
   const sofridos = stats.goals?.against?.average || {};
+  const jogos = numero(stats.fixtures?.played?.total) || 0;
   return {
     teamId: team,
     leagueId: league,
     season: ano,
+    jogos,
     golosMarcadosCasa: numero(marcados.home),
     golosMarcadosFora: numero(marcados.away),
     golosSofridosCasa: numero(sofridos.home),
@@ -107,10 +109,112 @@ async function obterEstatisticasEquipa(teamId, leagueId, season) {
   };
 }
 
+const TEMPORADA_PRIORITARIA = [2026, 2025];
+
+function erroDeTemporada(error) {
+  return /season|plan|2022|2024|2025|2026/i.test(String(error?.message || ''));
+}
+
+function temporadaTemDados(stats) {
+  if (!stats) return false;
+  const medias = [
+    stats.golosMarcadosCasa,
+    stats.golosMarcadosFora,
+    stats.golosSofridosCasa,
+    stats.golosSofridosFora
+  ].filter((item) => Number.isFinite(item));
+  return stats.jogos >= 3 && medias.length >= 2;
+}
+
+async function ligasDoTime(teamId) {
+  try {
+    const dados = await pedir(`/leagues?team=${teamId}&current=true`);
+    const lista = Array.isArray(dados?.response) ? dados.response : [];
+    const emAndamento = lista.filter((item) => (item.seasons || []).some((temporada) => temporada.current));
+    if (emAndamento.length) return emAndamento;
+    if (lista.length) return lista;
+  } catch (error) {
+    if (!erroDeTemporada(error)) throw error;
+  }
+
+  for (const ano of TEMPORADA_PRIORITARIA) {
+    try {
+      const dados = await pedir(`/leagues?team=${teamId}&season=${ano}`);
+      const lista = Array.isArray(dados?.response) ? dados.response : [];
+      if (lista.length) return lista;
+    } catch (error) {
+      if (!erroDeTemporada(error)) throw error;
+    }
+  }
+  return [];
+}
+
+async function estatisticasNaTemporadaDisponivel(teamId, leagueId, season) {
+  const anoAtual = TEMPORADA_PRIORITARIA.includes(Number(season)) ? Number(season) : TEMPORADA_PRIORITARIA[0];
+  const anos = [anoAtual, anoAtual - 1];
+  let melhor = null;
+  let ultimoErro = null;
+
+  for (const ano of anos) {
+    try {
+      const stats = await obterEstatisticasEquipa(teamId, leagueId, ano);
+      if (temporadaTemDados(stats)) return stats;
+      if (!melhor || stats.jogos > melhor.jogos) melhor = stats;
+    } catch (error) {
+      ultimoErro = error;
+      if (!erroDeTemporada(error)) throw error;
+    }
+  }
+
+  if (melhor) return melhor;
+  throw ultimoErro || new Error('Estatísticas indisponíveis para a temporada.');
+}
+
+function escolherLiga(lista, preferidas) {
+  const pool = preferidas?.length ? preferidas : lista;
+  const liga = pool.find((item) => item?.league?.type === 'League') || pool[0];
+  const leagueId = Number(liga?.league?.id);
+  const temporadas = liga?.seasons || [];
+  const temporadaAtual = temporadas.find((item) => item.current && TEMPORADA_PRIORITARIA.includes(Number(item.year)))
+    || temporadas.find((item) => item.current)
+    || temporadas.find((item) => Number(item.year) === 2026)
+    || temporadas.find((item) => Number(item.year) === 2025)
+    || temporadas[0];
+  const season = Number(temporadaAtual?.year);
+  if (!Number.isFinite(leagueId) || !Number.isFinite(season)) return null;
+  return { leagueId, season };
+}
+
+async function resolverLigasConfronto(mandanteId, visitanteId, leagueId, season) {
+  const ligaInformada = Number(leagueId);
+  const temporadaInformada = Number(season);
+  if (Number.isFinite(ligaInformada) && Number.isFinite(temporadaInformada)) {
+    return {
+      mandante: { leagueId: ligaInformada, season: temporadaInformada },
+      visitante: { leagueId: ligaInformada, season: temporadaInformada }
+    };
+  }
+
+  const [ligasMandante, ligasVisitante] = await Promise.all([
+    ligasDoTime(mandanteId),
+    ligasDoTime(visitanteId)
+  ]);
+  const idsVisitante = new Set(ligasVisitante.map((item) => item?.league?.id));
+  const compartilhadas = ligasMandante.filter((item) => idsVisitante.has(item?.league?.id));
+  const comum = compartilhadas.length ? escolherLiga(ligasMandante, compartilhadas) : null;
+  if (comum) return { mandante: comum, visitante: comum };
+
+  const casa = escolherLiga(ligasMandante);
+  const fora = escolherLiga(ligasVisitante);
+  if (!casa || !fora) throw new Error('Nenhuma liga atual encontrada para o confronto.');
+  return { mandante: casa, visitante: fora };
+}
+
 async function calcularMediasConfronto(mandanteId, visitanteId, leagueId, season) {
+  const ligas = await resolverLigasConfronto(mandanteId, visitanteId, leagueId, season);
   const [mandante, visitante] = await Promise.all([
-    obterEstatisticasEquipa(mandanteId, leagueId, season),
-    obterEstatisticasEquipa(visitanteId, leagueId, season)
+    estatisticasNaTemporadaDisponivel(mandanteId, ligas.mandante.leagueId, ligas.mandante.season),
+    estatisticasNaTemporadaDisponivel(visitanteId, ligas.visitante.leagueId, ligas.visitante.season)
   ]);
 
   const lambdaReal = mediaPonderada(mandante.golosMarcadosCasa, visitante.golosSofridosFora);
