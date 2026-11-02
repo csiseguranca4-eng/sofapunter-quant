@@ -233,6 +233,15 @@ export default function App() {
     }
   });
 
+  const [onewinQuants, setOnewinQuants] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sp_onewin_quants');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const [loading1win, setLoading1win] = useState({});
   const [publishingTip, setPublishingTip] = useState({});
   const [publishedTip, setPublishedTip] = useState({});
@@ -282,9 +291,10 @@ export default function App() {
     localStorage.setItem('sp_opportunities', JSON.stringify(opportunities));
     localStorage.setItem('sp_onewin_links', JSON.stringify(onewinLinks));
     localStorage.setItem('sp_onewin_audits', JSON.stringify(onewinAudits));
+    localStorage.setItem('sp_onewin_quants', JSON.stringify(onewinQuants));
     localStorage.setItem('sp_custom_inputs', JSON.stringify(customInputs));
     localStorage.setItem('sp_active_shift', activeShift);
-  }, [opportunities, onewinLinks, onewinAudits, customInputs, activeShift, isDataLoaded]);
+  }, [opportunities, onewinLinks, onewinAudits, onewinQuants, customInputs, activeShift, isDataLoaded]);
 
   // Busca calibrada por região
   const handleFetchOpps = async (shift = 'europe') => {
@@ -414,6 +424,7 @@ export default function App() {
           });
           return next;
         });
+        setOnewinQuants(prev => ({ ...prev, [game.id]: data.quant || null }));
         const scout = String(data.tacticalReading || data.aiScout || '').trim();
         if (scout) {
           setOpportunities(prev => prev.map(g => (
@@ -978,7 +989,7 @@ export default function App() {
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="bg-[#00c853] text-black font-extrabold text-xs px-2 py-1 rounded">SINDICATO</span>
-            <span className="font-bold text-lg tracking-wide text-white">SofaPunter Pro</span>
+            <span className="font-bold text-lg tracking-wide text-white">SofaPunter Quant</span>
           </div>
           
           <div className="flex items-center gap-2">
@@ -1207,6 +1218,52 @@ export default function App() {
                         {loading1win[game.id] ? 'Auditando...' : '🔍 Auditar na 1win'}
                       </button>
                     </div>
+
+                    {onewinQuants[game.id] && (
+                      <div className="mt-3 rounded-lg border border-[#00c853]/35 bg-[#122319] p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#00c853] mb-2">SofaPunter Quant</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {onewinQuants[game.id].ritmo && (
+                            <span className="text-[11px] font-bold text-white bg-[#0d1117] border border-gray-700 px-2.5 py-1 rounded-full">
+                              {onewinQuants[game.id].ritmo.icone} {onewinQuants[game.id].ritmo.classificacao} ({Number(onewinQuants[game.id].ritmo.pontuacao).toFixed(1)} pts)
+                            </span>
+                          )}
+                          {onewinQuants[game.id].tatica?.scoreConfianca != null && (
+                            <span className="text-[11px] font-bold text-[#00c853] bg-[#0d1117] border border-[#00c853]/40 px-2.5 py-1 rounded-full">
+                              🎯 {onewinQuants[game.id].tatica.scoreConfianca}/100
+                            </span>
+                          )}
+                        </div>
+                        {onewinQuants[game.id].tatica?.resumoVisual && (
+                          <p className="text-sm font-semibold text-white mt-2 leading-snug">
+                            {onewinQuants[game.id].tatica.resumoVisual}
+                          </p>
+                        )}
+                        {Array.isArray(onewinQuants[game.id].melhoresEntradas) && onewinQuants[game.id].melhoresEntradas.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2.5">
+                            {onewinQuants[game.id].melhoresEntradas.map((entrada) => {
+                              const oddCasa = Number(entrada.oddCasa);
+                              const oddJusta = Number(entrada.oddJusta);
+                              const margem = String(entrada.margemEV || '').trim();
+                              return (
+                                <div
+                                  key={`${game.id}-${entrada.mercado}`}
+                                  className="rounded-lg border border-[#00c853]/45 bg-[#0d1117] px-2.5 py-1.5"
+                                >
+                                  <div className="text-[11px] font-bold text-[#00c853]">{entrada.nome || entrada.mercado}</div>
+                                  <div className="text-[10px] text-gray-300 mt-0.5">
+                                    1win: {Number.isFinite(oddCasa) ? oddCasa.toFixed(2) : '—'} | Justa: {Number.isFinite(oddJusta) ? oddJusta.toFixed(2) : '—'}
+                                  </div>
+                                  <div className="text-[10px] font-bold text-[#00c853] mt-0.5">
+                                    {margem}{margem.toUpperCase().includes('EV') ? '' : ' EV'}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Mercados Auditados na 1win */}
                     {onewinAudits[game.id] && (
