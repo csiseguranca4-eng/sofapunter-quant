@@ -279,6 +279,7 @@ export default function App() {
   const [activeShift, setActiveShift] = useState(() => {
     return localStorage.getItem('sp_active_shift') || 'europe';
   });
+  const [selectedLeague, setSelectedLeague] = useState('all');
 
   const [currentBankroll, setCurrentBankroll] = useState(335);
   const [sheetBets, setSheetBets] = useState([]);
@@ -435,10 +436,12 @@ export default function App() {
   const handleFetchOpps = async (shift = 'europe') => {
     setLoading(true);
     setActiveShift(shift);
+    setSelectedLeague('all');
     try {
       const res = await fetch(`http://localhost:3001/api/daily-opportunities?shift=${shift}`);
       const data = await res.json();
       if (data.success && data.games) {
+        localStorage.setItem('sp_opportunities', JSON.stringify(data.games));
         setOpportunities(data.games);
         const initialInputs = { ...customInputs };
         data.games.forEach(g => {
@@ -1177,6 +1180,10 @@ export default function App() {
     });
   }, [sheetBets]);
 
+  const displayedGames = selectedLeague === 'all'
+    ? opportunities
+    : opportunities.filter((game) => game.leagueGroup === selectedLeague);
+
   return (
     <div className="min-h-screen bg-[#0d1117] text-gray-100 font-sans pb-12">
       <header className="border-b border-gray-800 bg-[#161b22] sticky top-0 z-50 px-4 py-3">
@@ -1186,7 +1193,25 @@ export default function App() {
             <span className="font-bold text-lg tracking-wide text-white">SofaPunter Quant</span>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <select
+              value={selectedLeague}
+              onChange={(e) => setSelectedLeague(e.target.value)}
+              className="bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 py-2 outline-none"
+            >
+              <option value="all">Todas as Ligas</option>
+              <option value="uefa_cups">🏆 UEFA Champions / Europa League</option>
+              <option value="national_cups">🏆 Copas Nacionais</option>
+              <option value="premier_league">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</option>
+              <option value="laliga">🇪🇸 LaLiga / LaLiga 2</option>
+              <option value="serie_a">🇮🇹 Serie A</option>
+              <option value="ligue_1">🇫🇷 Ligue 1 (França)</option>
+              <option value="portugal">🇵🇹 Liga Portugal</option>
+              <option value="turkey">🇹🇷 Turquia (Süper Lig)</option>
+              <option value="greece">🇬🇷 Grécia (Super League)</option>
+              <option value="brazil">🇧🇷 Brasil</option>
+              <option value="argentina">🇦🇷 Argentina</option>
+            </select>
             <button 
               onClick={() => handleFetchOpps('europe')} 
               disabled={loading}
@@ -1274,7 +1299,7 @@ export default function App() {
             onClick={() => setActiveTab('opps')}
             className={`pb-2.5 transition ${activeTab === 'opps' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
-            Radar de Valor (+EV) ({opportunities.length})
+            Radar de Valor (+EV) ({displayedGames.length})
           </button>
           <button 
             onClick={() => setActiveTab('sheet')}
@@ -1303,8 +1328,12 @@ export default function App() {
               <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-400">
                 Selecione acima se deseja varrer os jogos da <strong>🇪🇺 Europa (Dia Todo)</strong> ou do <strong>🇧🇷 Brasil (Dia Todo)</strong>.
               </div>
+            ) : displayedGames.length === 0 ? (
+              <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-400">
+                Nenhum jogo desta liga na varredura atual.
+              </div>
             ) : (
-              opportunities.map(game => (
+              displayedGames.map(game => (
                 <div key={game.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
                   <div className="flex justify-between items-center text-xs text-gray-400 mb-1">
                     <span>{game.league} • {game.time}</span>
