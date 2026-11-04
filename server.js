@@ -1352,49 +1352,194 @@ function stakeDaEntrada(sugerida, ev, stakeBase) {
   return Number((teto * (0.55 + 0.45 * peso)).toFixed(2));
 }
 
-function pacoteOdds1win(allMarkets) {
-  return (allMarkets || [])
-    .filter((item) => item?.odd > 1 && /resultado|1x2|tempo regulamentar|dupla|hip[oó]tese|handicap|total|gol|ambos|ambas|escanteio|corner|cart/i.test(`${item.market} ${item.selection}`))
-    .slice(0, 40)
-    .map((item) => ({ mercado: item.market, selecao: item.selection, odd: item.odd }));
+function numeroPercentual(valor) {
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor > 1 ? valor : valor * 100;
+  const numero = Number(String(valor ?? '').replace('%', '').replace(',', '.').trim());
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function grupoDoId(id) {
+  if (id === 'casa' || id === 'empate' || id === 'fora') return '1X2';
+  if (String(id).startsWith('dupla')) return 'Dupla Chance';
+  if (/over|under/.test(id)) return 'Totais';
+  if (/btts/.test(id)) return 'Ambas';
+  return 'Resultado';
+}
+
+function catalogoDoAnalista(quant, allMarkets, home, away) {
+  const lista = [];
+  let matriz = null;
+  if (quant?.lambda > 0 && quant?.mu > 0) {
+    try { matriz = calcularOddsQuant(quant.lambda, quant.mu); } catch { matriz = null; }
+  }
+  (quant?.mercadosAuditados || []).forEach((linha) => {
+    const odd1win = Number(linha.oddCasa);
+    const oddJusta = Number(linha.oddJusta);
+    if (!(odd1win > 1) || !(oddJusta > 1)) return;
+    const ev = Number.isFinite(Number(linha.ev)) ? Number(linha.ev) : (odd1win / oddJusta) - 1;
+    lista.push({
+      id: linha.mercado,
+      tipo: nomeMercadoXeque(linha.mercado, linha.nome, home, away),
+      mercado: grupoDoId(linha.mercado),
+      odd1win: Number(odd1win.toFixed(2)),
+      oddJusta: Number(oddJusta.toFixed(2)),
+      edge: Number((ev * 100).toFixed(1))
+    });
+  });
+  if (matriz) {
+    const chances = {
+      '1X': matriz.matchOdds.casa.probabilidade + matriz.matchOdds.empate.probabilidade,
+      X2: matriz.matchOdds.empate.probabilidade + matriz.matchOdds.fora.probabilidade,
+      '12': matriz.matchOdds.casa.probabilidade + matriz.matchOdds.fora.probabilidade
+    };
+    (allMarkets || []).forEach((item) => {
+      const codigo = item.dupla || codigoDuplaChance(item.market, item.selection, item.outcome);
+      const chance = chances[codigo];
+      if (!codigo || !(chance > 0) || !(item.odd > 1)) return;
+      const id = codigo === '1X' ? 'dupla1X' : codigo === 'X2' ? 'duplaX2' : 'dupla12';
+      if (lista.some((linha) => linha.id === id)) return;
+      const oddJusta = Number((1 / chance).toFixed(2));
+      lista.push({
+        id,
+        tipo: nomeMercadoXeque(id, item.selection, home, away),
+        mercado: 'Dupla Chance',
+        odd1win: Number(Number(item.odd).toFixed(2)),
+        oddJusta,
+        edge: Number((((item.odd * chance) - 1) * 100).toFixed(1))
+      });
+    });
+  }
+  return { lista, matriz };
+}
+
+function probabilidadesDoAnalista(quant, matriz) {
+  const origem = quant?.probabilities || {};
+  const deMatriz = (valor) => (Number.isFinite(valor) ? Number((valor * 100).toFixed(1)) : null);
+  return {
+    home: numeroPercentual(origem.homeWin) ?? deMatriz(matriz?.matchOdds?.casa?.probabilidade),
+    draw: numeroPercentual(origem.draw) ?? deMatriz(matriz?.matchOdds?.empate?.probabilidade),
+    away: numeroPercentual(origem.awayWin) ?? deMatriz(matriz?.matchOdds?.fora?.probabilidade),
+    over25: numeroPercentual(origem.over25) ?? deMatriz(matriz?.gols?.over25?.probabilidade),
+    btts: numeroPercentual(origem.btts) ?? deMatriz(matriz?.btts?.sim?.probabilidade)
+  };
+}
+
+function idFavoritoObrigatorio(probs, odds) {
+  const casa = Number(odds?.casa);
+  const fora = Number(odds?.fora);
+  const curtoFora = fora > 1 && fora <= 1.8 && (!(casa > 1) || fora < casa);
+  const curtoCasa = casa > 1 && casa <= 1.8 && (!(fora > 1) || casa < fora);
+  if ((probs?.away || 0) >= 55 && (probs.away > probs.home) && !curtoCasa) return 'fora';
+  if ((probs?.home || 0) >= 55 && (probs.home >= probs.away) && !curtoFora) return 'casa';
+  if (curtoFora) return 'fora';
+  if (curtoCasa) return 'casa';
+  return null;
+}
+
+function acharNoCatalogo(item, catalogo) {
+  const id = String(item?.id || '').trim();
+  if (id) {
+    const porId = catalogo.find((linha) => linha.id === id);
+    if (porId) return porId;
+  }
+  const tipo = normalizarNomeQuant(item?.tipo || item?.name);
+  if (!tipo) return null;
+  return catalogo.find((linha) => normalizarNomeQuant(linha.tipo) === tipo) || null;
+}
+
+function montarAprovado(base, item, stakeBase) {
+  const tags = new Set(['FAVORITO', 'BASE MULTIPLA', 'GOLS', 'VALOR']);
+  const tagPedida = String(item?.tag || '').trim().toUpperCase();
+  let tag = tags.has(tagPedida) ? tagPedida : 'VALOR';
+  if (base.id === 'casa' || base.id === 'fora') {
+    if (tag === 'FAVORITO' || tag === 'BASE MULTIPLA' || tag === 'VALOR') tag = tag === 'VALOR' && base.edge > 0 ? 'VALOR' : tag;
+  }
+  if (base.id === 'over15' || base.id === 'over25' || base.id === 'bttsSim') tag = tag === 'VALOR' ? 'GOLS' : tag;
+  const aptoMultipla = item?.aptoMultipla === true || tag === 'FAVORITO' || tag === 'BASE MULTIPLA' || tag === 'GOLS';
+  const badge = tag === 'FAVORITO' ? 'FAVORITO' : base.edge > 0 ? '+EV' : tag;
+  return {
+    id: base.id,
+    tipo: base.tipo,
+    mercado: base.mercado,
+    odd1win: base.odd1win,
+    oddJusta: base.oddJusta,
+    edge: base.edge,
+    tag,
+    badge,
+    stakeSugerida: stakeDaEntrada(item?.stakeSugerida, base.edge / 100, stakeBase),
+    aptoMultipla
+  };
+}
+
+function decidirMercadosAprovados({ lido, catalogo, probs, odds, aberto, stakeBase }) {
+  const favoritoId = idFavoritoObrigatorio(probs, odds);
+  const bloqueados = new Set(aberto ? ['under15', 'under25'] : []);
+  const vistos = new Set();
+  const aprovados = [];
+  const acrescentar = (base, item) => {
+    if (!base || vistos.has(base.id) || bloqueados.has(base.id)) return;
+    vistos.add(base.id);
+    const pronto = montarAprovado(base, item, stakeBase);
+    if (base.id === favoritoId) {
+      pronto.tag = 'FAVORITO';
+      pronto.badge = 'FAVORITO';
+      pronto.aptoMultipla = true;
+    }
+    aprovados.push(pronto);
+  };
+  (Array.isArray(lido?.mercadosAprovados) ? lido.mercadosAprovados : []).forEach((item) => {
+    const tipo = normalizarNomeQuant(item?.tipo);
+    if (/cartao|1 tempo|2 tempo|antecipad/.test(tipo)) return;
+    acrescentar(acharNoCatalogo(item, catalogo), item);
+  });
+  const favorito = catalogo.find((linha) => linha.id === favoritoId);
+  if (favorito) acrescentar(favorito, { tag: 'FAVORITO', aptoMultipla: true });
+  if (aberto) {
+    ['over15', 'over25', 'bttsSim'].forEach((id) => {
+      const linha = catalogo.find((item) => item.id === id);
+      if (linha) acrescentar(linha, { tag: 'GOLS', aptoMultipla: true });
+    });
+  }
+  const peso = (linha) => {
+    if (linha.tag === 'FAVORITO') return 0;
+    if (linha.id === 'over15') return 1;
+    if (linha.id === 'over25') return 2;
+    if (linha.id === 'bttsSim') return 3;
+    if (linha.tag === 'BASE MULTIPLA') return 4;
+    return 5;
+  };
+  return aprovados.sort((a, b) => peso(a) - peso(b) || b.edge - a.edge);
 }
 
 async function executarXequeMate({ homeTeam, awayTeam, league, quant, allMarkets, stakeBase, link }) {
-  const candidatos = candidatosMatematicos(quant, allMarkets, homeTeam, awayTeam);
+  const { lista, matriz } = catalogoDoAnalista(quant, allMarkets, homeTeam, awayTeam);
+  const probs = probabilidadesDoAnalista(quant, matriz);
+  const aberto = (probs.over25 || 0) >= 50 || confrontoDeGols(matriz);
+  const catalogo = lista.filter((linha) => !(aberto && (linha.id === 'under15' || linha.id === 'under25')));
+  const tetoStake = Number(stakeBase) > 0 ? Number(stakeBase) : 5;
   const deepScan = {
     fonte: quant?.fonteDados || 'indisponível',
     lambda: quant?.lambda ?? null,
     mu: quant?.mu ?? null,
-    probabilidades: quant?.probabilities || null,
     classificacao: quant?.standings || null,
     h2h: (quant?.h2h || []).slice(0, 10),
-    perfil: quant?.perfilTimes || null,
-    cantos: quant?.mercadosAdicionais?.cantos?.mediaEsperada ?? quant?.statsProjection?.expectedCorners ?? null,
-    cartoes: quant?.mercadosAdicionais?.cartoes?.mediaEsperada ?? quant?.statsProjection?.expectedCards ?? null
+    perfil: quant?.perfilTimes || null
   };
-  const prompt = `Você é o analista do SofaPunter Quant. Feche o xeque-mate deste confronto em português do Brasil.
-1 = mandante, X = empate, 2 = visitante. A odd longa do azarão compara com a probabilidade do azarão, nunca com a do favorito.
-Use SOMENTE as linhas candidatas. Não invente mercado, odd ou edge.
-Nunca aprove +EV Top para a vitória, o handicap ou a dupla do azarão se o texto disser que o outro time é dominante.
-Se o diagnóstico apontar jogo de gols, priorize Over 1.5, Over 2.5 e Ambas Marcam quando essas linhas estiverem nas candidatas.
-A stake de cada linha fica entre 0 e ${Number(stakeBase) > 0 ? Number(stakeBase) : 5} reais, maior quando o edge for maior.
-Devolva apenas JSON neste formato:
-{"diagnostico_tatico":"2 ou 3 frases sobre momento, defesa, ataque e o confronto","mercados_ev":[{"id":"id da candidata","stake":0}],"mensagem_telegram":"texto com emojis, argumento tático, cotação e o link"}
-
+  const prompt = `Você é o Chief Betting Analyst do SofaPunter Quant. A decisão final de quais apostas aparecem no card é sua.
+Devolva apenas JSON, sem markdown, neste schema:
+{"resumoTatico":"string detalhando o momento e a leitura do jogo","probabilidades":{"home":0,"draw":0,"away":0,"over25":0,"btts":0},"mercadosAprovados":[{"id":"id do catálogo","tipo":"string","mercado":"string","odd1win":0,"oddJusta":0,"edge":0,"tag":"FAVORITO","badge":"FAVORITO","stakeSugerida":0,"aptoMultipla":true}],"mensagemTelegram":"texto curto com a leitura e o link"}
+Regras operacionais obrigatórias:
+a) REGRA DO FAVORITO: se um time tiver probabilidade >= 55%, aprove obrigatoriamente a vitória direta dele em mercadosAprovados com tag FAVORITO, badge FAVORITO e aptoMultipla true. Isso vale para odd 1.15, 1.25 ou 1.49. Nunca descarte o favorito por edge negativo.
+b) REGRA DE GOLS: se Over 2.5 >= 50% ou o jogo for aberto, aprove Over 1.5, Over 2.5 e Ambas Marcam: Sim com tag GOLS. É proibido aprovar Under 2.5 ou Abaixo de 2.5 nesse cenário, mesmo com cotação 3.36 a 3.50.
+c) DUPLA HIPÓTESE: aprove somente 1X, 12 e X2 do tempo regulamentar que estejam no catálogo. Ignore cartões, 1º tempo e 2º tempo.
+Copie id, odd1win, oddJusta e edge exatamente do catálogo. Não invente cotação. A stake fica entre 0 e ${tetoStake} reais.
+Probabilidades já calculadas, em percentual: ${JSON.stringify(probs)}
+Jogo aberto: ${aberto ? 'sim' : 'não'}
+Catálogo real da 1win: ${JSON.stringify(catalogo)}
 Confronto: ${homeTeam} vs ${awayTeam}
 Liga: ${league || 'não informada'}
 Link: ${link || 'não informado'}
-Deep scan API-Football: ${JSON.stringify(deepScan)}
-Odds reais 1win: ${JSON.stringify(pacoteOdds1win(allMarkets))}
-Candidatas com +EV real: ${JSON.stringify(candidatos.map((linha) => ({
-    id: linha.id,
-    nome: linha.nome,
-    linha: linha.linha,
-    odd_justa: Number(linha.oddJusta.toFixed(2)),
-    odd_1win: linha.odd1win,
-    edge: Number((linha.ev * 100).toFixed(1))
-  })))}
-Probabilidades teóricas: ${JSON.stringify(quant?.probabilities || {})}`;
+Deep scan: ${JSON.stringify(deepScan)}`;
 
   let lido = null;
   try {
@@ -1404,52 +1549,53 @@ Probabilidades teóricas: ${JSON.stringify(quant?.probabilities || {})}`;
     console.error('⚠️ [XEQUE-MATE] Gemini indisponível:', erro?.message || erro);
   }
 
-  const stakes = new Map();
-  (Array.isArray(lido?.mercados_ev) ? lido.mercados_ev : []).forEach((linha) => {
-    if (linha?.id) stakes.set(String(linha.id), linha.stake);
+  const aprovados = decidirMercadosAprovados({
+    lido,
+    catalogo,
+    probs,
+    odds: quant?.oddsMercado,
+    aberto,
+    stakeBase: tetoStake
   });
-  const diagnostico = String(lido?.diagnostico_tatico || '').trim()
-    || 'Deep scan concluído. As linhas abaixo têm a odd da 1win acima da odd justa do modelo.';
-  const mercado1x2 = probs1x2Mercado(quant?.oddsMercado);
-  const textoDiagnostico = normalizarNomeQuant(diagnostico);
-  const favoritoNome = mercado1x2 && mercado1x2.fora > mercado1x2.casa ? awayTeam : homeTeam;
-  const azaraoNome = favoritoNome === homeTeam ? awayTeam : homeTeam;
-  const favoritoDominante = textoDiagnostico.includes(normalizarNomeQuant(favoritoNome))
-    && /dominant|favorit|superior|ofensiv|marcando em todas/.test(textoDiagnostico);
-  const markets = candidatos.map((linha, index) => {
-    const evPercent = Number((linha.ev * 100).toFixed(1));
-    const linhaAzarao = /resultado|handicap 0|dupla hip[oó]tese/.test(normalizarNomeQuant(linha.nome))
-      && normalizarNomeQuant(linha.nome).includes(normalizarNomeQuant(azaraoNome));
-    const contradiz = favoritoDominante && linhaAzarao;
-    return {
-      id: `xeque_${linha.id}_${index}`,
-      chave: linha.id,
-      name: linha.nome,
-      marketType: /cantos|escanteio/i.test(linha.nome) ? 'Escanteios' : /cart/i.test(linha.nome) ? 'Cartões' : /dupla/i.test(linha.nome) ? 'Dupla Chance' : /handicap/i.test(linha.nome) ? 'Empate Anula (DNB)' : /total de gols/i.test(linha.nome) ? 'Gols' : /ambos/i.test(linha.nome) ? 'Ambos Marcam' : 'Resultado',
-      linha: linha.linha,
-      odd1win: Number(linha.odd1win.toFixed(2)),
-      fairOdd: Number(linha.oddJusta.toFixed(2)),
-      evPercent,
-      isTopEV: false,
-      tag: linha.tag || null,
-      contradiz,
-      stakeSugerida: contradiz ? 0 : stakeDaEntrada(stakes.get(linha.id), linha.ev, stakeBase)
-    };
-  }).filter((linha) => !linha.contradiz);
-  const topo = markets.find((linha) => linha.evPercent > 0 && podeSerTopo(linha.chave, mercado1x2, linha.odd1win));
-  if (topo) topo.isTopEV = true;
+  const resumo = String(lido?.resumoTatico || lido?.diagnostico_tatico || '').trim()
+    || 'Leitura pelas regras do analista: o favorito permanece no card e o Under fica de fora quando o jogo é aberto.';
+  const markets = aprovados.map((linha, index) => ({
+    id: `xeque_${linha.id}_${index}`,
+    chave: linha.id,
+    tipo: linha.tipo,
+    mercado: linha.mercado,
+    name: linha.tipo,
+    marketType: linha.mercado,
+    odd1win: linha.odd1win,
+    oddJusta: linha.oddJusta,
+    fairOdd: linha.oddJusta,
+    edge: linha.edge,
+    evPercent: linha.edge,
+    tag: linha.tag,
+    badge: linha.badge,
+    aptoMultipla: linha.aptoMultipla,
+    isTopEV: false,
+    stakeSugerida: linha.stakeSugerida
+  }));
   const mensagemModelo = [
     `⚽ ${homeTeam} vs ${awayTeam}`,
     league ? `🏆 ${league}` : '',
-    diagnostico,
-    ...markets.slice(0, 3).map((linha) => `🎯 ${linha.name} @ ${linha.odd1win} | justa ${linha.fairOdd} | +EV ${linha.evPercent}% | R$ ${linha.stakeSugerida}`),
+    resumo,
+    ...markets.slice(0, 4).map((linha) => `🎯 ${linha.tipo} @ ${linha.odd1win} | justa ${linha.oddJusta} | ${linha.tag}`),
     link ? `🔗 ${link}` : ''
   ].filter(Boolean).join('\n');
-  const mensagem = String(lido?.mensagem_telegram || '').trim() || mensagemModelo;
+  const mensagem = String(lido?.mensagemTelegram || lido?.mensagem_telegram || '').trim() || mensagemModelo;
   markets.forEach((linha) => {
     linha.mensagemTelegram = mensagem;
   });
-  return { diagnostico_tatico: diagnostico, mensagem_telegram: mensagem, markets };
+  console.log(`🧠 [ANALISTA] ${markets.length} mercados aprovados${aberto ? ' | jogo aberto' : ''}`);
+  return {
+    diagnostico_tatico: resumo,
+    mensagem_telegram: mensagem,
+    markets,
+    mercadosAprovados: markets,
+    probabilidades: probs
+  };
 }
 
 // =========================================================================
@@ -1502,6 +1648,12 @@ app.post('/api/check-1win-match', async (req, res) => {
       matchId,
       totalMarketsCaptured: allMarkets.length,
       markets: xeque.markets,
+      mercadosAprovados: xeque.mercadosAprovados,
+      auditoria: {
+        resumoTatico: xeque.diagnostico_tatico,
+        probabilidades: xeque.probabilidades,
+        mercadosAprovados: xeque.mercadosAprovados
+      },
       tacticalReading: xeque.diagnostico_tatico,
       mensagemTelegram: xeque.mensagem_telegram,
       aiScout: xeque.diagnostico_tatico,
@@ -1757,4 +1909,4 @@ if (executadoDiretamente) {
   });
 }
 
-export { montarBlocoQuant };
+export { montarBlocoQuant, decidirMercadosAprovados, idFavoritoObrigatorio };

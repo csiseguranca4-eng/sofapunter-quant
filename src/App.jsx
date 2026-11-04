@@ -10,7 +10,7 @@ function base1win() {
     .replace(/\/pt(?:\/betting)?$/i, '');
 }
 
-function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass }) {
+function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqueMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass }) {
   return (
     <div className="mt-2 space-y-2 min-w-0">
       <div className="grid grid-cols-2 gap-2">
@@ -39,7 +39,9 @@ function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, onTeleg
           className={`min-h-[42px] min-w-0 w-full font-bold text-xs px-2 rounded leading-tight ${
             naMultipla
               ? 'bg-amber-400 text-black'
-              : 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
+              : destaqueMultipla
+                ? 'bg-amber-400 text-black ring-2 ring-amber-200'
+                : 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
           }`}
         >
           {naMultipla ? 'Na múltipla' : '+ Múltipla'}
@@ -136,7 +138,7 @@ function linhasOperacionaisQuant(quant, gameId) {
     (bloco?.linhas || []).forEach((linha) => {
       const evPercent = evPercentualLinha(linha);
       const odd1win = Number(linha?.oddCasa);
-      if (!(evPercent > 0) || !(odd1win > 1)) return;
+      if (!(odd1win > 1)) return;
       const lado = /under/i.test(linha?.nome || '') ? 'Under' : 'Over';
       const linhaNum = String(linha?.nome || '').match(/(\d+(?:\.\d+)?)/)?.[1] || '';
       const slug = `${categoria}-${lado}-${linhaNum}`
@@ -704,17 +706,37 @@ export default function App() {
       } catch {
         data = null;
       }
-      if (!res.ok || !data?.success || !Array.isArray(data.markets)) {
+      const fonteAprovada = Array.isArray(data?.auditoria?.mercadosAprovados)
+        ? data.auditoria.mercadosAprovados
+        : Array.isArray(data?.mercadosAprovados)
+          ? data.mercadosAprovados
+          : data?.markets;
+      if (!res.ok || !data?.success || !Array.isArray(fonteAprovada)) {
         const aviso = data?.message || 'A auditoria não respondeu. O deep scan ficou só no console.';
         console.warn(aviso);
         setErroAuditoria(prev => ({ ...prev, [game.id]: aviso }));
         return;
       }
-      const leitura = String(data.tacticalReading || data.aiScout || '').trim();
-      setOnewinAudits(prev => ({ ...prev, [game.id]: data.markets }));
+      const aprovados = fonteAprovada.map((item, index) => {
+        const edge = Number(item?.edge ?? item?.evPercent);
+        return {
+          ...item,
+          id: item.id || `aprovado_${index}`,
+          name: item.tipo || item.name,
+          marketType: item.mercado || item.marketType || 'Resultado',
+          odd1win: Number(item.odd1win),
+          fairOdd: Number(item.oddJusta ?? item.fairOdd),
+          evPercent: Number.isFinite(edge) ? edge : 0,
+          tag: item.tag || null,
+          badge: item.badge || null,
+          aptoMultipla: item.aptoMultipla === true || item.tag === 'FAVORITO' || item.tag === 'BASE MULTIPLA'
+        };
+      });
+      const leitura = String(data.auditoria?.resumoTatico || data.tacticalReading || data.aiScout || '').trim();
+      setOnewinAudits(prev => ({ ...prev, [game.id]: aprovados }));
       setCustomInputs(prev => {
         const next = { ...prev };
-        data.markets.forEach((m) => {
+        aprovados.forEach((m) => {
           const stake = Number(m.stakeSugerida);
           next[m.id] = {
             stake: Number.isFinite(stake) && stake > 0 ? stake : recommendedStake,
@@ -737,7 +759,7 @@ export default function App() {
       )));
       setErroAuditoria(prev => ({
         ...prev,
-        [game.id]: data.markets.length ? '' : 'Nenhuma linha com vantagem matemática real (+EV) neste confronto.'
+        [game.id]: aprovados.length ? '' : 'A auditoria não devolveu mercados aprovados.'
       }));
     } catch (e) {
       console.warn('Erro ao conectar com a rota de auditoria 1win.', e?.message || e);
@@ -1646,10 +1668,10 @@ export default function App() {
                     )}
 
                     {/* Mercados Auditados na 1win */}
-                    {(onewinAudits[game.id] || linhasOperacionaisQuant(onewinQuants[game.id], game.id).length > 0) && (
+                    {((onewinAudits[game.id]?.length ? onewinAudits[game.id] : linhasOperacionaisQuant(onewinQuants[game.id], game.id)).length > 0) && (
                       <div className="mt-3 space-y-2 border-t border-gray-800 pt-3">
                         <div className="text-[11px] text-gray-400 font-semibold">Mercados Encontrados na 1win:</div>
-                        {[...(onewinAudits[game.id] || []), ...linhasOperacionaisQuant(onewinQuants[game.id], game.id)].map(m => {
+                        {(onewinAudits[game.id]?.length ? onewinAudits[game.id] : linhasOperacionaisQuant(onewinQuants[game.id], game.id)).map(m => {
                           const stakeValue = customInputs[m.id]?.stake ?? recommendedStake;
                           return (
                           <div 
@@ -1662,9 +1684,17 @@ export default function App() {
                           >
                             <div>
                               <div className="text-xs font-bold flex items-center gap-2 flex-wrap">
-                                <span>{formatMarketName(m.name, { home: game.home, away: game.away })}</span>
-                                {m.tag === 'FAVORITO' && <span className="bg-amber-400 text-black text-[9px] px-1.5 py-0.5 rounded font-extrabold">FAVORITO</span>}
-                                {m.evPercent > 0 && <span className="bg-[#00c853] text-black text-[9px] px-1.5 py-0.5 rounded font-extrabold">+EV</span>}
+                                <span>{formatMarketName(m.tipo || m.name, { home: game.home, away: game.away })}</span>
+                                {m.tag && (
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                                    m.tag === 'FAVORITO' || m.tag === 'BASE MULTIPLA'
+                                      ? 'bg-amber-400 text-black'
+                                      : m.tag === 'GOLS'
+                                        ? 'bg-emerald-500 text-black'
+                                        : 'bg-[#00c853] text-black'
+                                  }`}>{m.tag}</span>
+                                )}
+                                {m.badge === '+EV' && m.tag !== 'VALOR' && <span className="bg-[#00c853] text-black text-[9px] px-1.5 py-0.5 rounded font-extrabold">+EV</span>}
                                 {m.isTopEV && <span className="bg-blue-500 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold">+EV TOP</span>}
                               </div>
                               <div className="text-[10px] text-gray-400 mt-0.5">
@@ -1677,6 +1707,7 @@ export default function App() {
                               onSheet={() => handleAddToSheet(game, m, m.odd1win, linkDireto)}
                               onMultipla={() => toggleMultipla(game, m, m.odd1win, m.fairOdd)}
                               naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
+                              destaqueMultipla={m.aptoMultipla === true || m.tag === 'FAVORITO' || m.tag === 'BASE MULTIPLA'}
                               onTelegram={() => handlePublishTelegram(game, m, {
                                 odd: m.odd1win,
                                 stake: customInputs[m.id]?.stake ?? recommendedStake,
