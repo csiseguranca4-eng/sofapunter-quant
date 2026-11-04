@@ -329,7 +329,7 @@ app.get('/api/daily-opportunities', async (req, res) => {
         score: score,
         dnbProb: dnbProb,
         isBrazil: isBrazil,
-        justification: `Favorito: ${favTeam} (${(dnbProb * 100).toFixed(0)}% prob no DNB). Cole o link para auditar as odds oficiais da 1win.`,
+        justification: `Favorito: ${favTeam} (${(dnbProb * 100).toFixed(0)}% prob no DNB). Abra o jogo na 1win para conferir as odds oficiais.`,
         markets: [
           {
             id: `pre_${matchId}_dnb`,

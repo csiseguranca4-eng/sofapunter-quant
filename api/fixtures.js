@@ -105,7 +105,7 @@ function montarJogo(jogo) {
     score,
     dnbProb,
     isBrazil,
-    justification: `Favorito: ${favTeam} (${(dnbProb * 100).toFixed(0)}% prob no DNB). Cole o link para auditar as odds oficiais da 1win.`,
+    justification: `Favorito: ${favTeam} (${(dnbProb * 100).toFixed(0)}% prob no DNB). Abra o jogo na 1win para conferir as odds oficiais.`,
     markets: [
       {
         id: `pre_${fixtureId}_dnb`,

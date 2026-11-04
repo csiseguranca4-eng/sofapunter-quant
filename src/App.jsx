@@ -1,6 +1,59 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiUrl, urlVarredura } from './apiBase.js';
 
+function urlBusca1win(jogo) {
+  if (jogo?.url_1win) return jogo.url_1win;
+  const mandante = jogo?.home || jogo?.home_team || jogo?.timeCasa || '';
+  return `https://1win.pro/bets/search?query=${encodeURIComponent(mandante)}`;
+}
+
+function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass }) {
+  return (
+    <div className="mt-2 space-y-2 min-w-0">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="relative min-w-0">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-semibold">R$</span>
+          <input
+            type="number"
+            step="0.01"
+            value={stake}
+            onChange={(e) => onStake(e.target.value)}
+            className={`w-full min-h-[42px] border border-gray-700 text-white font-medium text-xs rounded pl-7 pr-2 outline-none ${inputClass}`}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onSheet}
+          className="min-h-[42px] min-w-0 w-full bg-[#1f2937] hover:bg-gray-700 text-gray-200 font-bold text-xs px-2 rounded leading-tight"
+        >
+          Enviar para Planilha
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onMultipla}
+          className={`min-h-[42px] min-w-0 w-full font-bold text-xs px-2 rounded leading-tight ${
+            naMultipla
+              ? 'bg-amber-400 text-black'
+              : 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
+          }`}
+        >
+          {naMultipla ? 'Na múltipla' : '+ Múltipla'}
+        </button>
+        <button
+          type="button"
+          onClick={onTelegram}
+          disabled={telegramDisabled}
+          className="min-h-[42px] min-w-0 w-full bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-60 text-white font-bold text-xs px-2 rounded leading-tight"
+        >
+          {telegramLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function formatSignedLine(raw) {
   const n = Number(String(raw).replace(',', '.'));
   if (!Number.isFinite(n)) return String(raw);
@@ -682,9 +735,9 @@ export default function App() {
 
   // Auditoria 1win
   const handleAudit1Win = async (game) => {
-    const linkOrId = onewinLinks[game.id] || '';
-    if (!linkOrId.trim()) {
-      alert('Cole o link do jogo na 1win ou digite o ID da partida!');
+    const linkOrId = onewinLinks[game.id] || urlBusca1win(game);
+    if (!String(linkOrId).trim()) {
+      console.warn('Auditoria 1win sem confronto para buscar.');
       return;
     }
 
@@ -722,10 +775,10 @@ export default function App() {
           )));
         }
       } else {
-        alert(data.message || 'Não foi possível obter as odds da 1win.');
+        console.warn(data.message || 'Não foi possível obter as odds da 1win.');
       }
     } catch (e) {
-      alert('Erro ao conectar com a rota de auditoria 1win.');
+      console.warn('Erro ao conectar com a rota de auditoria 1win.', e?.message || e);
     } finally {
       setLoading1win(prev => ({ ...prev, [game.id]: false }));
     }
@@ -1374,11 +1427,11 @@ export default function App() {
             <span className="font-bold text-lg tracking-wide text-white">SofaPunter Quant</span>
           </div>
           
-          <div className="w-full sm:w-auto max-w-full flex items-center gap-2 overflow-x-auto overscroll-x-contain touch-pan-x sm:flex-wrap sm:justify-end pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="w-full min-w-0 sm:flex-1 flex flex-col gap-2">
             <select
               value={selectedLeague}
               onChange={(e) => setSelectedLeague(e.target.value)}
-              className="shrink-0 min-h-[42px] bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 outline-none"
+              className="w-full min-w-0 min-h-[42px] bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 outline-none"
             >
               <option value="all">Todas as Ligas</option>
               <option value="uefa_cups">🏆 UEFA Champions / Europa League</option>
@@ -1393,11 +1446,12 @@ export default function App() {
               <option value="brazil">🇧🇷 Brasil</option>
               <option value="argentina">🇦🇷 Argentina</option>
             </select>
+            <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => handleFetchOpps('europe')} 
               disabled={loading}
-              className={`shrink-0 min-h-[42px] text-xs font-bold px-3 rounded-lg flex items-center gap-1.5 transition ${
+              className={`min-h-[42px] w-full text-xs font-bold px-3 rounded-lg flex items-center justify-center gap-1.5 transition ${
                 activeShift === 'europe' 
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
@@ -1410,7 +1464,7 @@ export default function App() {
               type="button"
               onClick={() => handleFetchOpps('brazil')} 
               disabled={loading}
-              className={`shrink-0 min-h-[42px] text-xs font-bold px-3 rounded-lg flex items-center gap-1.5 transition ${
+              className={`min-h-[42px] w-full text-xs font-bold px-3 rounded-lg flex items-center justify-center gap-1.5 transition ${
                 activeShift === 'brazil' 
                   ? 'bg-[#00c853] text-black shadow-lg shadow-[#00c853]/20' 
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
@@ -1418,18 +1472,7 @@ export default function App() {
             >
               🇧🇷 {loading && activeShift === 'brazil' ? 'Buscando...' : 'Brasil (Dia Todo)'}
             </button>
-            <a
-              href="https://1win.io/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 min-h-[42px] inline-flex items-center gap-1.5 text-xs font-bold px-3 rounded-lg bg-[#00c853] text-black hover:bg-[#00e05c]"
-            >
-              Abrir 1win
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h5v5M19 5l-9 9" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 13v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6" />
-              </svg>
-            </a>
+            </div>
           </div>
         </div>
       </header>
@@ -1536,11 +1579,13 @@ export default function App() {
                 Nenhum jogo desta liga na varredura atual.
               </div>
             ) : (
-              displayedGames.map(game => (
-                <div key={game.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
-                  <div className="flex justify-between items-center text-xs text-gray-400 mb-1">
-                    <span>{game.league} • {game.time}</span>
-                    <div className="flex items-center gap-2">
+              displayedGames.map(game => {
+                const url1win = urlBusca1win(game);
+                return (
+                <div key={game.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-4 min-w-0 overflow-hidden">
+                  <div className="flex flex-wrap justify-between items-center gap-2 text-xs text-gray-400 mb-1 min-w-0">
+                    <span className="min-w-0 break-words">{game.league} • {game.time}</span>
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => handleAnalyzeWithAI(game)}
                         disabled={loadingAI[game.id]}
@@ -1581,48 +1626,22 @@ export default function App() {
                             <div className="text-[10px] text-gray-400 mt-0.5">
                               Odd estimada: <strong className="text-white">{pick.oddEstimated}</strong>
                             </div>
-                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                              <div className="relative w-24 shrink-0">
-                                <span className="absolute left-2.5 top-1 text-xs text-gray-500 font-semibold">R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={stakeValue}
-                                  onChange={(e) => handleStakeChange(pick.id, e.target.value)}
-                                  className="w-full bg-[#0d1117] border border-gray-700 text-white font-medium text-xs rounded pl-7 pr-2 py-1 outline-none"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleAddToSheet(game, market, oddValue)}
-                                className="bg-[#1f2937] hover:bg-gray-700 text-gray-200 font-bold text-[11px] px-2.5 py-1 rounded transition whitespace-nowrap"
-                              >
-                                + Enviar para Planilha
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toggleMultipla(game, market, oddValue)}
-                                className={`font-bold text-[11px] px-2.5 py-1 rounded transition whitespace-nowrap ${
-                                  bilheteMultipla.some((item) => item.id === `${game.id}:${pick.id}`)
-                                    ? 'bg-amber-400 text-black'
-                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
-                                }`}
-                              >
-                                {bilheteMultipla.some((item) => item.id === `${game.id}:${pick.id}`) ? 'Na múltipla' : '+ Múltipla'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handlePublishTelegram(game, market, {
-                                  odd: oddValue,
-                                  stake: customInputs[pick.id]?.stake ?? recommendedStake,
-                                  tacticalReading: game.tacticalReading || ''
-                                })}
-                                disabled={!!publishingTip[pick.id]}
-                                className="bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-60 text-white font-bold text-[11px] px-2.5 py-1 rounded transition whitespace-nowrap"
-                              >
-                                {publishingTip[pick.id] ? 'Publicando...' : publishedTip[pick.id] ? '✅ Publicado!' : '📢 Publicar no Telegram'}
-                              </button>
-                            </div>
+                            <AcoesMercado
+                              stake={stakeValue}
+                              onStake={(valor) => handleStakeChange(pick.id, valor)}
+                              onSheet={() => handleAddToSheet(game, market, oddValue, url1win)}
+                              onMultipla={() => toggleMultipla(game, market, oddValue)}
+                              naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${pick.id}`)}
+                              onTelegram={() => handlePublishTelegram(game, market, {
+                                odd: oddValue,
+                                stake: customInputs[pick.id]?.stake ?? recommendedStake,
+                                directLink: url1win,
+                                tacticalReading: game.tacticalReading || ''
+                              })}
+                              telegramDisabled={!!publishingTip[pick.id]}
+                              telegramLabel={publishingTip[pick.id] ? 'Publicando...' : publishedTip[pick.id] ? 'Publicado' : 'Publicar no Telegram'}
+                              inputClass="bg-[#0d1117]"
+                            />
                           </div>
                         );
                       })}
@@ -1634,22 +1653,14 @@ export default function App() {
                     <div className="text-[11px] text-blue-400 font-bold mb-1 flex items-center gap-1.5">
                       <span>🎯 AUDITAR ESTE JOGO NA 1WIN (+EV):</span>
                     </div>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="Cole o link ou ID da 1win (ex: ...-41429096)"
-                        value={onewinLinks[game.id] || ''}
-                        onChange={(e) => setOnewinLinks({ ...onewinLinks, [game.id]: e.target.value })}
-                        className="flex-1 bg-[#161b22] border border-gray-700 text-xs text-white rounded px-3 py-1.5 outline-none focus:border-blue-400"
-                      />
-                      <button 
-                        onClick={() => handleAudit1Win(game)}
-                        disabled={loading1win[game.id]}
-                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded transition whitespace-nowrap"
-                      >
-                        {loading1win[game.id] ? 'Auditando...' : '🔍 Auditar na 1win'}
-                      </button>
-                    </div>
+                    <a
+                      href={url1win}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[42px] items-center text-sm font-bold text-blue-300 hover:text-white"
+                    >
+                      Abrir Jogo na 1win ↗
+                    </a>
 
                     {onewinQuants[game.id] && (
                       <div className="mt-3 rounded-lg border border-[#00c853]/35 bg-[#122319] p-3">
@@ -1726,48 +1737,22 @@ export default function App() {
                                 Odd 1win: <strong className="text-white">{m.odd1win}</strong> | Odd Justa: <strong className="text-gray-300">{m.fairOdd}</strong> | <span className={m.evPercent > 0 ? 'text-[#00c853] font-bold' : 'text-red-400 font-bold'}>+EV: {m.evPercent}%</span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                              <div className="relative w-24 shrink-0">
-                                <span className="absolute left-2.5 top-1 text-xs text-gray-500 font-semibold">R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={stakeValue}
-                                  onChange={(e) => handleStakeChange(m.id, e.target.value)}
-                                  className="w-full bg-[#0d1117] border border-gray-700 text-white font-medium text-xs rounded pl-7 pr-2 py-1 outline-none"
-                                />
-                              </div>
-                              <button 
-                                onClick={() => handleAddToSheet(game, m, m.odd1win, onewinLinks[game.id] || '')}
-                                className="bg-[#1f2937] hover:bg-gray-700 text-gray-200 font-bold text-[11px] px-2.5 py-1 rounded transition whitespace-nowrap"
-                              >
-                                + Enviar para Planilha
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toggleMultipla(game, m, m.odd1win, m.fairOdd)}
-                                className={`font-bold text-[11px] px-2.5 py-1 rounded transition whitespace-nowrap ${
-                                  bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)
-                                    ? 'bg-amber-400 text-black'
-                                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
-                                }`}
-                              >
-                                {bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`) ? 'Na múltipla' : '+ Múltipla'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handlePublishTelegram(game, m, {
-                                  odd: m.odd1win,
-                                  stake: customInputs[m.id]?.stake ?? recommendedStake,
-                                  directLink: onewinLinks[game.id] || '',
-                                  tacticalReading: game.tacticalReading || ''
-                                })}
-                                disabled={!!publishingTip[m.id]}
-                                className="bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-60 text-white font-bold text-[11px] px-2.5 py-1 rounded transition whitespace-nowrap"
-                              >
-                                {publishingTip[m.id] ? 'Publicando...' : publishedTip[m.id] ? '✅ Publicado!' : '📢 Publicar no Telegram'}
-                              </button>
-                            </div>
+                            <AcoesMercado
+                              stake={stakeValue}
+                              onStake={(valor) => handleStakeChange(m.id, valor)}
+                              onSheet={() => handleAddToSheet(game, m, m.odd1win, url1win)}
+                              onMultipla={() => toggleMultipla(game, m, m.odd1win, m.fairOdd)}
+                              naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
+                              onTelegram={() => handlePublishTelegram(game, m, {
+                                odd: m.odd1win,
+                                stake: customInputs[m.id]?.stake ?? recommendedStake,
+                                directLink: url1win,
+                                tacticalReading: game.tacticalReading || ''
+                              })}
+                              telegramDisabled={!!publishingTip[m.id]}
+                              telegramLabel={publishingTip[m.id] ? 'Publicando...' : publishedTip[m.id] ? 'Publicado' : 'Publicar no Telegram'}
+                              inputClass="bg-[#0d1117]"
+                            />
                           </div>
                           );
                         })}
@@ -1784,14 +1769,14 @@ export default function App() {
                       return (
                         <div 
                           key={m.id} 
-                          className={`rounded-lg p-3 transition ${
+                          className={`rounded-lg p-3 min-w-0 overflow-hidden transition ${
                             m.isTopPick 
                               ? 'bg-[#122319] border border-[#00c853]' 
                               : 'bg-[#0d1117] border border-gray-800'
                           }`}
                         >
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
+                          <div className="flex justify-between items-start gap-2 mb-2 min-w-0">
+                            <div className="min-w-0">
                               <div className="font-semibold text-xs text-gray-100 flex items-center gap-2">
                                 <span>{formatMarketName(m.name, { home: game.home, away: game.away })}</span>
                                 {m.tag && (
@@ -1808,62 +1793,37 @@ export default function App() {
                                 Odd Justa: <strong className="text-gray-200">{m.fairOdd}</strong> {m.evPercent > 0 && <span className="text-[#00c853] font-bold ml-1.5">+EV: +{m.evPercent}%</span>}
                               </div>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 shrink-0">
                               <span className="text-[10px] text-gray-400 font-bold">ODD:</span>
                               <input 
                                 type="number" 
                                 step="0.01"
                                 value={inputState.odd}
                                 onChange={(e) => handleOddChange(m.id, e.target.value)}
-                                className="w-14 bg-[#161b22] border border-gray-700 text-[#00c853] font-bold text-xs rounded px-1.5 py-1 text-center outline-none"
+                                className="w-16 max-w-full bg-[#161b22] border border-gray-700 text-[#00c853] font-bold text-xs rounded px-1.5 py-1 text-center outline-none"
                               />
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                              <span className="absolute left-2.5 top-1 text-xs text-gray-500 font-semibold">R$</span>
-                              <input 
-                                type="number"
-                                step="0.5"
-                                value={inputState.stake}
-                                onChange={(e) => handleStakeChange(m.id, e.target.value)}
-                                className="w-full bg-[#161b22] border border-gray-700 text-white font-medium text-xs rounded pl-7 pr-2 py-1 outline-none"
-                              />
-                            </div>
-                            <button 
-                              onClick={() => handleAddToSheet(game, m)}
-                              className="bg-[#1f2937] hover:bg-gray-700 text-gray-200 font-bold text-xs px-3 py-1 rounded transition"
-                            >
-                              ✚ Enviar para Planilha
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleMultipla(game, m, inputState.odd, m.fairOdd)}
-                              className={`font-bold text-xs px-3 py-1 rounded transition whitespace-nowrap ${
-                                bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)
-                                  ? 'bg-amber-400 text-black'
-                                  : 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
-                              }`}
-                            >
-                              {bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`) ? 'Na múltipla' : '+ Múltipla'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handlePublishTelegram(game, m)}
-                              disabled={!!publishingTip[m.id]}
-                              className="bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-60 text-white font-bold text-xs px-3 py-1 rounded transition whitespace-nowrap"
-                            >
-                              {publishingTip[m.id] ? 'Publicando...' : publishedTip[m.id] ? '✅ Publicado!' : '📢 Publicar no Telegram'}
-                            </button>
-                          </div>
+                          <AcoesMercado
+                            stake={inputState.stake}
+                            onStake={(valor) => handleStakeChange(m.id, valor)}
+                            onSheet={() => handleAddToSheet(game, m, null, url1win)}
+                            onMultipla={() => toggleMultipla(game, m, inputState.odd, m.fairOdd)}
+                            naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
+                            onTelegram={() => handlePublishTelegram(game, m, { directLink: url1win })}
+                            telegramDisabled={!!publishingTip[m.id]}
+                            telegramLabel={publishingTip[m.id] ? 'Publicando...' : publishedTip[m.id] ? 'Publicado' : 'Publicar no Telegram'}
+                            inputClass="bg-[#161b22]"
+                          />
                         </div>
                       );
                     })}
                   </div>
                   )}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
