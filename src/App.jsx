@@ -128,6 +128,24 @@ function evPercentualLinha(linha) {
   return 0;
 }
 
+function normalizarBusca(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function mercadoDaSugestao(texto, mercados) {
+  const alvo = normalizarBusca(texto);
+  if (!alvo) return null;
+  return (mercados || []).find((item) => {
+    const nome = normalizarBusca(item.tipo || item.name);
+    return nome && (nome === alvo || nome.includes(alvo) || alvo.includes(nome));
+  }) || null;
+}
+
 function linhasOperacionaisQuant(quant, gameId) {
   const blocos = [
     ['Cantos', quant?.mercadosAdicionais?.cantos],
@@ -582,6 +600,9 @@ export default function App() {
   });
 
   const [loading1win, setLoading1win] = useState({});
+  const [loadingIa, setLoadingIa] = useState({});
+  const [erroIa, setErroIa] = useState({});
+  const [analiseIa, setAnaliseIa] = useState({});
   const [publishingTip, setPublishingTip] = useState({});
   const [publishedTip, setPublishedTip] = useState({});
   const [recapPreview, setRecapPreview] = useState(null);
@@ -706,11 +727,7 @@ export default function App() {
       } catch {
         data = null;
       }
-      const fonteAprovada = Array.isArray(data?.auditoria?.mercadosAprovados)
-        ? data.auditoria.mercadosAprovados
-        : Array.isArray(data?.mercadosAprovados)
-          ? data.mercadosAprovados
-          : data?.markets;
+      const fonteAprovada = Array.isArray(data?.markets) ? data.markets : null;
       if (!res.ok || !data?.success || !Array.isArray(fonteAprovada)) {
         const aviso = data?.message || 'A auditoria não respondeu. O deep scan ficou só no console.';
         console.warn(aviso);
@@ -732,7 +749,6 @@ export default function App() {
           aptoMultipla: item.aptoMultipla === true || item.tag === 'FAVORITO' || item.tag === 'BASE MULTIPLA'
         };
       });
-      const leitura = String(data.auditoria?.resumoTatico || data.tacticalReading || data.aiScout || '').trim();
       setOnewinAudits(prev => ({ ...prev, [game.id]: aprovados }));
       setCustomInputs(prev => {
         const next = { ...prev };
@@ -751,21 +767,73 @@ export default function App() {
           ? {
               ...g,
               auditado: true,
-              tacticalReading: leitura || g.tacticalReading,
-              justification: leitura || g.justification,
-              mensagemTelegram: data.mensagemTelegram || ''
+              oddsCapturadas: Array.isArray(data.oddsCapturadas) ? data.oddsCapturadas : [],
+              apiData: data.apiData || null
             }
           : g
       )));
       setErroAuditoria(prev => ({
         ...prev,
-        [game.id]: aprovados.length ? '' : 'A auditoria não devolveu mercados aprovados.'
+        [game.id]: aprovados.length ? '' : 'A auditoria não devolveu odds da 1win.'
       }));
     } catch (e) {
       console.warn('Erro ao conectar com a rota de auditoria 1win.', e?.message || e);
       setErroAuditoria(prev => ({ ...prev, [game.id]: 'A auditoria não respondeu. O detalhe ficou no console.' }));
     } finally {
       setLoading1win(prev => ({ ...prev, [game.id]: false }));
+    }
+  };
+
+  const handleAnalisarIa = async (game) => {
+    const mercados = onewinAudits[game.id] || [];
+    const oddsCapturadas = Array.isArray(game.oddsCapturadas) && game.oddsCapturadas.length
+      ? game.oddsCapturadas
+      : mercados.map((item) => ({
+          tipo: item.tipo || item.name,
+          mercado: item.mercado || item.marketType,
+          odd1win: item.odd1win,
+          oddJusta: item.fairOdd,
+          edge: item.evPercent
+        }));
+    if (!oddsCapturadas.length) {
+      setErroIa(prev => ({ ...prev, [game.id]: 'Audite as odds da 1win antes de pedir a leitura da I.A.' }));
+      return;
+    }
+    setErroIa(prev => ({ ...prev, [game.id]: '' }));
+    setLoadingIa(prev => ({ ...prev, [game.id]: true }));
+    try {
+      const res = await fetch(apiUrl('/api/analisar-ia'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          homeTeam: game.home,
+          awayTeam: game.away,
+          league: game.league,
+          oddsCapturadas,
+          apiData: game.apiData || {
+            probabilities: onewinQuants[game.id]?.probabilities || null,
+            lambda: onewinQuants[game.id]?.lambda ?? null,
+            mu: onewinQuants[game.id]?.mu ?? null,
+            fonteDados: onewinQuants[game.id]?.fonteDados || null,
+            perfil: onewinQuants[game.id]?.perfilTimes || null,
+            standings: onewinQuants[game.id]?.standings || null,
+            h2h: onewinQuants[game.id]?.h2hList || []
+          }
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        const aviso = data?.message || 'A I.A. não respondeu.';
+        console.warn(aviso);
+        setErroIa(prev => ({ ...prev, [game.id]: aviso }));
+        return;
+      }
+      setAnaliseIa(prev => ({ ...prev, [game.id]: data }));
+    } catch (e) {
+      console.warn('Erro ao conectar com a análise da I.A.', e?.message || e);
+      setErroIa(prev => ({ ...prev, [game.id]: 'A I.A. não respondeu. O detalhe ficou no console.' }));
+    } finally {
+      setLoadingIa(prev => ({ ...prev, [game.id]: false }));
     }
   };
 
@@ -1576,7 +1644,7 @@ export default function App() {
 
                   <h3 className="font-bold text-lg text-white mb-1.5">{game.home} vs {game.away}</h3>
                   {loading1win[game.id] ? (
-                    <p className="text-xs text-blue-300 italic mb-4">Executando Deep Scan + Auditoria IA...</p>
+                    <p className="text-xs text-blue-300 italic mb-4">Executando Deep Scan das odds...</p>
                   ) : (
                     <p className="text-xs text-gray-300 italic mb-4">"{game.tacticalReading || game.justification}"</p>
                   )}
@@ -1601,6 +1669,14 @@ export default function App() {
                       >
                         {loading1win[game.id] ? 'Auditando...' : 'Auditar na 1win'}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAnalisarIa(game)}
+                        disabled={!!loadingIa[game.id] || !(onewinAudits[game.id]?.length)}
+                        className="min-h-[42px] w-full sm:w-auto shrink-0 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-bold text-xs px-3 rounded"
+                      >
+                        {loadingIa[game.id] ? 'Analisando...' : 'Analisar com I.A.'}
+                      </button>
                     </div>
                     <a
                       href={`${base1win()}/pt/betting`}
@@ -1611,10 +1687,52 @@ export default function App() {
                       Abrir 1win ↗
                     </a>
                     {loading1win[game.id] && (
-                      <p className="text-xs text-blue-300">Executando Deep Scan + Auditoria IA...</p>
+                      <p className="text-xs text-blue-300">Executando Deep Scan das odds...</p>
                     )}
                     {!!erroAuditoria[game.id] && !loading1win[game.id] && (
                       <p className="text-xs text-amber-300 mt-1">{erroAuditoria[game.id]}</p>
+                    )}
+                    {!!erroIa[game.id] && !loadingIa[game.id] && (
+                      <p className="text-xs text-amber-300 mt-1">{erroIa[game.id]}</p>
+                    )}
+                    {(loadingIa[game.id] || analiseIa[game.id]) && (
+                      <div className="mt-3 rounded-lg border border-purple-500/40 bg-purple-950/30 p-3">
+                        <div className="text-[11px] font-bold text-purple-200 mb-2">Recomendações do Gemini / I.A.</div>
+                        {loadingIa[game.id] ? (
+                          <p className="text-xs text-purple-200">Lendo o confronto...</p>
+                        ) : (
+                          <>
+                            {analiseIa[game.id].diagnostico && (
+                              <p className="text-sm text-white leading-snug">{analiseIa[game.id].diagnostico}</p>
+                            )}
+                            {analiseIa[game.id].alertaRisco && (
+                              <p className="text-xs text-amber-300 mt-2">Risco: {analiseIa[game.id].alertaRisco}</p>
+                            )}
+                            {[{ titulo: 'Múltipla', itens: analiseIa[game.id].sugestaoMultipla }, { titulo: 'Valor', itens: analiseIa[game.id].sugestaoValor }].map((bloco) => (
+                              Array.isArray(bloco.itens) && bloco.itens.length > 0 && (
+                                <div key={bloco.titulo} className="mt-3">
+                                  <div className="text-[10px] font-bold text-purple-300 mb-1.5">{bloco.titulo}</div>
+                                  <div className="space-y-2">
+                                    {bloco.itens.map((texto) => {
+                                      const mercado = mercadoDaSugestao(texto, onewinAudits[game.id]);
+                                      return (
+                                        <div key={`${bloco.titulo}-${texto}`} className="rounded-lg border border-purple-500/30 bg-[#0d1117] px-2.5 py-2">
+                                          <div className="text-xs font-bold text-white">{mercado?.tipo || mercado?.name || texto}</div>
+                                          {mercado && (
+                                            <div className="text-[10px] text-gray-300 mt-0.5">
+                                              Odd 1win: <strong className="text-white">{mercado.odd1win}</strong> | Odd Justa: <strong>{mercado.fairOdd}</strong>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            ))}
+                          </>
+                        )}
+                      </div>
                     )}
 
                     {onewinQuants[game.id] && (

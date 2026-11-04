@@ -1625,43 +1625,130 @@ app.post('/api/check-1win-match', async (req, res) => {
       quant = null;
     }
 
-    const link = /^https?:\/\//i.test(String(urlOrId || '')) ? String(urlOrId).trim() : '';
-    const xeque = await executarXequeMate({
-      homeTeam,
-      awayTeam,
-      league,
-      quant,
-      allMarkets,
-      stakeBase: Number(stakeBase),
-      link
-    });
-    if (quant && xeque.diagnostico_tatico) {
-      quant.tatica = {
-        ...(quant.tatica || {}),
-        resumoVisual: xeque.diagnostico_tatico.split('\n')[0].slice(0, 160),
-        validacaoTatica: xeque.diagnostico_tatico
-      };
-    }
+    const markets = montarMercadosOddsReais(quant, allMarkets, homeTeam, awayTeam);
+    const oddsCapturadas = markets.map((linha) => ({
+      tipo: linha.tipo,
+      mercado: linha.mercado,
+      odd1win: linha.odd1win,
+      oddJusta: linha.oddJusta,
+      edge: linha.edge
+    }));
+    const apiData = quant ? {
+      probabilities: quant.probabilities || null,
+      lambda: quant.lambda ?? null,
+      mu: quant.mu ?? null,
+      fonteDados: quant.fonteDados || null,
+      perfil: quant.perfilTimes || null,
+      standings: quant.standings || null,
+      h2h: quant.h2hList || []
+    } : null;
 
     res.json({
       success: true,
       matchId,
       totalMarketsCaptured: allMarkets.length,
-      markets: xeque.markets,
-      mercadosAprovados: xeque.mercadosAprovados,
-      auditoria: {
-        resumoTatico: xeque.diagnostico_tatico,
-        probabilidades: xeque.probabilidades,
-        mercadosAprovados: xeque.mercadosAprovados
-      },
-      tacticalReading: xeque.diagnostico_tatico,
-      mensagemTelegram: xeque.mensagem_telegram,
-      aiScout: xeque.diagnostico_tatico,
+      markets,
+      oddsCapturadas,
+      apiData,
       quant
     });
 
   } catch (error) {
     console.error('❌ Falha na auditoria:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+function montarMercadosOddsReais(quant, allMarkets, home, away) {
+  if (!quant) return [];
+  const { lista } = catalogoDoAnalista(quant, allMarkets, home, away);
+  const origem = new Map((quant.mercadosAuditados || []).map((linha) => [linha.mercado, linha]));
+  const markets = lista.map((linha, index) => {
+    const base = origem.get(linha.id);
+    return {
+      id: `odd_${linha.id}_${index}`,
+      chave: linha.id,
+      tipo: linha.tipo,
+      mercado: linha.mercado,
+      name: linha.tipo,
+      marketType: linha.mercado,
+      odd1win: linha.odd1win,
+      oddJusta: linha.oddJusta,
+      fairOdd: linha.oddJusta,
+      edge: linha.edge,
+      evPercent: linha.edge,
+      tag: base?.tag || null,
+      aptoMultipla: base?.tag === 'FAVORITO'
+    };
+  });
+  [['cantos', 'Escanteios'], ['cartoes', 'Cartões']].forEach(([chave, rotulo]) => {
+    (quant.mercadosAdicionais?.[chave]?.linhas || []).forEach((linha, index) => {
+      const odd1win = Number(linha.oddCasa);
+      const oddJusta = Number(linha.oddJusta);
+      if (!(odd1win > 1) || !(oddJusta > 1)) return;
+      const edge = Number.isFinite(Number(linha.ev))
+        ? Number((Number(linha.ev) * 100).toFixed(1))
+        : Number((((odd1win / oddJusta) - 1) * 100).toFixed(1));
+      markets.push({
+        id: `odd_${chave}_${index}`,
+        chave: `${chave}_${index}`,
+        tipo: linha.nome,
+        mercado: rotulo,
+        name: linha.nome,
+        marketType: rotulo,
+        odd1win: Number(odd1win.toFixed(2)),
+        oddJusta: Number(oddJusta.toFixed(2)),
+        fairOdd: Number(oddJusta.toFixed(2)),
+        edge,
+        evPercent: edge,
+        tag: null,
+        aptoMultipla: false
+      });
+    });
+  });
+  return markets;
+}
+
+function listaTextoIa(valor) {
+  const bruto = Array.isArray(valor) ? valor : valor ? [valor] : [];
+  return bruto
+    .map((item) => String(item || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+app.post('/api/analisar-ia', async (req, res) => {
+  try {
+    const { homeTeam, awayTeam, league, oddsCapturadas, apiData } = req.body || {};
+    if (!homeTeam || !awayTeam) {
+      return res.status(400).json({ success: false, message: 'Informe os dois times para a análise.' });
+    }
+    const capturadas = Array.isArray(oddsCapturadas) ? oddsCapturadas.slice(0, 40) : [];
+    if (!capturadas.length) {
+      return res.status(400).json({ success: false, message: 'Audite as odds da 1win antes de pedir a leitura da I.A.' });
+    }
+
+    const prompt = `Você é o analista do SofaPunter Quant. Leia o confronto e devolva apenas JSON, sem markdown, neste schema exato:
+{"diagnostico":"string","sugestaoMultipla":["mercado 1","mercado 2"],"sugestaoValor":["mercado com valor real"],"alertaRisco":"string"}
+Use somente nomes de mercado que existam em oddsCapturadas, copiando o campo tipo. Não invente odd. sugestaoMultipla são linhas para um bilhete de base. sugestaoValor são linhas em que a odd da 1win supera a odd justa. alertaRisco aponta o principal risco do jogo em uma frase.
+Confronto: ${homeTeam} vs ${awayTeam}
+Liga: ${league || 'não informada'}
+Odds capturadas na 1win: ${JSON.stringify(capturadas)}
+Dados da API-Football: ${JSON.stringify(apiData || {})}`;
+
+    console.log(`\n🤖 [ANALISAR IA] ${homeTeam} vs ${awayTeam}`);
+    const texto = await requestGeminiTacticalText(prompt, { json: true, timeout: 45000 });
+    const lido = extrairJsonGemini(texto);
+    const diagnostico = String(lido?.diagnostico || '').trim();
+    const sugestaoMultipla = listaTextoIa(lido?.sugestaoMultipla);
+    const sugestaoValor = listaTextoIa(lido?.sugestaoValor);
+    const alertaRisco = String(lido?.alertaRisco || '').trim();
+    if (!diagnostico && !sugestaoMultipla.length && !sugestaoValor.length && !alertaRisco) {
+      return res.status(502).json({ success: false, message: 'A I.A. não devolveu o parecer.' });
+    }
+    res.json({ success: true, diagnostico, sugestaoMultipla, sugestaoValor, alertaRisco });
+  } catch (error) {
+    console.error('❌ Falha na análise da I.A.:', error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 });
