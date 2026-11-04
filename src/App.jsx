@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { apiUrl, urlVarredura } from './apiBase.js';
 
 function formatSignedLine(raw) {
   const n = Number(String(raw).replace(',', '.'));
@@ -432,7 +433,7 @@ export default function App() {
   useEffect(() => {
     const loadFromDisk = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/saved-data');
+        const res = await fetch(apiUrl('/api/saved-data'));
         const data = await res.json();
         if (data.success) {
           if (Array.isArray(data.bets)) setSheetBets(data.bets);
@@ -456,7 +457,7 @@ export default function App() {
     try {
       localStorage.setItem('sp_sheet_bets', JSON.stringify(newBets));
       localStorage.setItem('sp_current_bank', newBank.toString());
-      await fetch('http://localhost:3001/api/save-data', {
+      await fetch(apiUrl('/api/save-data'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bets: newBets, bankroll: newBank })
@@ -491,6 +492,7 @@ export default function App() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [erroVarredura, setErroVarredura] = useState('');
   const [loadingAI, setLoadingAI] = useState({});
 
   // Persistência para URLs e Mercados da 1win
@@ -580,30 +582,37 @@ export default function App() {
     setLoading(true);
     setActiveShift(shift);
     setSelectedLeague('all');
+    setErroVarredura('');
+    setActiveTab('opps');
     try {
-      const res = await fetch(`http://localhost:3001/api/daily-opportunities?shift=${shift}`);
-      const data = await res.json();
-      if (data.success && data.games) {
-        localStorage.setItem('sp_opportunities', JSON.stringify(data.games));
-        setOpportunities(data.games);
-        const initialInputs = { ...customInputs };
-        data.games.forEach(g => {
-          g.markets?.forEach(m => {
-            if (!initialInputs[m.id]) {
-              initialInputs[m.id] = {
-                stake: recommendedStake,
-                odd: m.defaultOdd
-              };
-            }
-          });
-        });
-        setCustomInputs(initialInputs);
-        setActiveTab('opps');
-      } else {
-        alert(data.message || 'Nenhum jogo retornado.');
+      const res = await fetch(urlVarredura(shift));
+      const texto = await res.text();
+      let data = null;
+      try {
+        data = JSON.parse(texto);
+      } catch {
+        data = null;
       }
-    } catch (err) {
-      alert('Certifique-se de que o backend (node server.js) está em execução na porta 3001.');
+      if (!res.ok || !data?.success || !Array.isArray(data.games)) {
+        setErroVarredura(data?.message || 'Não foi possível buscar os jogos do dia.');
+        return;
+      }
+      localStorage.setItem('sp_opportunities', JSON.stringify(data.games));
+      setOpportunities(data.games);
+      const initialInputs = { ...customInputs };
+      data.games.forEach(g => {
+        g.markets?.forEach(m => {
+          if (!initialInputs[m.id]) {
+            initialInputs[m.id] = {
+              stake: recommendedStake,
+              odd: m.defaultOdd
+            };
+          }
+        });
+      });
+      setCustomInputs(initialInputs);
+    } catch {
+      setErroVarredura('Não foi possível buscar os jogos do dia.');
     } finally {
       setLoading(false);
     }
@@ -613,7 +622,7 @@ export default function App() {
   const handleAnalyzeWithAI = async (game) => {
     setLoadingAI(prev => ({ ...prev, [game.id]: true }));
     try {
-      const res = await fetch('http://localhost:3001/api/ai-scout-analyze', {
+      const res = await fetch(apiUrl('/api/ai-scout-analyze'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -681,7 +690,7 @@ export default function App() {
 
     setLoading1win(prev => ({ ...prev, [game.id]: true }));
     try {
-      const res = await fetch('http://localhost:3001/api/check-1win-match', {
+      const res = await fetch(apiUrl('/api/check-1win-match'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -870,7 +879,7 @@ export default function App() {
     setPublishingTip(prev => ({ ...prev, [tipKey]: true }));
 
     try {
-      const res = await fetch('http://localhost:3001/api/publish-telegram-tip', {
+      const res = await fetch(apiUrl('/api/publish-telegram-tip'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -915,7 +924,7 @@ export default function App() {
   const sincronizarResultadoNuvem = (bet) => {
     if (!bet?.match || !bet?.market) return;
     const status = String(bet.status || '').toUpperCase();
-    fetch('http://localhost:3001/api/apostas-futebol/resultado', {
+    fetch(apiUrl('/api/apostas-futebol/resultado'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1226,7 +1235,7 @@ export default function App() {
     if (!recapPreview?.payload || sendingRecap) return;
     setSendingRecap(true);
     try {
-      const res = await fetch('http://localhost:3001/api/telegram/send-daily-recap', {
+      const res = await fetch(apiUrl('/api/telegram/send-daily-recap'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(recapPreview.payload)
@@ -1514,7 +1523,11 @@ export default function App() {
         {/* ABA 1: OPORTUNIDADES + AUDITORIA 1WIN */}
         {activeTab === 'opps' && (
           <div className="mt-5 space-y-5">
-            {opportunities.length === 0 ? (
+            {erroVarredura ? (
+              <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-300">
+                {erroVarredura}
+              </div>
+            ) : opportunities.length === 0 ? (
               <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-400">
                 Selecione acima se deseja varrer os jogos da <strong>🇪🇺 Europa (Dia Todo)</strong> ou do <strong>🇧🇷 Brasil (Dia Todo)</strong>.
               </div>
