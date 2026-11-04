@@ -7,4 +7,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    watch: {
+      ignored: ['**/bets_database.json', '**/carpina_monitor.json']
+    }
+  }
 })

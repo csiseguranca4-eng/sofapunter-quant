@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^2.31.0",
     "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.118.0",
     "@tailwindcss/vite": "^4.3.3",
     "axios": "^1.20.0",
     "canvas-confetti": "^1.9.4",

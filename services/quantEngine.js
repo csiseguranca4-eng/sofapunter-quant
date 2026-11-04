@@ -168,6 +168,24 @@ function calcularEV(oddCasa, probabilidadeModelo) {
   };
 }
 
+function percentualPoisson(probabilidade) {
+  const valor = Number(probabilidade);
+  if (!Number.isFinite(valor)) return '0.0%';
+  return `${(valor * 100).toFixed(1)}%`;
+}
+
+function probabilidadesPoisson(lambdaMandante, muVisitante) {
+  const modelo = calcularOddsQuant(lambdaMandante, muVisitante);
+  return {
+    homeWin: percentualPoisson(modelo.matchOdds.casa.probabilidade),
+    draw: percentualPoisson(modelo.matchOdds.empate.probabilidade),
+    awayWin: percentualPoisson(modelo.matchOdds.fora.probabilidade),
+    over15: percentualPoisson(modelo.gols.over15.probabilidade),
+    over25: percentualPoisson(modelo.gols.over25.probabilidade),
+    btts: percentualPoisson(modelo.btts.sim.probabilidade)
+  };
+}
+
 function analisarOportunidadesQuant(lambdaMandante, muVisitante, oddsMercado) {
   if (!oddsMercado || typeof oddsMercado !== 'object') {
     throw new Error('oddsMercado deve ser um objeto com as cotações da casa.');
@@ -326,7 +344,8 @@ module.exports = {
   calcularEV,
   analisarOportunidadesQuant,
   calibrarLambdasH2H,
-  montarMercadosAdicionais
+  montarMercadosAdicionais,
+  probabilidadesPoisson
 };
 
 if (require.main === module) {

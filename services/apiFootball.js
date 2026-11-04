@@ -183,6 +183,20 @@ function percentual(parte, total) {
 
 const tabelaEmVoo = new Map();
 
+function achatarStandings(valor) {
+  if (!valor) return [];
+  if (Array.isArray(valor)) {
+    return valor.flatMap((item) => {
+      if (Array.isArray(item)) return achatarStandings(item);
+      if (item && typeof item === 'object' && (item.team || item.rank != null)) return [item];
+      if (item && typeof item === 'object') return achatarStandings(item.standings || item.table || item.rows);
+      return [];
+    });
+  }
+  if (typeof valor === 'object') return achatarStandings(valor.standings || valor.table || valor.rows);
+  return [];
+}
+
 async function carregarTabela(league, ano) {
   const chave = `${league}:${ano}`;
   if (!tabelaEmVoo.has(chave)) {
@@ -191,8 +205,8 @@ async function carregarTabela(league, ano) {
     tabelaEmVoo.set(chave, tarefa);
   }
   const dados = await tabelaEmVoo.get(chave);
-  const grupos = dados?.response?.[0]?.league?.standings;
-  return Array.isArray(grupos) ? grupos.flat() : [];
+  const blocos = Array.isArray(dados?.response) ? dados.response : [];
+  return blocos.flatMap((bloco) => achatarStandings(bloco?.league?.standings));
 }
 
 function formatarClassificacao(linha) {
@@ -411,13 +425,64 @@ async function calcularMediasConfronto(mandanteId, visitanteId, leagueId, season
   return { lambdaReal, muReal, mandante, visitante };
 }
 
+function lerEstatistica(lista, nomes) {
+  const alvos = nomes.map((nome) => nome.toLowerCase());
+  const item = (lista || []).find((linha) => alvos.includes(String(linha?.type || '').toLowerCase()));
+  return numero(item?.value);
+}
+
+function blocoDoTime(statistics, teamId) {
+  const bloco = (statistics || []).find((item) => Number(item?.team?.id) === Number(teamId));
+  return Array.isArray(bloco?.statistics) ? bloco.statistics : [];
+}
+
+function resumirFixtureAoVivo(jogo) {
+  if (!jogo?.fixture?.id) return null;
+  const casaId = jogo.teams?.home?.id;
+  const foraId = jogo.teams?.away?.id;
+  const estatisticasCasa = blocoDoTime(jogo.statistics, casaId);
+  const estatisticasFora = blocoDoTime(jogo.statistics, foraId);
+  return {
+    fixtureId: Number(jogo.fixture.id),
+    status: [jogo.fixture.status?.short, jogo.fixture.status?.long].filter(Boolean).join(' '),
+    elapsed: numero(jogo.fixture.status?.elapsed),
+    kickoff: jogo.fixture.date || null,
+    home: jogo.teams?.home?.name || '',
+    away: jogo.teams?.away?.name || '',
+    golsCasa: numero(jogo.goals?.home),
+    golsFora: numero(jogo.goals?.away),
+    homeXg: lerEstatistica(estatisticasCasa, ['expected_goals', 'Expected Goals']),
+    awayXg: lerEstatistica(estatisticasFora, ['expected_goals', 'Expected Goals']),
+    homeShotsOnTarget: lerEstatistica(estatisticasCasa, ['Shots on Goal', 'Shots on Target']),
+    awayShotsOnTarget: lerEstatistica(estatisticasFora, ['Shots on Goal', 'Shots on Target'])
+  };
+}
+
+async function obterFixtureAoVivo(fixtureId) {
+  const id = Number(fixtureId);
+  if (!Number.isFinite(id)) return null;
+  const dados = await pedir(`/fixtures?id=${id}`);
+  const jogo = Array.isArray(dados?.response) ? dados.response[0] : null;
+  return resumirFixtureAoVivo(jogo);
+}
+
+async function listarFixturesDoDia(dataIso) {
+  const data = String(dataIso || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return [];
+  const dados = await pedir(`/fixtures?date=${data}&timezone=${encodeURIComponent('America/Sao_Paulo')}`);
+  const lista = Array.isArray(dados?.response) ? dados.response : [];
+  return lista.map(resumirFixtureAoVivo).filter(Boolean);
+}
+
 module.exports = {
   buscarIdEquipa,
   obterEstatisticasEquipa,
   calcularMediasConfronto,
   obterClassificacao,
   obterH2H,
-  obterUltimosJogos
+  obterUltimosJogos,
+  obterFixtureAoVivo,
+  listarFixturesDoDia
 };
 
 if (require.main === module) {

@@ -1,0 +1,29 @@
+{
+  "fixturesBloqueados": [
+    "1492446"
+  ],
+  "watches": {
+    "3": {
+      "betId": "bet_1793748181115xag",
+      "nuvemId": 3,
+      "match": "Internacional x Coritiba",
+      "fixtureId": 1492446,
+      "stake": 5,
+      "odd": 1.78,
+      "kickoff": "2026-11-03T21:30:00-03:00",
+      "feitos": [
+        46,
+        48,
+        55
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 45,
+        "status": "HT",
+        "em": 1793755765586
+      },
+      "motivo": "apos-65"
+    }
+  }
+}

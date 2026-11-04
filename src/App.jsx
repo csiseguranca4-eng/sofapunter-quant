@@ -200,6 +200,100 @@ function rotuloTabela(nome, linha) {
   return `${linha.pos}º ${nome}${pts}`;
 }
 
+function BadgeForma({ forma }) {
+  const letras = String(forma || '-----').slice(0, 5).padEnd(5, '-').split('');
+  return (
+    <span className="inline-flex gap-1">
+      {letras.map((letra, indice) => {
+        const codigo = String(letra || '').toUpperCase();
+        const rotulo = codigo === 'W' || codigo === 'V' ? 'V' : codigo === 'L' ? 'D' : codigo === 'D' || codigo === 'E' ? 'E' : '–';
+        const cor = rotulo === 'V'
+          ? 'bg-[#00c853] text-black'
+          : rotulo === 'D'
+            ? 'bg-red-500 text-white'
+            : 'bg-gray-600 text-gray-200';
+        return (
+          <span key={`${rotulo}-${indice}`} className={`w-4 h-4 rounded text-[9px] font-bold inline-flex items-center justify-center ${cor}`}>
+            {rotulo}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function GradeProbabilidades({ probabilities }) {
+  if (!probabilities) return null;
+  const itens = [
+    ['Casa', probabilities.homeWin],
+    ['Empate', probabilities.draw],
+    ['Fora', probabilities.awayWin],
+    ['Over 2.5', probabilities.over25],
+    ['BTTS', probabilities.btts]
+  ];
+  return (
+    <div className="flex flex-wrap gap-1.5 mb-2">
+      {itens.map(([nome, valor]) => (
+        <span key={nome} className="text-[10px] font-bold text-gray-100 bg-[#0d1117] border border-gray-700 rounded px-2 py-1">
+          {nome} {valor || '—'}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function standingsDoQuant(quant) {
+  if (quant?.standings?.home || quant?.standings?.away) return quant.standings;
+  const tabela = quant?.tabela;
+  if (!tabela?.mandante && !tabela?.visitante) return null;
+  const lado = (linha) => ({
+    rank: Number.isFinite(Number(linha?.pos)) ? Number(linha.pos) : '-',
+    points: Number.isFinite(Number(linha?.pts)) ? Number(linha.pts) : '-',
+    form: linha?.forma || '-----',
+    goalsDiff: Number.isFinite(Number(linha?.sg)) ? Number(linha.sg) : 0
+  });
+  return { home: lado(tabela?.mandante), away: lado(tabela?.visitante) };
+}
+
+function LadoClassificacao({ titulo, linha }) {
+  const temTabela = linha && linha.rank !== '-' && linha.rank != null && linha.points !== '-' && linha.points != null;
+  return (
+    <div className="flex-1 min-w-[150px] rounded-lg border border-gray-800 bg-[#0d1117] p-2">
+      <div className="text-[10px] text-gray-400 font-bold mb-1">{titulo}</div>
+      {temTabela && (
+        <div className="text-[11px] text-gray-200 mb-1">{linha.rank}º Lugar | {linha.points} pts</div>
+      )}
+      <BadgeForma forma={linha?.form} />
+    </div>
+  );
+}
+
+function BlocoClassificacaoMomento({ quant, home, away }) {
+  const standings = standingsDoQuant(quant);
+  if (!standings) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mb-2">
+      <LadoClassificacao titulo={home} linha={standings.home} />
+      <LadoClassificacao titulo={away} linha={standings.away} />
+    </div>
+  );
+}
+
+function ProjecaoEstatistica({ stats }) {
+  const cantos = Number(stats?.expectedCorners);
+  const cartoes = Number(stats?.expectedCards);
+  const temCantos = Number.isFinite(cantos);
+  const temCartoes = Number.isFinite(cartoes);
+  if (!temCantos && !temCartoes) return null;
+  return (
+    <div className="text-[11px] text-gray-200">
+      {temCantos && <span>⛳ Cantos Projetados: {cantos.toFixed(1)}</span>}
+      {temCantos && temCartoes && <span> | </span>}
+      {temCartoes && <span>🟨 Cartões Projetados: {cartoes.toFixed(1)}</span>}
+    </div>
+  );
+}
+
 function BarraClassificacao({ quant, home, away }) {
   const tabela = quant?.tabela;
   if (!tabela?.mandante && !tabela?.visitante) return null;
@@ -237,13 +331,31 @@ function MercadoExtra({ titulo, bloco }) {
   );
 }
 
+function jogosH2H(quant) {
+  if (Array.isArray(quant?.h2hList) && quant.h2hList.length) {
+    return quant.h2hList.map((jogo) => ({
+      chave: `${jogo.date}-${jogo.home}-${jogo.away}`,
+      texto: `${jogo.date}: ${jogo.home} ${jogo.score} ${jogo.away}`
+    }));
+  }
+  const legado = Array.isArray(quant?.h2h) ? quant.h2h : [];
+  return legado.map((jogo, indice) => ({
+    chave: `${jogo.data}-${indice}`,
+    texto: `${jogo.data}: ${jogo.casa} ${jogo.golsCasa} x ${jogo.golsFora} ${jogo.fora}`
+  }));
+}
+
 function DetalheQuantExtra({ quant, home, away }) {
   if (!quant) return null;
-  const h2h = Array.isArray(quant.h2h) ? quant.h2h : [];
+  const h2h = jogosH2H(quant);
   const cantos = quant.mercadosAdicionais?.cantos;
   const cartoes = quant.mercadosAdicionais?.cartoes;
   const ultimos = quant.ultimos10;
   const temMercado = Number(cantos?.mediaEsperada) > 0 || Number(cartoes?.mediaEsperada) > 0;
+  const projecao = quant.statsProjection || {
+    expectedCorners: cantos?.mediaEsperada,
+    expectedCards: cartoes?.mediaEsperada
+  };
   return (
     <div className="mt-2.5 space-y-2">
       {(ultimos?.mandante || ultimos?.visitante) && (
@@ -252,15 +364,16 @@ function DetalheQuantExtra({ quant, home, away }) {
           {ultimos?.visitante && <div>Últimos 10 · {away}: Over 2.5 {ultimos.visitante.over25 ?? '—'}% · Ambas {ultimos.visitante.btts ?? '—'}%</div>}
         </div>
       )}
-      <details className="rounded-lg border border-gray-700 bg-[#0d1117] px-2.5 py-1.5">
+      <ProjecaoEstatistica stats={projecao} />
+      <details open className="rounded-lg border border-gray-700 bg-[#0d1117] px-2.5 py-1.5">
         <summary className="text-[11px] font-bold text-gray-200 cursor-pointer list-none [&::-webkit-details-marker]:hidden">▶ Histórico Recente (H2H)</summary>
         <div className="mt-1.5 space-y-1">
-          {h2h.length > 0 ? h2h.map((jogo, indice) => (
-            <div key={`${jogo.data}-${indice}`} className="text-[11px] text-gray-300">
-              {jogo.data}: {jogo.casa} {jogo.golsCasa} x {jogo.golsFora} {jogo.fora}
+          {h2h.length > 0 ? h2h.map((jogo) => (
+            <div key={jogo.chave} className="text-[11px] text-gray-300">
+              {jogo.texto}
             </div>
           )) : (
-            <div className="text-[11px] text-gray-400">Nenhum confronto direto recente retornado pela API para este cruzamento.</div>
+            <div className="text-[11px] text-gray-400">Sem registros prévios no H2H</div>
           )}
         </div>
       </details>
@@ -274,8 +387,34 @@ function DetalheQuantExtra({ quant, home, away }) {
   );
 }
 
+const ABAS_VALIDAS = ['opps', 'sheet', 'markets', 'desempenho'];
+
+function lerAbaSalva() {
+  try {
+    const parametro = new URLSearchParams(window.location.search).get('tab');
+    if (ABAS_VALIDAS.includes(parametro)) return parametro;
+    const salva = localStorage.getItem('sp_active_tab');
+    if (ABAS_VALIDAS.includes(salva)) return salva;
+  } catch {
+    /* o navegador pode bloquear o storage */
+  }
+  return 'sheet';
+}
+
+function gravarAba(aba) {
+  try {
+    localStorage.setItem('sp_active_tab', aba);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('tab') === aba) return;
+    url.searchParams.set('tab', aba);
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    /* o navegador pode bloquear o storage */
+  }
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState('sheet'); // 'opps', 'sheet', 'markets'
+  const [activeTab, setActiveTab] = useState(lerAbaSalva);
   const [activeShift, setActiveShift] = useState(() => {
     return localStorage.getItem('sp_active_shift') || 'europe';
   });
@@ -284,6 +423,10 @@ export default function App() {
   const [currentBankroll, setCurrentBankroll] = useState(335);
   const [sheetBets, setSheetBets] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  useEffect(() => {
+    gravarAba(activeTab);
+  }, [activeTab]);
 
   // 1. CARREGAMENTO INICIAL: Lê do backend (arquivo bets_database.json no seu PC)
   useEffect(() => {
@@ -769,8 +912,31 @@ export default function App() {
     return adj;
   };
 
+  const sincronizarResultadoNuvem = (bet) => {
+    if (!bet?.match || !bet?.market) return;
+    const status = String(bet.status || '').toUpperCase();
+    fetch('http://localhost:3001/api/apostas-futebol/resultado', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        partida: bet.match,
+        mercado: bet.market,
+        status,
+        lucro: status === 'PENDING' ? null : Number(bet.realProfit)
+      })
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        console.error('Supabase não atualizou a aposta:', data.message || res.status);
+      }
+    }).catch((erro) => {
+      console.error('Supabase não atualizou a aposta:', erro.message);
+    });
+  };
+
   const handleSetResult = (id, status) => {
     let nextBank = currentBankroll;
+    let resultadoNuvem = null;
 
     const updated = sheetBets.map(b => {
       if (b.id !== id) return b;
@@ -780,18 +946,21 @@ export default function App() {
 
       if (b.status === status) {
         nextBank = cleanBank;
-        return { ...b, status: 'PENDING', returnedAmount: 0, realProfit: 0 };
+        resultadoNuvem = { ...b, status: 'PENDING', returnedAmount: 0, realProfit: 0 };
+        return resultadoNuvem;
       }
 
       if (status === 'GREEN') {
         const profit = Number(((stake * odd) - stake).toFixed(2));
         nextBank = cleanBank + profit;
-        return { ...b, status: 'GREEN', returnedAmount: stake * odd, realProfit: profit };
+        resultadoNuvem = { ...b, status: 'GREEN', returnedAmount: stake * odd, realProfit: profit };
+        return resultadoNuvem;
       } 
       
       if (status === 'RED') {
         nextBank = cleanBank - stake;
-        return { ...b, status: 'RED', returnedAmount: 0, realProfit: -stake };
+        resultadoNuvem = { ...b, status: 'RED', returnedAmount: 0, realProfit: -stake };
+        return resultadoNuvem;
       }
 
       return b;
@@ -800,6 +969,7 @@ export default function App() {
     setCurrentBankroll(nextBank);
     setSheetBets(updated);
     persistToDisk(updated, nextBank);
+    if (resultadoNuvem) sincronizarResultadoNuvem(resultadoNuvem);
   };
 
   const handleCashoutPrompt = (id) => {
@@ -837,6 +1007,8 @@ export default function App() {
 
     setSheetBets(updated);
     persistToDisk(updated, nextBank);
+    const gravada = updated.find((b) => b.id === id);
+    if (gravada) sincronizarResultadoNuvem(gravada);
   };
 
   const handleDeleteBet = (id) => {
@@ -1193,11 +1365,11 @@ export default function App() {
             <span className="font-bold text-lg tracking-wide text-white">SofaPunter Quant</span>
           </div>
           
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="w-full sm:w-auto max-w-full flex items-center gap-2 overflow-x-auto overscroll-x-contain touch-pan-x sm:flex-wrap sm:justify-end pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <select
               value={selectedLeague}
               onChange={(e) => setSelectedLeague(e.target.value)}
-              className="bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 py-2 outline-none"
+              className="shrink-0 min-h-[42px] bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 outline-none"
             >
               <option value="all">Todas as Ligas</option>
               <option value="uefa_cups">🏆 UEFA Champions / Europa League</option>
@@ -1212,10 +1384,11 @@ export default function App() {
               <option value="brazil">🇧🇷 Brasil</option>
               <option value="argentina">🇦🇷 Argentina</option>
             </select>
-            <button 
+            <button
+              type="button"
               onClick={() => handleFetchOpps('europe')} 
               disabled={loading}
-              className={`text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 transition ${
+              className={`shrink-0 min-h-[42px] text-xs font-bold px-3 rounded-lg flex items-center gap-1.5 transition ${
                 activeShift === 'europe' 
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
@@ -1224,10 +1397,11 @@ export default function App() {
               🇪🇺 {loading && activeShift === 'europe' ? 'Buscando...' : 'Europa (Dia Todo)'}
             </button>
 
-            <button 
+            <button
+              type="button"
               onClick={() => handleFetchOpps('brazil')} 
               disabled={loading}
-              className={`text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 transition ${
+              className={`shrink-0 min-h-[42px] text-xs font-bold px-3 rounded-lg flex items-center gap-1.5 transition ${
                 activeShift === 'brazil' 
                   ? 'bg-[#00c853] text-black shadow-lg shadow-[#00c853]/20' 
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
@@ -1235,12 +1409,24 @@ export default function App() {
             >
               🇧🇷 {loading && activeShift === 'brazil' ? 'Buscando...' : 'Brasil (Dia Todo)'}
             </button>
+            <a
+              href="https://1win.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 min-h-[42px] inline-flex items-center gap-1.5 text-xs font-bold px-3 rounded-lg bg-[#00c853] text-black hover:bg-[#00e05c]"
+            >
+              Abrir 1win
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14 5h5v5M19 5l-9 9" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 13v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6" />
+              </svg>
+            </a>
           </div>
         </div>
       </header>
 
       <div className="max-w-4xl mx-auto px-4 mt-5">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Banca Atual</div>
             <div className="text-xl font-bold text-white mt-1">R$ {currentBankroll.toFixed(2)}</div>
@@ -1294,28 +1480,32 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex flex-wrap border-b border-gray-800 mt-6 gap-x-6 gap-y-2 text-sm font-semibold">
-          <button 
+        <div className="flex border-b border-gray-800 mt-6 gap-x-6 text-sm font-semibold overflow-x-auto overscroll-x-contain touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button
+            type="button"
             onClick={() => setActiveTab('opps')}
-            className={`pb-2.5 transition ${activeTab === 'opps' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'opps' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             Radar de Valor (+EV) ({displayedGames.length})
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => setActiveTab('sheet')}
-            className={`pb-2.5 transition ${activeTab === 'sheet' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'sheet' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             Planilha Diária ({sheetBets.length})
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => setActiveTab('markets')}
-            className={`pb-2.5 transition ${activeTab === 'markets' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'markets' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             📊 Mercados & Win Rate ({marketPerformance.length})
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('desempenho')}
-            className={`pb-2.5 transition ${activeTab === 'desempenho' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'desempenho' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             📊 Desempenho por Mercado
           </button>
@@ -1451,6 +1641,8 @@ export default function App() {
                     {onewinQuants[game.id] && (
                       <div className="mt-3 rounded-lg border border-[#00c853]/35 bg-[#122319] p-3">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-[#00c853] mb-2">SofaPunter Quant</div>
+                        <GradeProbabilidades probabilities={onewinQuants[game.id].probabilities} />
+                        <BlocoClassificacaoMomento quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                         <BarraClassificacao quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                         <div className="flex flex-wrap items-center gap-2">
                           {onewinQuants[game.id].ritmo && (
@@ -1730,7 +1922,7 @@ export default function App() {
                   type="button"
                   onClick={openRecapPreview}
                   disabled={!dailyRecap.entries.length || sendingRecap}
-                  className="bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-50 text-white font-bold text-xs px-3 py-2 rounded transition whitespace-nowrap"
+                  className="min-h-[42px] inline-flex items-center justify-center bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-50 text-white font-bold text-xs px-3 rounded transition whitespace-nowrap"
                 >
                   📢 Enviar Resumo para o Telegram
                 </button>
@@ -1816,10 +2008,11 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 self-end md:self-auto">
-                      <button 
+                    <div className="flex flex-wrap items-center gap-2 self-stretch md:self-auto">
+                      <button
+                        type="button"
                         onClick={() => handleSetResult(b.id, 'GREEN')}
-                        className={`text-xs px-2.5 py-1 rounded transition ${
+                        className={`min-h-[42px] text-xs px-3 rounded transition ${
                           b.status === 'GREEN' 
                             ? 'bg-[#00c853] text-black font-bold shadow-md' 
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700 font-semibold'
@@ -1827,9 +2020,10 @@ export default function App() {
                       >
                         ✔ GREEN
                       </button>
-                      <button 
+                      <button
+                        type="button"
                         onClick={() => handleCashoutPrompt(b.id)}
-                        className={`text-xs px-2.5 py-1 rounded transition ${
+                        className={`min-h-[42px] text-xs px-3 rounded transition ${
                           b.status === 'CASHOUT' 
                             ? 'bg-yellow-500 text-black font-bold shadow-md' 
                             : 'bg-gray-800 text-yellow-400 hover:bg-gray-700 font-semibold'
@@ -1837,9 +2031,10 @@ export default function App() {
                       >
                         ⏱ CASHOUT
                       </button>
-                      <button 
+                      <button
+                        type="button"
                         onClick={() => handleSetResult(b.id, 'RED')}
-                        className={`text-xs px-2.5 py-1 rounded transition ${
+                        className={`min-h-[42px] text-xs px-3 rounded transition ${
                           b.status === 'RED' 
                             ? 'bg-red-600 text-white font-bold shadow-md' 
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700 font-semibold'

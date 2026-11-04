@@ -6,10 +6,13 @@ import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { fetch1WinMatchOdds } from './1win-client.js';
+import { iniciarMonitorCarpina } from './liveMonitor.js';
+import { TABELA_APOSTAS } from './lib/supabase.js';
+import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
-const { analisarOportunidadesQuant, calibrarLambdasH2H, montarMercadosAdicionais } = require('./services/quantEngine.js');
-const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos } = require('./services/apiFootball.js');
+const { analisarOportunidadesQuant, calibrarLambdasH2H, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
+const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos, obterFixtureAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
 const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
 const app = express();
@@ -109,6 +112,24 @@ app.post('/api/save-data', (req, res) => {
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/apostas-futebol/resultado', async (req, res) => {
+  try {
+    const partida = String(req.body?.partida || '').trim();
+    const mercado = String(req.body?.mercado || '').trim();
+    const status = String(req.body?.status || '').trim().toUpperCase();
+    const permitidos = new Set(['GREEN', 'RED', 'CASHOUT', 'PENDING', 'PENDENTE']);
+    if (!partida || !mercado || !permitidos.has(status)) {
+      res.status(400).json({ success: false, message: 'Informe partida, mercado e status GREEN, RED ou CASHOUT.' });
+      return;
+    }
+    const lucro = req.body?.lucro == null || req.body?.lucro === '' ? null : Number(req.body.lucro);
+    const resultado = await registrarResultadoNaNuvem({ partida, mercado, status, lucro });
+    res.json({ success: true, ...resultado });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
   }
 });
 
@@ -690,10 +711,65 @@ function linhaTabela(linha) {
   };
 }
 
-async function montarContextoFootball({ ids, confrontoReal, lambda, mu, allMarkets }) {
+function formaDosJogos(ultimos, nomeTime) {
+  const jogos = Array.isArray(ultimos?.jogos) ? ultimos.jogos.slice(0, 5) : [];
+  if (!jogos.length) return '';
+  const alvo = normalizarNomeQuant(nomeTime);
+  const letras = jogos.map((jogo) => {
+    if (jogo?.vencedor === 'Empate') return 'D';
+    const vencedor = normalizarNomeQuant(jogo?.vencedor);
+    if (!vencedor || !alvo) return '-';
+    if (vencedor === alvo || alvo.includes(vencedor) || vencedor.includes(alvo)) return 'W';
+    return 'L';
+  }).reverse();
+  return letras.join('').slice(0, 5);
+}
+
+function linhaStandings(linha, formaRecente) {
+  const formaTabela = String(linha?.forma || '').replace(/[^WDL]/gi, '').slice(-5);
+  const rank = Number(linha?.pos);
+  const points = Number(linha?.pts);
+  const goalsDiff = Number(linha?.sg);
+  return {
+    rank: Number.isFinite(rank) ? rank : '-',
+    points: Number.isFinite(points) ? points : '-',
+    form: formaTabela || formaRecente || '-----',
+    goalsDiff: Number.isFinite(goalsDiff) ? goalsDiff : 0
+  };
+}
+
+function dataH2HCompleta(data) {
+  const encontrada = String(data || '').match(/^(\d{2})\/(\d{2})\/(\d{2,4})$/);
+  if (!encontrada) return String(data || '');
+  const ano = encontrada[3].length === 2 ? `20${encontrada[3]}` : encontrada[3];
+  return `${encontrada[1]}/${encontrada[2]}/${ano}`;
+}
+
+function montarH2HList(h2h) {
+  return (Array.isArray(h2h) ? h2h : []).slice(0, 5).map((jogo) => ({
+    date: dataH2HCompleta(jogo?.data),
+    home: jogo?.casa || 'Casa',
+    away: jogo?.fora || 'Fora',
+    score: `${jogo?.golsCasa ?? 0} - ${jogo?.golsFora ?? 0}`,
+    winner: jogo?.vencedor || 'Empate'
+  }));
+}
+
+function numeroProjecao(valor) {
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? Number(numero.toFixed(1)) : null;
+}
+
+async function montarContextoFootball({ ids, confrontoReal, lambda, mu, allMarkets, homeTeam, awayTeam }) {
   const vazio = {
     tabela: { mandante: null, visitante: null },
+    standings: {
+      home: linhaStandings(null, ''),
+      away: linhaStandings(null, '')
+    },
     h2h: [],
+    h2hList: [],
+    h2hNota: 'Sem confrontos diretos recentes',
     ultimos10: null,
     ajusteH2H: null,
     mercadosAdicionais: { cantos: { mediaEsperada: null, linhas: [] }, cartoes: { mediaEsperada: null, linhas: [] } }
@@ -725,12 +801,27 @@ async function montarContextoFootball({ ids, confrontoReal, lambda, mu, allMarke
     muFinal = ajusteH2H.mu;
   }
 
+  const tabela = {
+    mandante: linhaTabela(classCasa),
+    visitante: linhaTabela(classFora)
+  };
+  const h2hList = montarH2HList(h2h);
+
   return {
-    tabela: {
-      mandante: linhaTabela(classCasa),
-      visitante: linhaTabela(classFora)
+    tabela,
+    standings: {
+      home: linhaStandings(
+        tabela.mandante,
+        formaDosJogos(ultCasa, homeTeam) || String(confrontoReal?.mandante?.form || '').replace(/[^WDL]/gi, '').slice(-5)
+      ),
+      away: linhaStandings(
+        tabela.visitante,
+        formaDosJogos(ultFora, awayTeam) || String(confrontoReal?.visitante?.form || '').replace(/[^WDL]/gi, '').slice(-5)
+      )
     },
     h2h: Array.isArray(h2h) ? h2h : [],
+    h2hList,
+    h2hNota: h2hList.length ? null : 'Sem confrontos diretos recentes',
     ultimos10: {
       mandante: ultCasa,
       visitante: ultFora
@@ -847,13 +938,27 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
 
   let contexto = {
     tabela: { mandante: null, visitante: null },
+    standings: {
+      home: linhaStandings(null, ''),
+      away: linhaStandings(null, '')
+    },
     h2h: [],
+    h2hList: [],
+    h2hNota: 'Sem confrontos diretos recentes',
     ultimos10: null,
     ajusteH2H: null,
     mercadosAdicionais: { cantos: { mediaEsperada: null, linhas: [] }, cartoes: { mediaEsperada: null, linhas: [] } }
   };
   try {
-    contexto = await montarContextoFootball({ ids: idsTimes, confrontoReal, lambda, mu, allMarkets });
+    contexto = await montarContextoFootball({
+      ids: idsTimes,
+      confrontoReal,
+      lambda,
+      mu,
+      allMarkets,
+      homeTeam,
+      awayTeam
+    });
     if (contexto.lambda > 0 && contexto.mu > 0) {
       lambda = contexto.lambda;
       mu = contexto.mu;
@@ -882,6 +987,17 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
     console.error('⚠️ [QUANT] Leitura tática estruturada indisponível:', error?.message || error);
   }
 
+  let probabilities = null;
+  try {
+    probabilities = probabilidadesPoisson(lambda, mu);
+  } catch (erro) {
+    console.log('Aviso Quant: probabilidades Poisson indisponíveis.', erro.message);
+  }
+
+  const cantosProjetados = numeroProjecao(contexto.mercadosAdicionais?.cantos?.mediaEsperada)
+    ?? numeroProjecao(estatisticas.escanteiosTotais);
+  const cartoesProjetados = numeroProjecao(contexto.mercadosAdicionais?.cartoes?.mediaEsperada);
+
   console.log(`📈 [QUANT] λ ${lambda} | μ ${mu} | ${fonteDados} | +EV ${resultadoQuant.melhoresEntradas.length}`);
   return {
     melhoresEntradas: resultadoQuant.melhoresEntradas,
@@ -889,6 +1005,14 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
     ritmo,
     tatica,
     fonteDados,
+    probabilities,
+    standings: contexto.standings,
+    h2hList: contexto.h2hList || [],
+    h2hNota: contexto.h2hNota || null,
+    statsProjection: {
+      expectedCorners: cantosProjetados,
+      expectedCards: cartoesProjetados
+    },
     tabela: contexto.tabela,
     h2h: contexto.h2h,
     ultimos10: contexto.ultimos10,
@@ -1272,9 +1396,28 @@ app.post('/api/telegram/send-daily-recap', async (req, res) => {
 const executadoDiretamente = process.argv[1]
   && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
+async function enviarTelegramTexto(texto) {
+  const telegramResponse = await axios.post(
+    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+    { chat_id: TELEGRAM_CHANNEL, text: String(texto || '').slice(0, 4096) },
+    { timeout: 15000 }
+  );
+  if (!telegramResponse.data?.ok) {
+    throw new Error(telegramResponse.data?.description || 'O Telegram recusou a mensagem.');
+  }
+}
+
 if (executadoDiretamente) {
   app.listen(PORT, () => {
     console.log(`✅ SofaPunter Motor 1WIN ativo em http://localhost:${PORT}`);
+    console.log(`☁️ Apostas ao vivo na tabela ${TABELA_APOSTAS}`);
+    iniciarMonitorCarpina({
+      arquivoBets: DB_FILE,
+      tabelaApostas: TABELA_APOSTAS,
+      consultarFixture: obterFixtureAoVivo,
+      listarDia: listarFixturesDoDia,
+      enviarTelegram: enviarTelegramTexto
+    });
   });
 }
 
