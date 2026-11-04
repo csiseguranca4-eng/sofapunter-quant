@@ -1,23 +1,23 @@
 {
   "bets": [
     {
-      "id": "bet_1793781236303o6r",
-      "match": "Fenerbahce x Liverpool",
+      "id": "bet_1793808042357ou3",
+      "match": "AEK Athens x Real Madrid",
       "league": "Futebol",
-      "market": "Ambos os Times Marcam: Sim",
-      "marketType": "Ambas Marcam",
-      "fairOdd": 1.4,
-      "evPercent": 8.6,
+      "market": "Total de Gols: Abaixo de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 2.91,
+      "evPercent": 20,
       "isTopPick": true,
-      "odd": 1.52,
+      "odd": 3.49,
       "stake": 5,
       "status": "PENDING",
       "returnedAmount": 0,
       "realProfit": 0,
       "date": "2026-11-04",
-      "timestamp": 1793781236303,
-      "gameLink": "https://1win.com/pt/betting/match/sport/fenerbahce-vs-liverpool-41898197",
-      "tacticalReading": "O Liverpool chega com superioridade técnica evidente para controlar a posse e pressionar a saída de bola do Fenerbahçe, que deve buscar transições rápidas mas sofrerá com a compactação defensiva. O mercado de Ambos Marcam apresenta o maior valor estratégico, com EV de 8.6%, refletindo a expectativa de um jogo aberto onde a fragilidade defensiva do mandante deve ceder espaços cruciais para o ataque visitante."
+      "timestamp": 1793808042357,
+      "gameLink": "https://1win.com/pt/betting/match/sport/aek-athens-vs-real-madrid-41881258",
+      "tacticalReading": "O Real Madrid chega como franco favorito, mantendo uma sequência de vitórias impressionante e um ataque altamente produtivo. O AEK Athens enfrenta dificuldades defensivas recentes, tornando improvável que consiga segurar o ímpeto ofensivo dos visitantes durante os 90 minutos."
     },
     {
       "id": "bet_1793755689346o9z",
