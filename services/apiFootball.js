@@ -130,7 +130,13 @@ async function obterEstatisticasEquipa(teamId, leagueId, season) {
     cantosPorJogo: cantosFavor.jogo,
     cartoesPorJogo: jogos > 0 && (amarelos != null || vermelhos != null)
       ? Number((cartoesTotais / jogos).toFixed(2))
-      : null
+      : null,
+    amarelosPorJogo: jogos > 0 && amarelos != null ? Number((amarelos / jogos).toFixed(2)) : null,
+    vermelhosPorJogo: jogos > 0 && vermelhos != null ? Number((vermelhos / jogos).toFixed(2)) : null,
+    mediaGolsMarcados: numero(marcados.total),
+    mediaGolsSofridos: numero(sofridos.total),
+    cleanSheets: numero(stats.clean_sheet?.total),
+    jogosSemMarcar: numero(stats.failed_to_score?.total)
   };
 }
 
@@ -243,17 +249,40 @@ async function obterH2H(mandanteId, visitanteId, limite = 5) {
   return lista.map(resumirFixture).filter(Boolean);
 }
 
+function resumirJogoRecente(jogo, teamId) {
+  const base = resumirFixture(jogo);
+  if (!base) return null;
+  const emCasa = Number(jogo?.teams?.home?.id) === Number(teamId);
+  const marcados = emCasa ? base.golsCasa : base.golsFora;
+  const sofridos = emCasa ? base.golsFora : base.golsCasa;
+  const resultado = marcados > sofridos ? 'W' : marcados < sofridos ? 'L' : 'D';
+  return { ...base, marcados, sofridos, resultado };
+}
+
+function contarSequencia(jogos, predicado) {
+  let total = 0;
+  for (const jogo of jogos) {
+    if (!predicado(jogo)) break;
+    total += 1;
+  }
+  return total;
+}
+
 async function obterUltimosJogos(teamId, limite = 10) {
   const team = Number(teamId);
   const last = Number(limite) > 0 ? Number(limite) : 10;
-  if (!Number.isFinite(team)) return { jogos: [], over25: null, btts: null };
+  if (!Number.isFinite(team)) return { jogos: [], over25: null, btts: null, forma: '', sequenciaMarcando: 0, sequenciaSofrendo: 0 };
 
   const dados = await pedir(`/fixtures?team=${team}&last=${last}`);
-  const jogos = (Array.isArray(dados?.response) ? dados.response : []).map(resumirFixture).filter(Boolean);
+  const crus = Array.isArray(dados?.response) ? dados.response : [];
+  const jogos = crus.map((jogo) => resumirJogoRecente(jogo, team)).filter(Boolean);
   return {
     jogos,
     over25: percentual(jogos.filter((jogo) => jogo.totalGols >= 3).length, jogos.length),
-    btts: percentual(jogos.filter((jogo) => jogo.golsCasa > 0 && jogo.golsFora > 0).length, jogos.length)
+    btts: percentual(jogos.filter((jogo) => jogo.golsCasa > 0 && jogo.golsFora > 0).length, jogos.length),
+    forma: jogos.map((jogo) => jogo.resultado).reverse().join(''),
+    sequenciaMarcando: contarSequencia(jogos, (jogo) => jogo.marcados > 0),
+    sequenciaSofrendo: contarSequencia(jogos, (jogo) => jogo.sofridos > 0)
   };
 }
 

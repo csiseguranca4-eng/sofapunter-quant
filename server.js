@@ -11,7 +11,7 @@ import { TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
-const { analisarOportunidadesQuant, calibrarLambdasH2H, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
+const { analisarOportunidadesQuant, calcularOddsQuant, calibrarLambdasH2H, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
 const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos, obterFixtureAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
 const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
@@ -419,7 +419,7 @@ async function requestGeminiTacticalText(promptText, options = {}) {
           contents: [{ parts: [{ text: promptText }] }],
           generationConfig
         },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
+        { headers: { 'Content-Type': 'application/json' }, timeout: options.timeout || 20000 }
       );
       const text = response?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
       const cleaned = attempt.json ? String(text || '').trim() : cleanGeminiText(text);
@@ -787,7 +787,7 @@ async function montarContextoFootball({ ids, confrontoReal, lambda, mu, allMarke
       console.log('Aviso API-Football: classificação do visitante indisponível.', erro.message);
       return null;
     }) : null,
-    obterH2H(ids.idMandante, ids.idVisitante, 5).catch(() => []),
+    obterH2H(ids.idMandante, ids.idVisitante, 10).catch(() => []),
     obterUltimosJogos(ids.idMandante, 10).catch(() => null),
     obterUltimosJogos(ids.idVisitante, 10).catch(() => null)
   ]);
@@ -896,7 +896,7 @@ function parseTaticaQuant(raw) {
   return { estiloConfronto: estilo, validacaoTatica: validacao, scoreConfianca, resumoVisual: resumo };
 }
 
-async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justification }) {
+async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justification, semTatica = false }) {
   const oddsBrutas = extrairOddsQuant(allMarkets, homeTeam, awayTeam);
   const oddsCasa = {};
   ['casa', 'empate', 'fora', 'dnbMandante', 'dnbVisitante', 'over25', 'bttsSim'].forEach((chave) => {
@@ -972,7 +972,7 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
   const ritmo = calcularIndiceRitmo(estatisticas);
 
   let tatica = null;
-  try {
+  if (!semTatica) try {
     const contexto = String(justification || '').trim();
     const prompt = gerarPromptTaticoQuant({
       mandante: homeTeam || 'Mandante',
@@ -1017,8 +1017,271 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
     h2h: contexto.h2h,
     ultimos10: contexto.ultimos10,
     ajusteH2H: contexto.ajusteH2H?.motivo ? contexto.ajusteH2H : null,
-    mercadosAdicionais: contexto.mercadosAdicionais
+    mercadosAdicionais: contexto.mercadosAdicionais,
+    lambda,
+    mu,
+    perfilTimes: {
+      mandante: perfilEquipe(confrontoReal?.mandante, contexto.ultimos10?.mandante),
+      visitante: perfilEquipe(confrontoReal?.visitante, contexto.ultimos10?.visitante)
+    }
   };
+}
+
+function perfilEquipe(stats, ultimos) {
+  if (!stats && !ultimos) return null;
+  const jogos = Array.isArray(ultimos?.jogos) ? ultimos.jogos.slice(0, 10) : [];
+  return {
+    jogos: stats?.jogos ?? jogos.length,
+    forma: ultimos?.forma || stats?.form || '',
+    mediaGolsMarcados: stats?.mediaGolsMarcados ?? null,
+    mediaGolsSofridos: stats?.mediaGolsSofridos ?? null,
+    golsMarcadosCasa: stats?.golosMarcadosCasa ?? null,
+    golsMarcadosFora: stats?.golosMarcadosFora ?? null,
+    golsSofridosCasa: stats?.golosSofridosCasa ?? null,
+    golsSofridosFora: stats?.golosSofridosFora ?? null,
+    cleanSheets: stats?.cleanSheets ?? null,
+    jogosSemMarcar: stats?.jogosSemMarcar ?? null,
+    sequenciaMarcando: ultimos?.sequenciaMarcando ?? null,
+    sequenciaSofrendo: ultimos?.sequenciaSofrendo ?? null,
+    cantosPorJogo: stats?.cantosPorJogo ?? null,
+    cantosContraCasa: stats?.cantosContraCasa ?? null,
+    cantosContraFora: stats?.cantosContraFora ?? null,
+    amarelosPorJogo: stats?.amarelosPorJogo ?? null,
+    vermelhosPorJogo: stats?.vermelhosPorJogo ?? null,
+    cartoesPorJogo: stats?.cartoesPorJogo ?? null,
+    ultimos10: jogos.map((jogo) => ({
+      data: jogo.data,
+      placar: jogo.placar,
+      resultado: jogo.resultado,
+      marcados: jogo.marcados,
+      sofridos: jogo.sofridos
+    }))
+  };
+}
+
+function linhaDoMercado(id) {
+  if (id === 'dnbMandante' || id === 'dnbVisitante') return '0';
+  if (id === 'over15' || id === 'under15') return '1.5';
+  if (id === 'over25' || id === 'under25') return '2.5';
+  const numero = String(id || '').match(/(\d+(?:\.\d+)?)/);
+  return numero ? numero[1] : '';
+}
+
+function nomeMercadoXeque(id, nome, home, away) {
+  const mapa = {
+    casa: `Resultado: ${home}`,
+    empate: 'Resultado: Empate',
+    fora: `Resultado: ${away}`,
+    dnbMandante: `Handicap 0: ${home}`,
+    dnbVisitante: `Handicap 0: ${away}`,
+    over15: 'Total de Gols: Acima de 1.5',
+    under15: 'Total de Gols: Abaixo de 1.5',
+    over25: 'Total de Gols: Acima de 2.5',
+    under25: 'Total de Gols: Abaixo de 2.5',
+    bttsSim: 'Ambos os Times Marcam: Sim',
+    bttsNao: 'Ambos os Times Marcam: Não',
+    dupla1X: `Dupla Hipótese: ${home} ou Empate`,
+    duplaX2: `Dupla Hipótese: Empate ou ${away}`,
+    dupla12: `Dupla Hipótese: ${home} ou ${away}`
+  };
+  return mapa[id] || nome;
+}
+
+function classificarDupla(selection, home, away) {
+  const texto = normalizarNomeQuant(selection);
+  const casa = normalizarNomeQuant(home);
+  const fora = normalizarNomeQuant(away);
+  const temCasa = !!(casa && texto.includes(casa));
+  const temFora = !!(fora && texto.includes(fora));
+  const temEmpate = /empate|draw/.test(texto) || /\bx\b/.test(texto);
+  if (temCasa && temFora && !temEmpate) return '12';
+  if (temCasa && temEmpate && !temFora) return '1X';
+  if (temFora && temEmpate && !temCasa) return 'X2';
+  if (/\b12\b/.test(texto)) return '12';
+  if (/\b1x\b/.test(texto)) return '1X';
+  if (/\bx2\b/.test(texto)) return 'X2';
+  return null;
+}
+
+function candidatosMatematicos(quant, allMarkets, home, away) {
+  const lista = [];
+  (quant?.mercadosAuditados || []).forEach((mercado) => {
+    const odd1win = Number(mercado.oddCasa);
+    const oddJusta = Number(mercado.oddJusta);
+    if (!(odd1win > oddJusta) || !(oddJusta > 1) || !(mercado.ev > 0)) return;
+    lista.push({
+      id: mercado.mercado,
+      nome: nomeMercadoXeque(mercado.mercado, mercado.nome, home, away),
+      linha: linhaDoMercado(mercado.mercado),
+      oddJusta,
+      odd1win,
+      ev: Number(mercado.ev)
+    });
+  });
+
+  ['cantos', 'cartoes'].forEach((chave) => {
+    const bloco = quant?.mercadosAdicionais?.[chave];
+    (bloco?.linhas || []).forEach((linha) => {
+      const odd1win = Number(linha.oddCasa);
+      const oddJusta = Number(linha.oddJusta);
+      if (!(odd1win > oddJusta) || !(oddJusta > 1) || !(linha.ev > 0)) return;
+      const id = `${chave}-${String(linha.nome || '').toLowerCase().replace(/[^a-z0-9.]+/g, '-')}`;
+      lista.push({
+        id,
+        nome: linha.nome,
+        linha: linhaDoMercado(linha.nome),
+        oddJusta,
+        odd1win,
+        ev: Number(linha.ev)
+      });
+    });
+  });
+
+  if (quant?.lambda > 0 && quant?.mu > 0) {
+    try {
+      const modelo = calcularOddsQuant(quant.lambda, quant.mu);
+      const chances = {
+        '1X': modelo.matchOdds.casa.probabilidade + modelo.matchOdds.empate.probabilidade,
+        X2: modelo.matchOdds.empate.probabilidade + modelo.matchOdds.fora.probabilidade,
+        '12': modelo.matchOdds.casa.probabilidade + modelo.matchOdds.fora.probabilidade
+      };
+      const grupos = (allMarkets || []).filter((item) => /dupla chance|hip[oó]tese dupla|resultado duplo/i.test(item.market || ''));
+      grupos.forEach((item) => {
+        const codigo = classificarDupla(item.selection, home, away);
+        const chance = chances[codigo];
+        if (!codigo || !(chance > 0) || !(item.odd > 1)) return;
+        const oddJusta = 1 / chance;
+        if (!(item.odd > oddJusta)) return;
+        const id = codigo === '1X' ? 'dupla1X' : codigo === 'X2' ? 'duplaX2' : 'dupla12';
+        if (lista.some((linha) => linha.id === id)) return;
+        lista.push({
+          id,
+          nome: nomeMercadoXeque(id, item.selection, home, away),
+          linha: codigo,
+          oddJusta,
+          odd1win: item.odd,
+          ev: (item.odd * chance) - 1
+        });
+      });
+    } catch (erro) {
+      console.log('Aviso Xeque-Mate: dupla hipótese fora do modelo.', erro.message);
+    }
+  }
+
+  const vistos = new Set();
+  return lista
+    .filter((linha) => {
+      if (vistos.has(linha.id)) return false;
+      vistos.add(linha.id);
+      return true;
+    })
+    .sort((a, b) => b.ev - a.ev);
+}
+
+function extrairJsonGemini(raw) {
+  const fonte = String(raw || '').trim();
+  if (!fonte) return null;
+  const limpo = fonte.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const inicio = limpo.indexOf('{');
+  const fim = limpo.lastIndexOf('}');
+  if (inicio === -1 || fim <= inicio) return null;
+  try {
+    return JSON.parse(limpo.slice(inicio, fim + 1));
+  } catch {
+    return null;
+  }
+}
+
+function stakeDaEntrada(sugerida, ev, stakeBase) {
+  const teto = Number(stakeBase) > 0 ? Number(stakeBase) : 5;
+  const numero = Number(String(sugerida ?? '').replace(',', '.'));
+  if (Number.isFinite(numero) && numero > 0 && numero <= teto) return Number(numero.toFixed(2));
+  const peso = Number.isFinite(ev) && ev > 0 ? Math.min(1, ev / 0.1) : 0.5;
+  return Number((teto * (0.55 + 0.45 * peso)).toFixed(2));
+}
+
+function pacoteOdds1win(allMarkets) {
+  return (allMarkets || [])
+    .filter((item) => item?.odd > 1 && /resultado|1x2|tempo regulamentar|dupla|hip[oó]tese|handicap|total|gol|ambos|ambas|escanteio|corner|cart/i.test(`${item.market} ${item.selection}`))
+    .slice(0, 40)
+    .map((item) => ({ mercado: item.market, selecao: item.selection, odd: item.odd }));
+}
+
+async function executarXequeMate({ homeTeam, awayTeam, league, quant, allMarkets, stakeBase, link }) {
+  const candidatos = candidatosMatematicos(quant, allMarkets, homeTeam, awayTeam);
+  const deepScan = {
+    fonte: quant?.fonteDados || 'indisponível',
+    lambda: quant?.lambda ?? null,
+    mu: quant?.mu ?? null,
+    probabilidades: quant?.probabilities || null,
+    classificacao: quant?.standings || null,
+    h2h: (quant?.h2h || []).slice(0, 10),
+    perfil: quant?.perfilTimes || null,
+    cantos: quant?.mercadosAdicionais?.cantos?.mediaEsperada ?? quant?.statsProjection?.expectedCorners ?? null,
+    cartoes: quant?.mercadosAdicionais?.cartoes?.mediaEsperada ?? quant?.statsProjection?.expectedCards ?? null
+  };
+  const prompt = `Você é o analista do SofaPunter Quant. Feche o xeque-mate deste confronto em português do Brasil.
+Use SOMENTE as linhas candidatas, que já passaram no teste odd_1win > odd_justa do modelo Poisson.
+Não invente mercado, odd ou edge. A stake de cada linha deve ficar entre 0 e ${Number(stakeBase) > 0 ? Number(stakeBase) : 5} reais, maior quando o edge for maior.
+Devolva apenas JSON neste formato:
+{"diagnostico_tatico":"2 ou 3 frases sobre momento, defesa, ataque e o confronto","mercados_ev":[{"id":"id da candidata","stake":0}],"mensagem_telegram":"texto com emojis, argumento tático, cotação e o link"}
+
+Confronto: ${homeTeam} vs ${awayTeam}
+Liga: ${league || 'não informada'}
+Link: ${link || 'não informado'}
+Deep scan API-Football: ${JSON.stringify(deepScan)}
+Odds reais 1win: ${JSON.stringify(pacoteOdds1win(allMarkets))}
+Candidatas com +EV real: ${JSON.stringify(candidatos.map((linha) => ({
+    id: linha.id,
+    nome: linha.nome,
+    linha: linha.linha,
+    odd_justa: Number(linha.oddJusta.toFixed(2)),
+    odd_1win: linha.odd1win,
+    edge: Number((linha.ev * 100).toFixed(1))
+  })))}
+Probabilidades teóricas: ${JSON.stringify(quant?.probabilities || {})}`;
+
+  let lido = null;
+  try {
+    const texto = await requestGeminiTacticalText(prompt, { json: true, timeout: 45000 });
+    lido = extrairJsonGemini(texto);
+  } catch (erro) {
+    console.error('⚠️ [XEQUE-MATE] Gemini indisponível:', erro?.message || erro);
+  }
+
+  const stakes = new Map();
+  (Array.isArray(lido?.mercados_ev) ? lido.mercados_ev : []).forEach((linha) => {
+    if (linha?.id) stakes.set(String(linha.id), linha.stake);
+  });
+  const diagnostico = String(lido?.diagnostico_tatico || '').trim()
+    || 'Deep scan concluído. As linhas abaixo têm a odd da 1win acima da odd justa do modelo.';
+  const markets = candidatos.map((linha, index) => {
+    const evPercent = Number((linha.ev * 100).toFixed(1));
+    return {
+      id: `xeque_${linha.id}_${index}`,
+      chave: linha.id,
+      name: linha.nome,
+      marketType: /cantos|escanteio/i.test(linha.nome) ? 'Escanteios' : /cart/i.test(linha.nome) ? 'Cartões' : /dupla/i.test(linha.nome) ? 'Dupla Chance' : /handicap/i.test(linha.nome) ? 'Empate Anula (DNB)' : /total de gols/i.test(linha.nome) ? 'Gols' : /ambos/i.test(linha.nome) ? 'Ambos Marcam' : 'Resultado',
+      linha: linha.linha,
+      odd1win: Number(linha.odd1win.toFixed(2)),
+      fairOdd: Number(linha.oddJusta.toFixed(2)),
+      evPercent,
+      isTopEV: index === 0,
+      stakeSugerida: stakeDaEntrada(stakes.get(linha.id), linha.ev, stakeBase)
+    };
+  });
+  const mensagemModelo = [
+    `⚽ ${homeTeam} vs ${awayTeam}`,
+    league ? `🏆 ${league}` : '',
+    diagnostico,
+    ...markets.slice(0, 3).map((linha) => `🎯 ${linha.name} @ ${linha.odd1win} | justa ${linha.fairOdd} | +EV ${linha.evPercent}% | R$ ${linha.stakeSugerida}`),
+    link ? `🔗 ${link}` : ''
+  ].filter(Boolean).join('\n');
+  const mensagem = String(lido?.mensagem_telegram || '').trim() || mensagemModelo;
+  markets.forEach((linha) => {
+    linha.mensagemTelegram = mensagem;
+  });
+  return { diagnostico_tatico: diagnostico, mensagem_telegram: mensagem, markets };
 }
 
 // =========================================================================
@@ -1026,7 +1289,7 @@ async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justif
 // =========================================================================
 app.post('/api/check-1win-match', async (req, res) => {
   try {
-    const { urlOrId, homeTeam, awayTeam, league, score, justification } = req.body;
+    const { urlOrId, homeTeam, awayTeam, league, justification, stakeBase } = req.body;
     const matchId = (urlOrId || '').toString().match(/(\d{6,12})/)?.[0];
 
     if (!matchId) {
@@ -1036,139 +1299,44 @@ app.post('/api/check-1win-match', async (req, res) => {
     console.log(`\n======================================================`);
     console.log(`📡 [WEBSOCKET 1WIN] Auditando partida ${matchId}...`);
 
+    console.log(`🔬 [DEEP SCAN] ${homeTeam} vs ${awayTeam}`);
     const allMarkets = await fetch1WinMatchOdds(matchId);
     console.log(`🎯 [WEBSOCKET 1WIN] Recebidas ${allMarkets.length} odds oficiais.`);
 
-    const auditedMarkets = [];
-
-    // 1. EMPATE ANULA (DNB) DO FAVORITO
-    const dnbOptions = allMarkets.filter(m => 
-      m.market === 'Handicap' && 
-      (m.selection.endsWith(' 0') || m.selection.includes(' 0.0'))
-    );
-
-    if (dnbOptions.length > 0) {
-      dnbOptions.sort((a, b) => a.odd - b.odd);
-      const favoriteDnb = dnbOptions[0];
-
-      const fairOdd = Number((favoriteDnb.odd * 0.92).toFixed(2));
-      const ev = Number((((favoriteDnb.odd - fairOdd) / fairOdd) * 100).toFixed(1));
-
-      auditedMarkets.push({
-        id: `real_1win_${matchId}_dnb`,
-        name: favoriteDnb.selection,
-        marketType: 'Empate Anula (DNB)',
-        odd1win: favoriteDnb.odd,
-        fairOdd: fairOdd,
-        evPercent: ev,
-        isTopEV: favoriteDnb.odd >= 1.35,
-        recommendation: favoriteDnb.odd >= 1.35 
-          ? `✅ Favorito identificado (${favoriteDnb.selection}) com Odd ${favoriteDnb.odd}` 
-          : `⚠️ Odd esmagada (${favoriteDnb.odd}). Risco não compensa.`
-      });
-    }
-
-    // 2. MERCADOS DE GOLS: OVER 1.5 E OVER 2.5
-    const totalGoals = allMarkets.filter(m => m.market === 'Total' || m.market.includes('Total de gol'));
-
-    const over15 = totalGoals.find(m => m.selection.toLowerCase().includes('acima de 1.5') || m.selection.includes('> 1.5'));
-    if (over15) {
-      const fair15 = Number((over15.odd * 0.93).toFixed(2));
-      auditedMarkets.push({
-        id: `real_1win_${matchId}_over15`,
-        name: 'Total de Gols: Acima de 1.5',
-        marketType: 'Gols (Over 1.5)',
-        odd1win: over15.odd,
-        fairOdd: fair15,
-        evPercent: Number((((over15.odd - fair15) / fair15) * 100).toFixed(1)),
-        isTopEV: over15.odd >= 1.25
-      });
-    }
-
-    const over25 = totalGoals.find(m => m.selection.toLowerCase().includes('acima de 2.5') || m.selection.includes('> 2.5'));
-    if (over25) {
-      const fair25 = Number((over25.odd * 0.92).toFixed(2));
-      auditedMarkets.push({
-        id: `real_1win_${matchId}_over25`,
-        name: 'Total de Gols: Acima de 2.5',
-        marketType: 'Gols (Over 2.5)',
-        odd1win: over25.odd,
-        fairOdd: fair25,
-        evPercent: Number((((over25.odd - fair25) / fair25) * 100).toFixed(1)),
-        isTopEV: over25.odd >= 1.40
-      });
-    }
-
-    // 3. AMBOS OS TIMES MARCAM (BTTS)
-    const bttsGroup = allMarkets.filter(m => m.market.includes('Ambos os times') || m.market.includes('Ambas as equipes'));
-    const bttsYes = bttsGroup.find(m => m.selection.toLowerCase().includes('sim') || m.outcome === '1');
-    if (bttsYes) {
-      const fairBtts = Number((bttsYes.odd * 0.92).toFixed(2));
-      auditedMarkets.push({
-        id: `real_1win_${matchId}_btts`,
-        name: 'Ambos os Times Marcam: Sim',
-        marketType: 'Ambos Marcam',
-        odd1win: bttsYes.odd,
-        fairOdd: fairBtts,
-        evPercent: Number((((bttsYes.odd - fairBtts) / fairBtts) * 100).toFixed(1)),
-        isTopEV: bttsYes.odd >= 1.45
-      });
-    }
-
-    // 4. DUPLA CHANCE DO FAVORITO
-    const dcGroup = allMarkets.filter(m => m.market.includes('Dupla Chance') || m.market.includes('Hipótese dupla') || m.market === 'Resultado duplo');
-    if (dcGroup.length > 0) {
-      dcGroup.sort((a, b) => a.odd - b.odd);
-      const favDC = dcGroup[0];
-      const fairDc = Number((favDC.odd * 0.94).toFixed(2));
-      auditedMarkets.push({
-        id: `real_1win_${matchId}_dc`,
-        name: `Dupla Hipótese: ${favDC.selection}`,
-        marketType: 'Dupla Chance',
-        odd1win: favDC.odd,
-        fairOdd: fairDc,
-        evPercent: Number((((favDC.odd - fairDc) / fairDc) * 100).toFixed(1)),
-        isTopEV: favDC.odd >= 1.20
-      });
-    }
-
-    auditedMarkets.forEach((market) => {
-      market.name = formatMarketName(market.name, { home: homeTeam, away: awayTeam });
-    });
-
-    let tacticalReading = '';
-    if (allMarkets.length > 0) {
-      const auditedLines = auditedMarkets.map(m =>
-        `${m.marketType}: ${m.name} | odd 1win ${m.odd1win} | justa ${m.fairOdd} | EV ${m.evPercent}%`
-      ).join('\n');
-      const rawLines = allMarkets.slice(0, 40).map(m =>
-        `${m.market}: ${m.selection} @ ${m.odd}`
-      ).join('\n');
-      tacticalReading = await generateAuditTacticalScout({
-        homeTeam,
-        awayTeam,
-        league,
-        score,
-        cardText: justification,
-        oddsList: `${auditedLines}\n${rawLines}`.trim()
-      });
-    }
-
     let quant = null;
     try {
-      quant = await montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justification });
+      quant = await montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justification, semTatica: true });
     } catch (error) {
       console.error('⚠️ [QUANT] Auditoria segue sem o motor:', error?.message || error);
       quant = null;
+    }
+
+    const link = /^https?:\/\//i.test(String(urlOrId || '')) ? String(urlOrId).trim() : '';
+    const xeque = await executarXequeMate({
+      homeTeam,
+      awayTeam,
+      league,
+      quant,
+      allMarkets,
+      stakeBase: Number(stakeBase),
+      link
+    });
+    if (quant && xeque.diagnostico_tatico) {
+      quant.tatica = {
+        ...(quant.tatica || {}),
+        resumoVisual: xeque.diagnostico_tatico.split('\n')[0].slice(0, 160),
+        validacaoTatica: xeque.diagnostico_tatico
+      };
     }
 
     res.json({
       success: true,
       matchId,
       totalMarketsCaptured: allMarkets.length,
-      markets: auditedMarkets,
-      tacticalReading: tacticalReading || null,
-      aiScout: tacticalReading || null,
+      markets: xeque.markets,
+      tacticalReading: xeque.diagnostico_tatico,
+      mensagemTelegram: xeque.mensagem_telegram,
+      aiScout: xeque.diagnostico_tatico,
       quant
     });
 

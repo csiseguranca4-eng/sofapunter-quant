@@ -10,14 +10,6 @@ function base1win() {
     .replace(/\/pt(?:\/betting)?$/i, '');
 }
 
-function urlBusca1win(jogo) {
-  const direto = String(jogo?.url_1win || '').trim();
-  if (direto && !/1win\.pro/i.test(direto)) return direto;
-  const mandante = jogo?.home || jogo?.home_team || jogo?.timeCasa || '';
-  const termo = encodeURIComponent(mandante);
-  return `${base1win()}/pt/betting?query=${termo}`;
-}
-
 function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass }) {
   return (
     <div className="mt-2 space-y-2 min-w-0">
@@ -557,7 +549,7 @@ export default function App() {
 
   const [loading, setLoading] = useState(false);
   const [erroVarredura, setErroVarredura] = useState('');
-  const [loadingAI, setLoadingAI] = useState({});
+  const [erroAuditoria, setErroAuditoria] = useState({});
 
   // Persistência para URLs e Mercados da 1win
   const [onewinLinks, setOnewinLinks] = useState(() => {
@@ -682,76 +674,14 @@ export default function App() {
     }
   };
 
-  // Análise de Scout com I.A Multimercado
-  const handleAnalyzeWithAI = async (game) => {
-    setLoadingAI(prev => ({ ...prev, [game.id]: true }));
-    try {
-      const res = await fetch(apiUrl('/api/ai-scout-analyze'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          homeTeam: game.home,
-          awayTeam: game.away,
-          league: game.league,
-          score: game.score,
-          odds: (game.markets || []).map(m => ({
-            name: m.name,
-            odd: customInputs[m.id]?.odd ?? m.defaultOdd ?? m.odd1win,
-            fairOdd: m.fairOdd,
-            evPercent: m.evPercent
-          })),
-          metrics: {
-            score: game.score,
-            time: game.time,
-            dnbProb: game.dnbProb
-          }
-        })
-      });
-      const data = await res.json();
-      const returned = String(data.tacticalReading || '').trim();
-      const reading = returned && !/volume de ataque constante como mandante/i.test(returned)
-        ? returned
-        : `Leitura tática: ${game.home} tem tendência ofensiva clara diante de ${game.away}. A projeção aponta jogo vertical, com valor nas odds auditadas da 1win.`;
-      const aiPicks = (Array.isArray(data.aiPicks) ? data.aiPicks : []).slice(0, 2).map((pick, index) => {
-        const odd = Number(String(pick?.oddEstimated ?? '').replace(',', '.'));
-        const market = String(pick?.market || '').trim();
-        if (!market || !Number.isFinite(odd) || odd <= 1) return null;
-        return {
-          id: `ai_${game.id}_${index}`,
-          market,
-          oddEstimated: odd.toFixed(2)
-        };
-      }).filter(Boolean);
-      setOpportunities(prev => prev.map(g => (
-        g.id === game.id ? { ...g, tacticalReading: reading, aiPicks } : g
-      )));
-      if (aiPicks.length) {
-        setCustomInputs(prev => {
-          const next = { ...prev };
-          aiPicks.forEach((pick) => {
-            if (!next[pick.id]) next[pick.id] = { stake: recommendedStake, odd: Number(pick.oddEstimated) };
-          });
-          return next;
-        });
-      }
-    } catch (e) {
-      const reading = `Leitura tática: ${game.home} tem tendência ofensiva clara diante de ${game.away}. A projeção aponta jogo vertical, com valor nas odds auditadas da 1win.`;
-      setOpportunities(prev => prev.map(g => (
-        g.id === game.id ? { ...g, tacticalReading: reading, aiPicks: [] } : g
-      )));
-    } finally {
-      setLoadingAI(prev => ({ ...prev, [game.id]: false }));
-    }
-  };
-
-  // Auditoria 1win
   const handleAudit1Win = async (game) => {
-    const linkOrId = onewinLinks[game.id] || urlBusca1win(game);
-    if (!String(linkOrId).trim()) {
-      console.warn('Auditoria 1win sem confronto para buscar.');
+    const linkOrId = String(onewinLinks[game.id] || '').trim();
+    if (!linkOrId) {
+      setErroAuditoria(prev => ({ ...prev, [game.id]: 'Cole o link ou o ID da partida na 1win.' }));
       return;
     }
 
+    setErroAuditoria(prev => ({ ...prev, [game.id]: '' }));
     setLoading1win(prev => ({ ...prev, [game.id]: true }));
     try {
       const res = await fetch(apiUrl('/api/check-1win-match'), {
@@ -763,33 +693,55 @@ export default function App() {
           awayTeam: game.away,
           league: game.league,
           score: game.score,
-          justification: game.justification
+          justification: game.justification,
+          stakeBase: recommendedStake
         })
       });
-      const data = await res.json();
-      if (data.success && data.markets) {
-        setOnewinAudits(prev => ({ ...prev, [game.id]: data.markets }));
-        setCustomInputs(prev => {
-          const next = { ...prev };
-          data.markets.forEach(m => {
-            if (!next[m.id]) {
-              next[m.id] = { stake: recommendedStake, odd: m.odd1win };
-            }
-          });
-          return next;
-        });
-        setOnewinQuants(prev => ({ ...prev, [game.id]: data.quant || null }));
-        const scout = String(data.tacticalReading || data.aiScout || '').trim();
-        if (scout) {
-          setOpportunities(prev => prev.map(g => (
-            g.id === game.id ? { ...g, justification: scout, aiScout: scout, tacticalReading: scout } : g
-          )));
-        }
-      } else {
-        console.warn(data.message || 'Não foi possível obter as odds da 1win.');
+      const texto = await res.text();
+      let data = null;
+      try {
+        data = JSON.parse(texto);
+      } catch {
+        data = null;
       }
+      if (!res.ok || !data?.success || !Array.isArray(data.markets)) {
+        const aviso = data?.message || 'A auditoria não respondeu. O deep scan ficou só no console.';
+        console.warn(aviso);
+        setErroAuditoria(prev => ({ ...prev, [game.id]: aviso }));
+        return;
+      }
+      const leitura = String(data.tacticalReading || data.aiScout || '').trim();
+      setOnewinAudits(prev => ({ ...prev, [game.id]: data.markets }));
+      setCustomInputs(prev => {
+        const next = { ...prev };
+        data.markets.forEach((m) => {
+          const stake = Number(m.stakeSugerida);
+          next[m.id] = {
+            stake: Number.isFinite(stake) && stake > 0 ? stake : recommendedStake,
+            odd: m.odd1win
+          };
+        });
+        return next;
+      });
+      setOnewinQuants(prev => ({ ...prev, [game.id]: data.quant || null }));
+      setOpportunities(prev => prev.map(g => (
+        g.id === game.id
+          ? {
+              ...g,
+              auditado: true,
+              tacticalReading: leitura || g.tacticalReading,
+              justification: leitura || g.justification,
+              mensagemTelegram: data.mensagemTelegram || ''
+            }
+          : g
+      )));
+      setErroAuditoria(prev => ({
+        ...prev,
+        [game.id]: data.markets.length ? '' : 'Nenhuma linha com vantagem matemática real (+EV) neste confronto.'
+      }));
     } catch (e) {
       console.warn('Erro ao conectar com a rota de auditoria 1win.', e?.message || e);
+      setErroAuditoria(prev => ({ ...prev, [game.id]: 'A auditoria não respondeu. O detalhe ficou no console.' }));
     } finally {
       setLoading1win(prev => ({ ...prev, [game.id]: false }));
     }
@@ -1591,87 +1543,57 @@ export default function App() {
               </div>
             ) : (
               displayedGames.map(game => {
-                const url1win = urlBusca1win(game);
+                const linkColado = String(onewinLinks[game.id] || '').trim();
+                const linkDireto = /^https?:\/\//i.test(linkColado) ? linkColado : `${base1win()}/pt/betting`;
                 return (
                 <div key={game.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-4 min-w-0 overflow-hidden">
                   <div className="flex flex-wrap justify-between items-center gap-2 text-xs text-gray-400 mb-1 min-w-0">
                     <span className="min-w-0 break-words">{game.league} • {game.time}</span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        onClick={() => handleAnalyzeWithAI(game)}
-                        disabled={loadingAI[game.id]}
-                        className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-2.5 py-1 rounded text-[11px] transition flex items-center gap-1 shadow-sm"
-                      >
-                        {loadingAI[game.id] ? 'Analisando com I.A...' : '🤖 Analisar com I.A'}
-                      </button>
-                      <span className="bg-[#00c853]/20 text-[#00c853] font-bold px-2 py-0.5 rounded text-[11px]">{game.score}% SCORE</span>
-                    </div>
+                    <span className="bg-[#00c853]/20 text-[#00c853] font-bold px-2 py-0.5 rounded text-[11px]">{game.score}% SCORE</span>
                   </div>
 
                   <h3 className="font-bold text-lg text-white mb-1.5">{game.home} vs {game.away}</h3>
-                  {loadingAI[game.id] ? (
-                    <p className="text-xs text-purple-300 italic mb-4">Analisando com I.A...</p>
+                  {loading1win[game.id] ? (
+                    <p className="text-xs text-blue-300 italic mb-4">Executando Deep Scan + Auditoria IA...</p>
                   ) : (
                     <p className="text-xs text-gray-300 italic mb-4">"{game.tacticalReading || game.justification}"</p>
                   )}
 
-                  {!!game.aiPicks?.length && (
-                    <div className="space-y-2 mb-4">
-                      {game.aiPicks.map((pick) => {
-                        const stakeValue = customInputs[pick.id]?.stake ?? recommendedStake;
-                        const oddValue = Number(pick.oddEstimated);
-                        const marketName = formatMarketName(pick.market, { home: game.home, away: game.away });
-                        const market = {
-                          id: pick.id,
-                          name: marketName,
-                          marketType: 'Sugestão I.A',
-                          odd1win: oddValue,
-                          defaultOdd: oddValue
-                        };
-                        return (
-                          <div key={pick.id} className="p-2.5 rounded-lg bg-purple-950/30 border border-purple-500/50 text-gray-200">
-                            <div className="text-xs font-bold flex items-center gap-2 flex-wrap">
-                              <span>{marketName}</span>
-                              <span className="bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold">SUGESTÃO I.A</span>
-                            </div>
-                            <div className="text-[10px] text-gray-400 mt-0.5">
-                              Odd estimada: <strong className="text-white">{pick.oddEstimated}</strong>
-                            </div>
-                            <AcoesMercado
-                              stake={stakeValue}
-                              onStake={(valor) => handleStakeChange(pick.id, valor)}
-                              onSheet={() => handleAddToSheet(game, market, oddValue, url1win)}
-                              onMultipla={() => toggleMultipla(game, market, oddValue)}
-                              naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${pick.id}`)}
-                              onTelegram={() => handlePublishTelegram(game, market, {
-                                odd: oddValue,
-                                stake: customInputs[pick.id]?.stake ?? recommendedStake,
-                                directLink: url1win,
-                                tacticalReading: game.tacticalReading || ''
-                              })}
-                              telegramDisabled={!!publishingTip[pick.id]}
-                              telegramLabel={publishingTip[pick.id] ? 'Publicando...' : publishedTip[pick.id] ? 'Publicado' : 'Publicar no Telegram'}
-                              inputClass="bg-[#0d1117]"
-                            />
-                          </div>
-                        );
-                      })}
+                  <div className="bg-[#0d1117] border border-blue-500/30 rounded-lg p-3 mb-4 min-w-0">
+                    <div className="text-[11px] text-blue-400 font-bold mb-2">
+                      Auditar este jogo na 1win
                     </div>
-                  )}
-
-                  {/* BARRA DE AUDITORIA 1WIN */}
-                  <div className="bg-[#0d1117] border border-blue-500/30 rounded-lg p-3 mb-4">
-                    <div className="text-[11px] text-blue-400 font-bold mb-1 flex items-center gap-1.5">
-                      <span>🎯 AUDITAR ESTE JOGO NA 1WIN (+EV):</span>
+                    <div className="flex flex-col sm:flex-row gap-2 min-w-0">
+                      <input
+                        type="text"
+                        placeholder="Cole o link ou ID da 1win aqui..."
+                        value={onewinLinks[game.id] || ''}
+                        onChange={(e) => setOnewinLinks({ ...onewinLinks, [game.id]: e.target.value })}
+                        className="w-full min-w-0 min-h-[42px] bg-[#161b22] border border-gray-700 text-xs text-white rounded px-3 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAudit1Win(game)}
+                        disabled={!!loading1win[game.id]}
+                        className="min-h-[42px] w-full sm:w-auto shrink-0 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold text-xs px-3 rounded"
+                      >
+                        {loading1win[game.id] ? 'Auditando...' : 'Auditar na 1win'}
+                      </button>
                     </div>
                     <a
-                      href={url1win}
+                      href={`${base1win()}/pt/betting`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex min-h-[42px] items-center text-sm font-bold text-blue-300 hover:text-white"
                     >
-                      Abrir Jogo na 1win ↗
+                      Abrir 1win ↗
                     </a>
+                    {loading1win[game.id] && (
+                      <p className="text-xs text-blue-300">Executando Deep Scan + Auditoria IA...</p>
+                    )}
+                    {!!erroAuditoria[game.id] && !loading1win[game.id] && (
+                      <p className="text-xs text-amber-300 mt-1">{erroAuditoria[game.id]}</p>
+                    )}
 
                     {onewinQuants[game.id] && (
                       <div className="mt-3 rounded-lg border border-[#00c853]/35 bg-[#122319] p-3">
@@ -1751,14 +1673,14 @@ export default function App() {
                             <AcoesMercado
                               stake={stakeValue}
                               onStake={(valor) => handleStakeChange(m.id, valor)}
-                              onSheet={() => handleAddToSheet(game, m, m.odd1win, url1win)}
+                              onSheet={() => handleAddToSheet(game, m, m.odd1win, linkDireto)}
                               onMultipla={() => toggleMultipla(game, m, m.odd1win, m.fairOdd)}
                               naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
                               onTelegram={() => handlePublishTelegram(game, m, {
                                 odd: m.odd1win,
                                 stake: customInputs[m.id]?.stake ?? recommendedStake,
-                                directLink: url1win,
-                                tacticalReading: game.tacticalReading || ''
+                                directLink: linkDireto,
+                                tacticalReading: m.mensagemTelegram || game.mensagemTelegram || game.tacticalReading || ''
                               })}
                               telegramDisabled={!!publishingTip[m.id]}
                               telegramLabel={publishingTip[m.id] ? 'Publicando...' : publishedTip[m.id] ? 'Publicado' : 'Publicar no Telegram'}
@@ -1772,7 +1694,7 @@ export default function App() {
                   </div>
 
                   {/* Mercados Gerais / IA — some depois da auditoria, que passa a listar os mercados reais */}
-                  {!onewinAudits[game.id]?.length && (
+                  {!game.auditado && !onewinAudits[game.id]?.length && (
                   <div className="space-y-3">
                     {game.markets?.map(m => {
                       const inputState = customInputs[m.id] || { stake: recommendedStake, odd: m.defaultOdd };
@@ -1819,10 +1741,10 @@ export default function App() {
                           <AcoesMercado
                             stake={inputState.stake}
                             onStake={(valor) => handleStakeChange(m.id, valor)}
-                            onSheet={() => handleAddToSheet(game, m, null, url1win)}
+                            onSheet={() => handleAddToSheet(game, m, null, linkDireto)}
                             onMultipla={() => toggleMultipla(game, m, inputState.odd, m.fairOdd)}
                             naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
-                            onTelegram={() => handlePublishTelegram(game, m, { directLink: url1win })}
+                            onTelegram={() => handlePublishTelegram(game, m, { directLink: linkDireto })}
                             telegramDisabled={!!publishingTip[m.id]}
                             telegramLabel={publishingTip[m.id] ? 'Publicando...' : publishedTip[m.id] ? 'Publicado' : 'Publicar no Telegram'}
                             inputClass="bg-[#161b22]"
