@@ -245,8 +245,16 @@ function analisarOportunidadesQuant(lambdaMandante, muVisitante, oddsMercado) {
   });
 
   const melhoresEntradas = mercados
-    .filter((entrada) => entrada.ev > 0)
-    .sort((a, b) => b.ev - a.ev);
+    .filter((entrada) => {
+      if (entrada.ocultar) return false;
+      if (entrada.exibirSempre) return true;
+      return entrada.ev > 0;
+    })
+    .sort((a, b) => {
+      if (a.tag === 'FAVORITO') return -1;
+      if (b.tag === 'FAVORITO') return 1;
+      return b.ev - a.ev;
+    });
 
   return {
     entradas: modelo.entradas,
