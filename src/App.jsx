@@ -1663,6 +1663,7 @@ export default function App() {
                             <div>
                               <div className="text-xs font-bold flex items-center gap-2 flex-wrap">
                                 <span>{formatMarketName(m.name, { home: game.home, away: game.away })}</span>
+                                {m.tag === 'FAVORITO' && <span className="bg-amber-400 text-black text-[9px] px-1.5 py-0.5 rounded font-extrabold">FAVORITO</span>}
                                 {m.evPercent > 0 && <span className="bg-[#00c853] text-black text-[9px] px-1.5 py-0.5 rounded font-extrabold">+EV</span>}
                                 {m.isTopEV && <span className="bg-blue-500 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold">+EV TOP</span>}
                               </div>

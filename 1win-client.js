@@ -69,6 +69,26 @@ function fetch1WinMatchOdds(matchId) {
   });
 }
 
+function textoDupla(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function codigoDuplaChance(market, selection, outcome) {
+  if (textoDupla(market) !== 'dupla chance') return null;
+  const codigo = String(outcome || '').trim().toUpperCase();
+  if (codigo === '1X' || codigo === '12' || codigo === 'X2') return codigo;
+  const selecao = textoDupla(selection);
+  if (selecao === '1x' || / ou empate$/.test(selecao)) return '1X';
+  if (selecao === 'x2' || /^empate ou /.test(selecao)) return 'X2';
+  if (selecao === '12' || / ou /.test(selecao)) return '12';
+  return null;
+}
+
 /**
  * Mapeia a árvore de oddsGroups para uma lista plana e limpa de mercados
  */
@@ -81,12 +101,14 @@ function parseOddsGroups(oddsGroups) {
 
     for (const odd of oddsList) {
       if (odd.status === 1 && odd.cf) {
+        const dupla = codigoDuplaChance(marketName, odd.name, odd.outcome);
         result.push({
           market: marketName,
           selection: odd.name,      // Ex: "Fluminense FC 0", "SC Internacional 0"
           odd: parseFloat(odd.cf),  // Ex: 1.36
           outcome: odd.outcome,     // "1", "2", "X"
-          id: odd.id
+          id: odd.id,
+          ...(dupla ? { dupla } : {})
         });
       }
     }
@@ -95,4 +117,4 @@ function parseOddsGroups(oddsGroups) {
   return result;
 }
 
-export { fetch1WinMatchOdds };
+export { fetch1WinMatchOdds, codigoDuplaChance };

@@ -5,13 +5,13 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
-import { fetch1WinMatchOdds } from './1win-client.js';
+import { codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
 import { iniciarMonitorCarpina } from './liveMonitor.js';
 import { TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
-const { analisarOportunidadesQuant, ancorarNoMercado, calcularOddsQuant, calibrarLambdasH2H, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
+const { analisarOportunidadesQuant, ancorarNoMercado, calcularOddsQuant, calibrarLambdasH2H, confrontoDeGols, favoritoDoConfronto, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
 const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos, obterFixtureAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
 const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
@@ -1193,22 +1193,6 @@ function nomeMercadoXeque(id, nome, home, away) {
   return mapa[id] || nome;
 }
 
-function classificarDupla(selection, home, away) {
-  const texto = normalizarNomeQuant(selection);
-  const casa = normalizarNomeQuant(home);
-  const fora = normalizarNomeQuant(away);
-  const temCasa = !!(casa && texto.includes(casa));
-  const temFora = !!(fora && texto.includes(fora));
-  const temEmpate = /empate|draw/.test(texto) || /\bx\b/.test(texto);
-  if (temCasa && temFora && !temEmpate) return '12';
-  if (temCasa && temEmpate && !temFora) return '1X';
-  if (temFora && temEmpate && !temCasa) return 'X2';
-  if (/\b12\b/.test(texto)) return '12';
-  if (/\b1x\b/.test(texto)) return '1X';
-  if (/\bx2\b/.test(texto)) return 'X2';
-  return null;
-}
-
 function podeSerTopo(id, mercado, odd) {
   if (Number(odd) >= 4) return false;
   const lado = ladoDoResultado(id);
@@ -1234,17 +1218,21 @@ function candidatosMatematicos(quant, allMarkets, home, away) {
   const lista = [];
   const mercado = probs1x2Mercado(quant?.oddsMercado);
   let modelo = null;
+  let matriz = null;
   if (quant?.lambda > 0 && quant?.mu > 0) {
     try {
-      const matriz = calcularOddsQuant(quant.lambda, quant.mu);
+      matriz = calcularOddsQuant(quant.lambda, quant.mu);
       modelo = { casa: matriz.matchOdds.casa.probabilidade, fora: matriz.matchOdds.fora.probabilidade };
     } catch { /* o filtro de zebra segue sem o modelo */ }
   }
+  const favoritoId = favoritoDoConfronto(quant?.oddsMercado, matriz);
+  const jogoAberto = confrontoDeGols(matriz);
   const obrigatorios = new Set(['over15', 'over25', 'bttsSim', 'bttsNao']);
   (quant?.mercadosAuditados || []).forEach((mercadoLinha) => {
     const odd1win = Number(mercadoLinha.oddCasa);
     let oddJusta = Number(mercadoLinha.oddJusta);
     let ev = Number(mercadoLinha.ev) || 0;
+    if (jogoAberto && (mercadoLinha.mercado === 'under15' || mercadoLinha.mercado === 'under25' || mercadoLinha.ocultar)) return;
     if (ladoDoResultado(mercadoLinha.mercado) && odd1win >= 4) {
       const piso = odd1win >= 8 ? Number((1 / faixaDaZebra(odd1win)).toFixed(2)) : 6;
       if (!(oddJusta >= piso)) {
@@ -1254,7 +1242,8 @@ function candidatosMatematicos(quant, allMarkets, home, away) {
     }
     const positivo = odd1win > oddJusta && oddJusta > 1 && ev > 0.02;
     const obrigatorio = obrigatorios.has(mercadoLinha.mercado) && odd1win > 1 && oddJusta > 1;
-    if (!positivo && !obrigatorio) return;
+    const exibirFavorito = mercadoLinha.mercado === favoritoId && odd1win > 1 && oddJusta > 1;
+    if (!positivo && !obrigatorio && !exibirFavorito) return;
     if (positivo && resultadoInconsistente(mercadoLinha.mercado, mercado, modelo)) return;
     lista.push({
       id: mercadoLinha.mercado,
@@ -1262,7 +1251,8 @@ function candidatosMatematicos(quant, allMarkets, home, away) {
       linha: linhaDoMercado(mercadoLinha.mercado),
       oddJusta,
       odd1win,
-      ev
+      ev,
+      tag: exibirFavorito ? 'FAVORITO' : null
     });
   });
 
@@ -1294,13 +1284,16 @@ function candidatosMatematicos(quant, allMarkets, home, away) {
         X2: modelo.matchOdds.empate.probabilidade + modelo.matchOdds.fora.probabilidade,
         '12': modelo.matchOdds.casa.probabilidade + modelo.matchOdds.fora.probabilidade
       };
-      const grupos = (allMarkets || []).filter((item) => /dupla chance|hip[oó]tese dupla|resultado duplo/i.test(item.market || ''));
+      const codigoFavorito = favoritoId === 'casa' ? '1X' : favoritoId === 'fora' ? 'X2' : null;
+      const grupos = (allMarkets || []).filter((item) => codigoDuplaChance(item.market, item.selection, item.outcome));
       grupos.forEach((item) => {
-        const codigo = classificarDupla(item.selection, home, away);
+        const codigo = item.dupla || codigoDuplaChance(item.market, item.selection, item.outcome);
         const chance = chances[codigo];
         if (!codigo || !(chance > 0) || !(item.odd > 1)) return;
         const oddJusta = 1 / chance;
-        if (!(item.odd > oddJusta)) return;
+        const ev = (item.odd * chance) - 1;
+        const baseDupla = codigo === codigoFavorito;
+        if (!(item.odd > oddJusta && ev > 0.02) && !baseDupla) return;
         const id = codigo === '1X' ? 'dupla1X' : codigo === 'X2' ? 'duplaX2' : 'dupla12';
         if (lista.some((linha) => linha.id === id)) return;
         lista.push({
@@ -1309,7 +1302,9 @@ function candidatosMatematicos(quant, allMarkets, home, away) {
           linha: codigo,
           oddJusta,
           odd1win: item.odd,
-          ev: (item.odd * chance) - 1
+          ev,
+          tag: null,
+          baseDupla
         });
       });
     } catch (erro) {
@@ -1318,13 +1313,21 @@ function candidatosMatematicos(quant, allMarkets, home, away) {
   }
 
   const vistos = new Set();
+  const peso = (linha) => {
+    if (jogoAberto && linha.id === 'over15') return 0;
+    if (jogoAberto && linha.id === 'over25') return 1;
+    if (jogoAberto && linha.id === 'bttsSim') return 2;
+    if (linha.tag === 'FAVORITO') return 3;
+    if (linha.baseDupla) return 4;
+    return 5;
+  };
   return lista
     .filter((linha) => {
       if (vistos.has(linha.id)) return false;
       vistos.add(linha.id);
       return true;
     })
-    .sort((a, b) => b.ev - a.ev);
+    .sort((a, b) => peso(a) - peso(b) || b.ev - a.ev);
 }
 
 function extrairJsonGemini(raw) {
@@ -1428,6 +1431,7 @@ Probabilidades teóricas: ${JSON.stringify(quant?.probabilities || {})}`;
       fairOdd: Number(linha.oddJusta.toFixed(2)),
       evPercent,
       isTopEV: false,
+      tag: linha.tag || null,
       contradiz,
       stakeSugerida: contradiz ? 0 : stakeDaEntrada(stakes.get(linha.id), linha.ev, stakeBase)
     };

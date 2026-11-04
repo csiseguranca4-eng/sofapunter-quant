@@ -186,6 +186,29 @@ function probabilidadesPoisson(lambdaMandante, muVisitante) {
   };
 }
 
+function oddCurtaDeFavorito(odd) {
+  return odd > 1 && odd <= 1.8;
+}
+
+function favoritoDoConfronto(oddsMercado, modelo) {
+  const casa = Number(oddsMercado?.casa);
+  const fora = Number(oddsMercado?.fora);
+  if (oddCurtaDeFavorito(fora) && (!(casa > 1) || fora < casa)) return 'fora';
+  if (oddCurtaDeFavorito(casa) && (!(fora > 1) || casa < fora)) return 'casa';
+  const pCasa = Number(modelo?.matchOdds?.casa?.probabilidade) || 0;
+  const pFora = Number(modelo?.matchOdds?.fora?.probabilidade) || 0;
+  if (pFora > pCasa && oddCurtaDeFavorito(fora)) return 'fora';
+  if (pCasa > pFora && oddCurtaDeFavorito(casa)) return 'casa';
+  return null;
+}
+
+function confrontoDeGols(modelo) {
+  const over15 = Number(modelo?.gols?.over15?.probabilidade);
+  const over25 = Number(modelo?.gols?.over25?.probabilidade);
+  const percentual = (valor) => Number((valor * 100).toFixed(1));
+  return percentual(over15) >= 75 || percentual(over25) >= 50;
+}
+
 function analisarOportunidadesQuant(lambdaMandante, muVisitante, oddsMercado) {
   if (!oddsMercado || typeof oddsMercado !== 'object') {
     throw new Error('oddsMercado deve ser um objeto com as cotações da casa.');
@@ -193,6 +216,8 @@ function analisarOportunidadesQuant(lambdaMandante, muVisitante, oddsMercado) {
 
   const modelo = calcularOddsQuant(lambdaMandante, muVisitante);
   const mercados = [];
+  const favorito = favoritoDoConfronto(oddsMercado, modelo);
+  const jogoAberto = confrontoDeGols(modelo);
 
   MERCADOS_QUANT.forEach((mercado) => {
     if (!Object.prototype.hasOwnProperty.call(oddsMercado, mercado.id)) return;
@@ -201,6 +226,8 @@ function analisarOportunidadesQuant(lambdaMandante, muVisitante, oddsMercado) {
 
     const referencia = mercado.ler(modelo);
     const ev = calcularEV(oddCasa, referencia.probabilidade);
+    const linhaDeGols = jogoAberto && (mercado.id === 'over15' || mercado.id === 'over25' || mercado.id === 'bttsSim');
+    const underEmJogoAberto = jogoAberto && (mercado.id === 'under15' || mercado.id === 'under25');
     mercados.push({
       mercado: mercado.id,
       nome: mercado.nome,
@@ -210,7 +237,10 @@ function analisarOportunidadesQuant(lambdaMandante, muVisitante, oddsMercado) {
       margemEV: ev.percentual,
       ev: ev.valor,
       temValor: ev.temValor,
-      selo: classificarSelo(ev.valor, ev.temValor)
+      selo: classificarSelo(ev.valor, ev.temValor),
+      tag: mercado.id === favorito ? 'FAVORITO' : null,
+      exibirSempre: mercado.id === favorito || linhaDeGols,
+      ocultar: underEmJogoAberto
     });
   });
 
@@ -398,7 +428,9 @@ module.exports = {
   montarMercadosAdicionais,
   probabilidadesPoisson,
   ancorarNoMercado,
-  distanciaAbsurda
+  distanciaAbsurda,
+  favoritoDoConfronto,
+  confrontoDeGols
 };
 
 if (require.main === module) {
