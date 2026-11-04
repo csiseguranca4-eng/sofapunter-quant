@@ -1,10 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiUrl, urlVarredura } from './apiBase.js';
 
+const ESPELH0_1WIN_BRASIL = 'https://1win.com';
+
+function base1win() {
+  const configurado = String(import.meta.env.VITE_1WIN_BASE_URL || '').trim();
+  return (configurado || ESPELH0_1WIN_BRASIL)
+    .replace(/\/+$/, '')
+    .replace(/\/pt(?:\/betting)?$/i, '');
+}
+
 function urlBusca1win(jogo) {
-  if (jogo?.url_1win) return jogo.url_1win;
+  const direto = String(jogo?.url_1win || '').trim();
+  if (direto && !/1win\.pro/i.test(direto)) return direto;
   const mandante = jogo?.home || jogo?.home_team || jogo?.timeCasa || '';
-  return `https://1win.pro/bets/search?query=${encodeURIComponent(mandante)}`;
+  const termo = encodeURIComponent(mandante);
+  return `${base1win()}/pt/betting?query=${termo}`;
 }
 
 function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass }) {
