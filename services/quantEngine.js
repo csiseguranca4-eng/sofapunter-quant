@@ -323,6 +323,57 @@ function calibrarLambdasH2H(lambdaMandante, muVisitante, confrontos) {
   };
 }
 
+function probabilidadeImplicita(oddCasa, oddEmpate, oddFora) {
+  if (!(oddCasa > 1) || !(oddFora > 1)) return null;
+  const bruto = [1 / oddCasa, oddEmpate > 1 ? 1 / oddEmpate : 0, 1 / oddFora];
+  const soma = bruto[0] + bruto[1] + bruto[2];
+  if (!(soma > 0)) return null;
+  return { casa: bruto[0] / soma, empate: bruto[1] / soma, fora: bruto[2] / soma };
+}
+
+function distanciaAbsurda(oddJusta, oddMercado) {
+  if (!(oddJusta > 1) || !(oddMercado > 1)) return false;
+  const maior = Math.max(oddJusta, oddMercado);
+  const menor = Math.min(oddJusta, oddMercado);
+  return (maior / menor) - 1 > 1;
+}
+
+function limitarLado(probabilidade, odd) {
+  let valor = probabilidade;
+  if (odd > 3.5) valor = Math.min(valor, 0.30);
+  if (odd >= 5.5) valor = Math.min(0.18, Math.max(0.14, valor));
+  if (odd < 1.8 && odd > 1) valor = Math.max(valor, 0.55);
+  if (odd <= 1.6 && odd > 1) valor = Math.min(0.68, Math.max(0.62, valor));
+  return valor;
+}
+
+function ancorarNoMercado(modelo, odds) {
+  const casa = Number(modelo?.casa);
+  const fora = Number(modelo?.fora);
+  const oddCasa = Number(odds?.casa);
+  const oddFora = Number(odds?.fora);
+  const implicita = probabilidadeImplicita(oddCasa, odds?.empate, oddFora);
+  if (!implicita || !(casa > 0) || !(fora > 0)) {
+    return { casa, fora, ancorou: false, motivo: null };
+  }
+  const oddJustaCasa = 1 / casa;
+  const oddJustaFora = 1 / fora;
+  const mandanteZebra = oddCasa > 3.5 && oddFora < 1.8;
+  const visitanteZebra = oddFora > 3.5 && oddCasa < 1.8;
+  const casaEstourou = mandanteZebra && casa > 0.30;
+  const foraEstourou = visitanteZebra && fora > 0.30;
+  const absurdo = distanciaAbsurda(oddJustaCasa, oddCasa) || distanciaAbsurda(oddJustaFora, oddFora);
+  if (!mandanteZebra && !visitanteZebra && !absurdo && !casaEstourou && !foraEstourou) {
+    return { casa, fora, ancorou: false, motivo: null };
+  }
+  return {
+    casa: limitarLado(implicita.casa, oddCasa),
+    fora: limitarLado(implicita.fora, oddFora),
+    ancorou: true,
+    motivo: absurdo ? 'odd justa reancorada na 1win' : 'favorito da 1win preservado'
+  };
+}
+
 function montarMercadosAdicionais(mandante, visitante, oddsPorNome = {}) {
   const cantosEsperados = expectativaCantos(mandante, visitante);
   const cartoesEsperados = expectativaCartoes(mandante, visitante);
@@ -345,7 +396,9 @@ module.exports = {
   analisarOportunidadesQuant,
   calibrarLambdasH2H,
   montarMercadosAdicionais,
-  probabilidadesPoisson
+  probabilidadesPoisson,
+  ancorarNoMercado,
+  distanciaAbsurda
 };
 
 if (require.main === module) {

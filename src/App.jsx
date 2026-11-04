@@ -279,12 +279,12 @@ function BadgeForma({ forma }) {
   );
 }
 
-function GradeProbabilidades({ probabilities }) {
+function GradeProbabilidades({ probabilities, home, away }) {
   if (!probabilities) return null;
   const itens = [
-    ['Casa', probabilities.homeWin],
+    [home || 'Casa', probabilities.homeWin],
     ['Empate', probabilities.draw],
-    ['Fora', probabilities.awayWin],
+    [away || 'Fora', probabilities.awayWin],
     ['Over 2.5', probabilities.over25],
     ['BTTS', probabilities.btts]
   ];
@@ -1598,7 +1598,7 @@ export default function App() {
                     {onewinQuants[game.id] && (
                       <div className="mt-3 rounded-lg border border-[#00c853]/35 bg-[#122319] p-3">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-[#00c853] mb-2">SofaPunter Quant</div>
-                        <GradeProbabilidades probabilities={onewinQuants[game.id].probabilities} />
+                        <GradeProbabilidades probabilities={onewinQuants[game.id].probabilities} home={game.home} away={game.away} />
                         <BlocoClassificacaoMomento quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                         <BarraClassificacao quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                         <div className="flex flex-wrap items-center gap-2">

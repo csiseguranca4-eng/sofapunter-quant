@@ -445,13 +445,49 @@ async function calcularMediasConfronto(mandanteId, visitanteId, leagueId, season
 
   await Promise.all([anexarCantos(mandante), anexarCantos(visitante)]);
 
-  const lambdaReal = mediaPonderada(mandante.golosMarcadosCasa, visitante.golosSofridosFora);
-  const muReal = mediaPonderada(visitante.golosMarcadosFora, mandante.golosSofridosCasa);
-  if (lambdaReal == null || muReal == null) {
+  const intensidades = intensidadesConfronto(mandante, visitante);
+  if (intensidades.lambdaReal == null || intensidades.muReal == null) {
     throw new Error('As médias de golos do confronto vieram incompletas.');
   }
 
-  return { lambdaReal, muReal, mandante, visitante };
+  return { ...intensidades, mandante, visitante };
+}
+
+function mediaOu(valores) {
+  const nums = valores.filter((item) => Number.isFinite(item));
+  if (!nums.length) return null;
+  return nums.reduce((total, item) => total + item, 0) / nums.length;
+}
+
+function forcaOfensiva(stats) {
+  if (!stats) return null;
+  if (Number.isFinite(stats.mediaGolsMarcados)) return stats.mediaGolsMarcados;
+  return mediaOu([stats.golosMarcadosCasa, stats.golosMarcadosFora]);
+}
+
+function forcaDefensiva(stats) {
+  if (!stats) return null;
+  if (Number.isFinite(stats.mediaGolsSofridos)) return stats.mediaGolsSofridos;
+  return mediaOu([stats.golosSofridosCasa, stats.golosSofridosFora]);
+}
+
+function intensidadesConfronto(mandante, visitante) {
+  const ataqueCasa = forcaOfensiva(mandante);
+  const defesaCasa = forcaDefensiva(mandante);
+  const ataqueFora = forcaOfensiva(visitante);
+  const defesaFora = forcaDefensiva(visitante);
+  let lambda = mediaPonderada(ataqueCasa, defesaFora);
+  let mu = mediaPonderada(ataqueFora, defesaCasa);
+  if (!(lambda > 0) || !(mu > 0)) return { lambdaReal: lambda, muReal: mu };
+
+  const foraSuperior = ataqueFora != null && ataqueCasa != null && ataqueFora > ataqueCasa + 0.15;
+  const fatorCasa = foraSuperior ? 1 : 1.05;
+  lambda = Number((lambda * fatorCasa).toFixed(2));
+  mu = Number(mu.toFixed(2));
+  if (foraSuperior && lambda >= mu) {
+    lambda = Number((mu * 0.75).toFixed(2));
+  }
+  return { lambdaReal: lambda, muReal: mu };
 }
 
 function lerEstatistica(lista, nomes) {
@@ -507,6 +543,7 @@ module.exports = {
   buscarIdEquipa,
   obterEstatisticasEquipa,
   calcularMediasConfronto,
+  intensidadesConfronto,
   obterClassificacao,
   obterH2H,
   obterUltimosJogos,
