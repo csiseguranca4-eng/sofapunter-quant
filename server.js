@@ -382,7 +382,7 @@ app.get('/api/daily-opportunities', async (req, res) => {
   }
 });
 
-const GEMINI_TEXT_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.6-flash'];
+const GEMINI_TEXT_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash'];
 
 function cleanGeminiText(value) {
   return String(value || '').replace(/```/g, '').replace(/^["'\s]+|["'\s]+$/g, '').trim();
@@ -410,7 +410,7 @@ async function requestGeminiTacticalText(promptText, options = {}) {
     : GEMINI_TEXT_MODELS.map((model) => ({ model, json: false }));
 
   for (const attempt of attempts) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${attempt.model}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${attempt.model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`;
     try {
       const generationConfig = { temperature: 0.4 };
       if (attempt.json) generationConfig.responseMimeType = 'application/json';
@@ -423,7 +423,7 @@ async function requestGeminiTacticalText(promptText, options = {}) {
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': GEMINI_API_KEY
+            'x-goog-api-key': GEMINI_API_KEY.trim()
           },
           timeout: options.timeout || 20000
         }
