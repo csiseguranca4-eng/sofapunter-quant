@@ -3,7 +3,8 @@
     "1492447",
     "1550193",
     "1557466",
-    "1557462"
+    "1557462",
+    "1570449"
   ],
   "watches": {
     "bet_1793915440129p6m": {
@@ -124,15 +125,17 @@
         46,
         48,
         55,
-        57
+        57,
+        59
       ],
       "precisaRetry48": true,
-      "encerrado": false,
+      "encerrado": true,
       "ancora": {
-        "elapsed": 53,
+        "elapsed": 60,
         "status": "2H Second Half",
-        "em": 1794155378917
-      }
+        "em": 1794155754062
+      },
+      "motivo": "stop-60"
     },
     "bet_1794153221596vgh": {
       "betId": "bet_1794153221596vgh",
