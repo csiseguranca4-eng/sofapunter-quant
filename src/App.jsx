@@ -367,6 +367,34 @@ function BadgeForma({ forma }) {
   );
 }
 
+function lerProbabilidade(valor) {
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor > 1 ? valor / 100 : valor;
+  const texto = String(valor ?? '').trim().replace('%', '').replace(',', '.');
+  if (!texto) return null;
+  const numero = Number(texto);
+  if (!Number.isFinite(numero)) return null;
+  return numero > 1 ? numero / 100 : numero;
+}
+
+function probabilidadeOver25DoJogo(game, quant) {
+  const candidatos = [
+    quant?.probabilities?.over25,
+    game?.apiData?.probabilities?.over25,
+    game?.probabilities?.over25,
+    game?.over25
+  ];
+  for (const candidato of candidatos) {
+    const valor = lerProbabilidade(candidato);
+    if (valor != null) return valor;
+  }
+  const mercados = quant?.mercadosAuditados || quant?.mercados || [];
+  const linha = mercados.find((item) => (
+    item?.mercado === 'over25'
+    || /over\s*2[.,]5|acima de 2[.,]5/i.test(`${item?.nome || ''} ${item?.tipo || ''}`)
+  ));
+  return lerProbabilidade(linha?.probabilidade ?? linha?.probabilidadeModelo);
+}
+
 function GradeProbabilidades({ probabilities, home, away }) {
   if (!probabilities) return null;
   const itens = [
@@ -1577,9 +1605,13 @@ export default function App() {
     });
   }, [sheetBets]);
 
-  const displayedGames = selectedLeague === 'all'
+  const jogosDaLiga = selectedLeague === 'all'
     ? opportunities
     : opportunities.filter((game) => game.leagueGroup === selectedLeague);
+  const displayedGames = jogosDaLiga.filter((game) => {
+    const probabilidade = probabilidadeOver25DoJogo(game, onewinQuants[game.id]);
+    return probabilidade != null && probabilidade >= 0.58;
+  });
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-gray-100 font-sans pb-12">
@@ -1739,14 +1771,20 @@ export default function App() {
               </div>
             ) : displayedGames.length === 0 ? (
               <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-400">
-                Nenhum jogo desta liga na varredura atual.
+                {jogosDaLiga.length === 0
+                  ? 'Nenhum jogo desta liga na varredura atual.'
+                  : 'Nenhum jogo com probabilidade de Over 2.5 a partir de 58%.'}
               </div>
             ) : (
               displayedGames.map(game => {
                 const linkColado = String(onewinLinks[game.id] || '').trim();
                 const linkDireto = /^https?:\/\//i.test(linkColado) ? linkColado : `${base1win()}/pt/betting`;
+                const textoOver25 = `${(probabilidadeOver25DoJogo(game, onewinQuants[game.id]) * 100).toFixed(1)}%`;
                 return (
                 <div key={game.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-4 min-w-0 overflow-hidden">
+                  <div className="mb-2">
+                    <span className="bg-[#00c853]/20 text-[#00c853] font-bold px-2 py-0.5 rounded text-[11px]">Prob. Over 2.5: {textoOver25}</span>
+                  </div>
                   <div className="flex flex-wrap justify-between items-center gap-2 text-xs text-gray-400 mb-1 min-w-0">
                     <span className="min-w-0 break-words">{game.league} • {game.time}</span>
                     <span className="bg-[#00c853]/20 text-[#00c853] font-bold px-2 py-0.5 rounded text-[11px]">{game.score}% SCORE</span>
