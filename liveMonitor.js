@@ -4,9 +4,12 @@
  */
 
 import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
 dns.setDefaultResultOrder('ipv4first');
 
 import fs from 'fs';
+import http from 'node:http';
+import https from 'node:https';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
@@ -19,9 +22,75 @@ const ARQUIVO_LIVE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
 const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-async function fetchSupabase(url, opcoes) {
+function lookupPorDns(hostname, options, callback) {
+  const cb = typeof options === 'function' ? options : callback;
+  const opts = typeof options === 'function' ? {} : (options || {});
+  dns.resolve4(hostname, (erro, enderecos) => {
+    if (!erro && enderecos?.length) {
+      if (opts.all) cb(null, enderecos.map((address) => ({ address, family: 4 })));
+      else cb(null, enderecos[0], 4);
+      return;
+    }
+    if (typeof options === 'function') dns.lookup(hostname, cb);
+    else dns.lookup(hostname, opts, cb);
+  });
+}
+
+https.globalAgent = new https.Agent({ keepAlive: true, lookup: lookupPorDns });
+http.globalAgent = new http.Agent({ keepAlive: true, lookup: lookupPorDns });
+
+function cabecalhosPlainos(headers) {
+  if (!headers) return {};
+  if (typeof headers.forEach === 'function') {
+    const saida = {};
+    headers.forEach((valor, chave) => { saida[chave] = valor; });
+    return saida;
+  }
+  return { ...headers };
+}
+
+function fetchPorDns(entrada, opcoes = {}) {
+  const url = typeof entrada === 'string' ? entrada : entrada.url;
+  const alvo = new URL(url);
+  const lib = alvo.protocol === 'http:' ? http : https;
+  const metodo = opcoes.method || (typeof entrada === 'string' ? 'GET' : entrada.method) || 'GET';
+  const body = opcoes.body ?? null;
+  return new Promise((resolve, reject) => {
+    const req = lib.request({
+      protocol: alvo.protocol,
+      hostname: alvo.hostname,
+      port: alvo.port || undefined,
+      path: `${alvo.pathname}${alvo.search}`,
+      method: metodo,
+      headers: cabecalhosPlainos(opcoes.headers || (typeof entrada === 'string' ? null : entrada.headers)),
+      lookup: lookupPorDns
+    }, (res) => {
+      const partes = [];
+      res.on('data', (parte) => partes.push(parte));
+      res.on('end', () => {
+        const headers = new Headers();
+        for (const [chave, valor] of Object.entries(res.headers)) {
+          if (Array.isArray(valor)) valor.forEach((item) => headers.append(chave, item));
+          else if (valor != null) headers.set(chave, String(valor));
+        }
+        resolve(new Response(Buffer.concat(partes), { status: res.statusCode, headers }));
+      });
+    });
+    req.on('error', reject);
+    if (opcoes.signal) {
+      const abortar = () => req.destroy(opcoes.signal.reason || new Error('aborted'));
+      if (opcoes.signal.aborted) abortar();
+      else opcoes.signal.addEventListener('abort', abortar, { once: true });
+    }
+    if (typeof body === 'string' || Buffer.isBuffer(body)) req.write(body);
+    else if (body instanceof Uint8Array) req.write(Buffer.from(body));
+    req.end();
+  });
+}
+
+async function fetchSupabase(entrada, opcoes) {
   try {
-    return await fetch(url, opcoes);
+    return await fetchPorDns(entrada, opcoes);
   } catch (erro) {
     const causa = erro?.cause?.message || erro?.message || 'fetch failed';
     console.log('[Monitor 2.5] Supabase sem rede:', causa);
