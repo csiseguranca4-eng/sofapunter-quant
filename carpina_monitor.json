@@ -122,14 +122,16 @@
         20,
         25,
         46,
-        48
+        48,
+        55,
+        57
       ],
       "precisaRetry48": true,
       "encerrado": false,
       "ancora": {
-        "elapsed": 45,
-        "status": "HT Halftime",
-        "em": 1794154057993
+        "elapsed": 53,
+        "status": "2H Second Half",
+        "em": 1794155378917
       }
     },
     "bet_1794153221596vgh": {
