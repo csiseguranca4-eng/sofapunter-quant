@@ -5,7 +5,8 @@
     "1557466",
     "1557462",
     "1570449",
-    "1557464"
+    "1557464",
+    "1575215"
   ],
   "watches": {
     "bet_1793915440129p6m": {
@@ -151,6 +152,48 @@
       "encerrado": true,
       "ancora": null,
       "motivo": "encerrada"
+    },
+    "bet_17941617342350an": {
+      "betId": "bet_17941617342350an",
+      "nuvemId": null,
+      "match": "TSG 1899 Hoffenheim x Schalke 04",
+      "fixtureId": 1575215,
+      "stake": 5,
+      "odd": 1.52,
+      "kickoff": "2026-11-08T15:30:00-03:00",
+      "feitos": [
+        20,
+        25,
+        46,
+        48,
+        55,
+        57,
+        59,
+        61,
+        63,
+        65
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 66,
+        "status": "2H Second Half",
+        "em": 1794167625414
+      },
+      "motivo": "encerrar"
+    },
+    "bet_179416510378893z": {
+      "betId": "bet_179416510378893z",
+      "nuvemId": null,
+      "match": "Atletico Madrid x Barcelona FC",
+      "fixtureId": 1570443,
+      "stake": 5,
+      "odd": 1.34,
+      "kickoff": "2026-11-08T17:00:00-03:00",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": false,
+      "ancora": null
     }
   }
 }

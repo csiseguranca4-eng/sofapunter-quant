@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T16:50:02.993Z",
+  "updated_at": "2026-11-08T19:53:53.521Z",
   "jogos": [
     {
       "id": null,
@@ -74,6 +74,21 @@
         "pressao_relativa": -8
       },
       "updated_at": "2026-11-08T16:50:02.993Z"
+    },
+    {
+      "id": null,
+      "partida": "TSG 1899 Hoffenheim x Schalke 04",
+      "fixture_id": 1575215,
+      "minuto_atual": 65,
+      "placar": "2-0",
+      "status_monitoramento": "ENCERRADO_65",
+      "metricas_resumo": {
+        "xg": 2.56,
+        "chutes_alvo": 7,
+        "cantos": 4,
+        "pressao_relativa": 17
+      },
+      "updated_at": "2026-11-08T19:53:53.521Z"
     }
   ]
 }
