@@ -1,6 +1,24 @@
 {
   "bets": [
     {
+      "id": "bet_1794149468208nol",
+      "match": "Real Sociedad x Rayo Vallecano",
+      "league": "Futebol",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.43,
+      "evPercent": 10.9,
+      "isTopPick": false,
+      "odd": 1.59,
+      "stake": 5,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-08",
+      "timestamp": 1794149468208,
+      "gameLink": "https://1win.com/pt/betting/match/sport/crystal-palace-vs-real-sociedad-42724090"
+    },
+    {
       "id": "bet_17941460349518hy",
       "match": "Sunderland x Chelsea",
       "league": "Futebol",
@@ -26,34 +44,6 @@
         "chutes_alvo": 0,
         "cantos": 0,
         "pressao_relativa": 0
-      }
-    },
-    {
-      "id": "bet_1794144453073nxi",
-      "match": "Ipswich Town x Bournemouth",
-      "league": "Futebol",
-      "market": "Total de Gols: Acima de 2.5",
-      "marketType": "Over/Under Gols",
-      "fairOdd": 1.92,
-      "evPercent": -12.8,
-      "isTopPick": false,
-      "odd": 1.67,
-      "stake": 50,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
-      "date": "2026-11-08",
-      "timestamp": 1794144453073,
-      "gameLink": "https://1win.com/pt/betting/match/sport/ipswich-town-vs-bournemouth-42039173",
-      "fixtureId": 1557462,
-      "placarAoVivo": "0-1",
-      "minutoAtual": 25,
-      "statusMonitoramento": "TAKE_PROFIT_PRONTO",
-      "metricasResumo": {
-        "xg": 1.36,
-        "chutes_alvo": 3,
-        "cantos": 1,
-        "pressao_relativa": -5
       }
     },
     {

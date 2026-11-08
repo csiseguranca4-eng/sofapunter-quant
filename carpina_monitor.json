@@ -1,7 +1,8 @@
 {
   "fixturesBloqueados": [
     "1492447",
-    "1550193"
+    "1550193",
+    "1557466"
   ],
   "watches": {
     "bet_1793915440129p6m": {
@@ -75,15 +76,17 @@
       "kickoff": "2026-11-08T11:00:00-03:00",
       "feitos": [
         20,
-        25
+        25,
+        46
       ],
-      "precisaRetry48": false,
-      "encerrado": false,
+      "precisaRetry48": true,
+      "encerrado": true,
       "ancora": {
-        "elapsed": 26,
+        "elapsed": 45,
         "status": "1H First Half",
-        "em": 1794147917150
-      }
+        "em": 1794149163174
+      },
+      "motivo": "encerrada"
     },
     "bet_17941460349518hy": {
       "betId": "bet_17941460349518hy",
@@ -105,6 +108,19 @@
         "em": 1794147977520
       },
       "motivo": "encerrada"
+    },
+    "bet_1794149468208nol": {
+      "betId": "bet_1794149468208nol",
+      "nuvemId": null,
+      "match": "Real Sociedad x Rayo Vallecano",
+      "fixtureId": 1570449,
+      "stake": 5,
+      "odd": 1.59,
+      "kickoff": "2026-11-08T12:15:00-03:00",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": false,
+      "ancora": null
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T14:26:28.900Z",
+  "updated_at": "2026-11-08T14:46:03.176Z",
   "jogos": [
     {
       "id": null,
@@ -19,16 +19,16 @@
       "id": null,
       "partida": "Ipswich Town x Bournemouth",
       "fixture_id": 1557462,
-      "minuto_atual": 25,
+      "minuto_atual": 46,
       "placar": "0-1",
-      "status_monitoramento": "TAKE_PROFIT_PRONTO",
+      "status_monitoramento": "MONITORANDO",
       "metricas_resumo": {
-        "xg": 1.36,
-        "chutes_alvo": 3,
-        "cantos": 1,
-        "pressao_relativa": -5
+        "xg": 1.5,
+        "chutes_alvo": 4,
+        "cantos": 4,
+        "pressao_relativa": -14
       },
-      "updated_at": "2026-11-08T14:25:17.151Z"
+      "updated_at": "2026-11-08T14:46:03.176Z"
     },
     {
       "id": null,
