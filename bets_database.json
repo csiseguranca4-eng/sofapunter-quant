@@ -1,6 +1,34 @@
 {
   "bets": [
     {
+      "id": "bet_17941460349518hy",
+      "match": "Sunderland x Chelsea",
+      "league": "Futebol",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.6,
+      "evPercent": 16.6,
+      "isTopPick": false,
+      "odd": 1.87,
+      "stake": 5,
+      "status": "CASHOUT",
+      "returnedAmount": 2.83,
+      "realProfit": -2.17,
+      "date": "2026-11-08",
+      "timestamp": 1794146034951,
+      "gameLink": "https://1win.com/pt/betting/match/sport/sunderland-vs-chelsea-42039176",
+      "fixtureId": 1557466,
+      "placarAoVivo": "0-0",
+      "minutoAtual": 25,
+      "statusMonitoramento": "PRESSAO_ALTA_1T",
+      "metricasResumo": {
+        "xg": 0.48,
+        "chutes_alvo": 0,
+        "cantos": 0,
+        "pressao_relativa": 0
+      }
+    },
+    {
       "id": "bet_1794144453073nxi",
       "match": "Ipswich Town x Bournemouth",
       "league": "Futebol",
@@ -16,7 +44,17 @@
       "realProfit": 0,
       "date": "2026-11-08",
       "timestamp": 1794144453073,
-      "gameLink": "https://1win.com/pt/betting/match/sport/ipswich-town-vs-bournemouth-42039173"
+      "gameLink": "https://1win.com/pt/betting/match/sport/ipswich-town-vs-bournemouth-42039173",
+      "fixtureId": 1557462,
+      "placarAoVivo": "0-1",
+      "minutoAtual": 25,
+      "statusMonitoramento": "TAKE_PROFIT_PRONTO",
+      "metricasResumo": {
+        "xg": 1.36,
+        "chutes_alvo": 3,
+        "cantos": 1,
+        "pressao_relativa": -5
+      }
     },
     {
       "id": "bet_1794136263528a9w",
@@ -29,9 +67,9 @@
       "isTopPick": false,
       "odd": 1.64,
       "stake": 5,
-      "status": "PENDING",
+      "status": "RED",
       "returnedAmount": 0,
-      "realProfit": 0,
+      "realProfit": -5,
       "date": "2026-11-08",
       "timestamp": 1794136263528,
       "gameLink": "https://1win.com/pt/betting/match/sport/napoli-vs-lazio-42369751",
@@ -74,9 +112,9 @@
       "isTopPick": false,
       "odd": 1.6,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 8,
+      "realProfit": 3,
       "date": "2026-11-08",
       "timestamp": 1794135271196,
       "gameLink": "https://1win.com/pt/betting/match/sport/napoli-vs-lazio-42369751",
@@ -988,5 +1026,5 @@
       "timestamp": 1793311982369
     }
   ],
-  "bankroll": 397.88
+  "bankroll": 393.71
 }

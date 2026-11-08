@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T12:54:30.828Z",
+  "updated_at": "2026-11-08T14:26:28.900Z",
   "jogos": [
     {
       "id": null,
@@ -14,6 +14,36 @@
         "pressao_relativa": 0
       },
       "updated_at": "2026-11-08T12:54:30.828Z"
+    },
+    {
+      "id": null,
+      "partida": "Ipswich Town x Bournemouth",
+      "fixture_id": 1557462,
+      "minuto_atual": 25,
+      "placar": "0-1",
+      "status_monitoramento": "TAKE_PROFIT_PRONTO",
+      "metricas_resumo": {
+        "xg": 1.36,
+        "chutes_alvo": 3,
+        "cantos": 1,
+        "pressao_relativa": -5
+      },
+      "updated_at": "2026-11-08T14:25:17.151Z"
+    },
+    {
+      "id": null,
+      "partida": "Sunderland x Chelsea",
+      "fixture_id": 1557466,
+      "minuto_atual": 25,
+      "placar": "0-0",
+      "status_monitoramento": "PRESSAO_ALTA_1T",
+      "metricas_resumo": {
+        "xg": 0.48,
+        "chutes_alvo": 0,
+        "cantos": 0,
+        "pressao_relativa": 0
+      },
+      "updated_at": "2026-11-08T14:26:28.900Z"
     }
   ]
 }

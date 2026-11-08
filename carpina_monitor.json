@@ -73,10 +73,38 @@
       "stake": 50,
       "odd": 1.67,
       "kickoff": "2026-11-08T11:00:00-03:00",
-      "feitos": [],
+      "feitos": [
+        20,
+        25
+      ],
       "precisaRetry48": false,
       "encerrado": false,
-      "ancora": null
+      "ancora": {
+        "elapsed": 26,
+        "status": "1H First Half",
+        "em": 1794147917150
+      }
+    },
+    "bet_17941460349518hy": {
+      "betId": "bet_17941460349518hy",
+      "nuvemId": null,
+      "match": "Sunderland x Chelsea",
+      "fixtureId": 1557466,
+      "stake": 5,
+      "odd": 1.87,
+      "kickoff": "2026-11-08T11:00:00-03:00",
+      "feitos": [
+        20,
+        25
+      ],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 25,
+        "status": "1H First Half",
+        "em": 1794147977520
+      },
+      "motivo": "encerrada"
     }
   }
 }
