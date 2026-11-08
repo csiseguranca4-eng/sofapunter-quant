@@ -533,7 +533,7 @@ async function requestGeminiTacticalText(promptText, options = {}) {
   const parecerLocal = () => textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
-    const modelos = ['gemini-1.5-flash-latest', 'gemini-2.0-flash'];
+    const modelos = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
     for (const nome of modelos) {
       try {
         const model = genAI.getGenerativeModel({ model: nome });
@@ -547,7 +547,7 @@ async function requestGeminiTacticalText(promptText, options = {}) {
         const mensagem = error?.message || 'erro sem mensagem';
         console.error('ERRO GEMINI DETALHADO:', nome, mensagem);
         const naoEncontrado = Number(error?.status) === 404 || /not found|404/i.test(mensagem);
-        if (naoEncontrado && nome !== 'gemini-2.0-flash') continue;
+        if (naoEncontrado && nome !== 'gemini-2.5-flash-lite') continue;
         console.warn('Parecer heurístico local ativado:', error?.status || error?.code || 'exceção');
         return parecerLocal();
       }
