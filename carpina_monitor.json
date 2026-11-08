@@ -47,14 +47,19 @@
       "kickoff": "2026-11-08T08:30:00-03:00",
       "feitos": [
         46,
-        48
+        48,
+        55,
+        57,
+        59,
+        61,
+        63
       ],
       "precisaRetry48": true,
       "encerrado": false,
       "ancora": {
-        "elapsed": 45,
-        "status": "HT Halftime",
-        "em": 1794140414020
+        "elapsed": 63,
+        "status": "2H Second Half",
+        "em": 1794142350368
       }
     }
   }
