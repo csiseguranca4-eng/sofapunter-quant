@@ -1,6 +1,7 @@
 {
   "fixturesBloqueados": [
-    "1492447"
+    "1492447",
+    "1550193"
   ],
   "watches": {
     "bet_1793915440129p6m": {
@@ -52,15 +53,17 @@
         57,
         59,
         61,
-        63
+        63,
+        65
       ],
       "precisaRetry48": true,
-      "encerrado": false,
+      "encerrado": true,
       "ancora": {
-        "elapsed": 63,
+        "elapsed": 65,
         "status": "2H Second Half",
-        "em": 1794142350368
-      }
+        "em": 1794142485385
+      },
+      "motivo": "encerrar"
     }
   }
 }

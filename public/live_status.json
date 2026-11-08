@@ -1,0 +1,19 @@
+{
+  "updated_at": "2026-11-08T12:54:30.828Z",
+  "jogos": [
+    {
+      "id": null,
+      "partida": "Napoli x Lazio",
+      "fixture_id": 1550193,
+      "minuto_atual": 65,
+      "placar": "1-1",
+      "status_monitoramento": "ENCERRADO_65",
+      "metricas_resumo": {
+        "xg": 2.75,
+        "chutes_alvo": 8,
+        "pressao_relativa": 0
+      },
+      "updated_at": "2026-11-08T12:54:30.828Z"
+    }
+  ]
+}
