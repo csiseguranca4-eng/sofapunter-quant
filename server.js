@@ -11,6 +11,7 @@ import { TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { analisarOportunidadesQuant, ancorarNoMercado, calcularOddsQuant, calibrarLambdasH2H, confrontoDeGols, favoritoDoConfronto, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
 const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos, obterFixtureAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
 const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
@@ -382,8 +383,6 @@ app.get('/api/daily-opportunities', async (req, res) => {
   }
 });
 
-const GEMINI_TEXT_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash'];
-
 function cleanGeminiText(value) {
   return String(value || '').replace(/```/g, '').replace(/^["'\s]+|["'\s]+$/g, '').trim();
 }
@@ -397,17 +396,6 @@ function buildDynamicTacticalReading(homeTeam, awayTeam, odds) {
     ? `A projeção aponta jogo vertical, com valor em ${formatMarketName(best.name)} (${best.odd.toFixed(2)}) na 1win.`
     : 'A projeção aponta jogo vertical, com valor nas odds auditadas da 1win.';
   return `Leitura tática: ${homeTeam} tem tendência ofensiva clara diante de ${awayTeam}. ${projection}`;
-}
-
-function falhaGeminiParaFallback(error) {
-  const status = Number(error?.response?.status);
-  if (status === 401 || status === 403) return true;
-  if (error?.response) return false;
-  const codigo = String(error?.code || '');
-  if (['ECONNABORTED', 'ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ENETUNREACH', 'EHOSTUNREACH'].includes(codigo)) {
-    return true;
-  }
-  return /network|timeout|fetch failed|getaddrinfo|socket/i.test(String(error?.message || ''));
 }
 
 function textoClassificacaoLocal(nome, lado) {
@@ -542,48 +530,23 @@ function textoDoParecerLocal(parecer, promptText, wantJson) {
 async function requestGeminiTacticalText(promptText, options = {}) {
   console.log('Gemini Key carregada:', process.env.GEMINI_API_KEY ? 'OK (tamanho: ' + process.env.GEMINI_API_KEY.length + ')' : 'NÃO CARREGADA');
   const wantJson = options.json === true;
-  const attempts = wantJson
-    ? [
-        ...GEMINI_TEXT_MODELS.map((model) => ({ model, json: true })),
-        ...GEMINI_TEXT_MODELS.map((model) => ({ model, json: false }))
-      ]
-    : GEMINI_TEXT_MODELS.map((model) => ({ model, json: false }));
-
-  for (const attempt of attempts) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${attempt.model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY.trim())}`;
-    try {
-      const generationConfig = { temperature: 0.4 };
-      if (attempt.json) generationConfig.responseMimeType = 'application/json';
-      const response = await axios.post(
-        url,
-        {
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': GEMINI_API_KEY.trim()
-          },
-          timeout: options.timeout || 20000
-        }
-      );
-      const text = response?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      const cleaned = attempt.json ? String(text || '').trim() : cleanGeminiText(text);
-      if (cleaned) return cleaned;
-      console.error('ERRO GEMINI DETALHADO:', attempt.model, 'devolveu resposta sem texto.');
-    } catch (error) {
-      const corpo = error?.response?.data;
-      const mensagem = corpo?.error?.message || corpo?.message || error?.message || 'erro sem mensagem';
-      console.error('ERRO GEMINI DETALHADO:', attempt.model, mensagem);
-      if (corpo) console.error('ERRO GEMINI CORPO:', typeof corpo === 'string' ? corpo : JSON.stringify(corpo));
-      if (falhaGeminiParaFallback(error)) {
-        console.warn('Parecer heurístico local ativado:', error?.response?.status || error?.code || 'rede');
-        return textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
-      }
-    }
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(promptText, { timeout: options.timeout || 20000 });
+    const response = await result.response;
+    const text = response.text();
+    const cleaned = wantJson ? String(text || '').trim() : cleanGeminiText(text);
+    if (cleaned) return cleaned;
+    console.error('ERRO GEMINI DETALHADO:', 'gemini-1.5-flash', 'devolveu resposta sem texto.');
+  } catch (error) {
+    const mensagem = error?.message || 'erro sem mensagem';
+    console.error('ERRO GEMINI DETALHADO:', 'gemini-1.5-flash', mensagem);
+    console.warn('Parecer heurístico local ativado:', error?.status || error?.code || 'exceção');
+    return textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
   }
-  return '';
+  console.warn('Parecer heurístico local ativado: resposta sem texto');
+  return textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
 }
 
 function normalizeAiPicks(picks, teams = {}) {
