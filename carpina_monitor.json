@@ -147,8 +147,9 @@
       "kickoff": "2026-11-08T13:30:00-03:00",
       "feitos": [],
       "precisaRetry48": false,
-      "encerrado": false,
-      "ancora": null
+      "encerrado": true,
+      "ancora": null,
+      "motivo": "encerrada"
     }
   }
 }

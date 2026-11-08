@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T16:35:54.063Z",
+  "updated_at": "2026-11-08T16:50:02.993Z",
   "jogos": [
     {
       "id": null,
@@ -59,6 +59,21 @@
         "pressao_relativa": 8
       },
       "updated_at": "2026-11-08T16:35:54.063Z"
+    },
+    {
+      "id": null,
+      "partida": "Manchester United x Aston Villa",
+      "fixture_id": 1557464,
+      "minuto_atual": 20,
+      "placar": "1-2",
+      "status_monitoramento": "GREEN_TOTAL",
+      "metricas_resumo": {
+        "xg": 1.05,
+        "chutes_alvo": 4,
+        "cantos": 1,
+        "pressao_relativa": -8
+      },
+      "updated_at": "2026-11-08T16:50:02.993Z"
     }
   ]
 }

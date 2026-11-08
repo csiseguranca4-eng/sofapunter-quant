@@ -1,6 +1,24 @@
 {
   "bets": [
     {
+      "id": "bet_1794157104928dcd",
+      "match": "Baltika x Dynamo Makhachkala",
+      "league": "Futebol",
+      "market": "Total de Gols: Acima de 1.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.48,
+      "evPercent": -2,
+      "isTopPick": false,
+      "odd": 1.45,
+      "stake": 5,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-08",
+      "timestamp": 1794157104928,
+      "gameLink": "https://1win.com/pt/betting/match/sport/baltika-vs-dynamo-makhachkala-42099702"
+    },
+    {
       "id": "bet_1794153221596vgh",
       "match": "Manchester United x Aston Villa",
       "league": "Futebol",
@@ -11,12 +29,22 @@
       "isTopPick": false,
       "odd": 1.5,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 7.5,
+      "realProfit": 2.5,
       "date": "2026-11-08",
       "timestamp": 1794153221597,
-      "gameLink": "https://1win.com/pt/betting/match/sport/manchester-united-vs-aston-villa-42039352"
+      "gameLink": "https://1win.com/pt/betting/match/sport/manchester-united-vs-aston-villa-42039352",
+      "fixtureId": 1557464,
+      "placarAoVivo": "1-2",
+      "minutoAtual": 20,
+      "statusMonitoramento": "GREEN_TOTAL",
+      "metricasResumo": {
+        "xg": 1.05,
+        "chutes_alvo": 4,
+        "cantos": 1,
+        "pressao_relativa": -8
+      }
     },
     {
       "id": "bet_1794149468208nol",
@@ -37,13 +65,13 @@
       "gameLink": "https://1win.com/pt/betting/match/sport/crystal-palace-vs-real-sociedad-42724090",
       "fixtureId": 1570449,
       "placarAoVivo": "0-0",
-      "minutoAtual": 25,
+      "minutoAtual": 59,
       "statusMonitoramento": "STOP_LOSS_RECOMENDADO",
       "metricasResumo": {
-        "xg": 0.22,
-        "chutes_alvo": 1,
-        "cantos": 1,
-        "pressao_relativa": -5
+        "xg": 1.01,
+        "chutes_alvo": 2,
+        "cantos": 8,
+        "pressao_relativa": 8
       }
     },
     {
@@ -1044,5 +1072,5 @@
       "timestamp": 1793311982369
     }
   ],
-  "bankroll": 393.71
+  "bankroll": 396.21
 }
