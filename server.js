@@ -30,7 +30,7 @@ if (!fs.existsSync(DB_FILE)) {
 }
 
 // CHAVE GOOGLE AI STUDIO (GEMINI)
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyDJslnbr3zzQ6uIb-9ToB65Pt1Vts2UBPo';
+const GEMINI_API_KEY = String(process.env.GEMINI_API_KEY || '').trim();
 
 // BOT DO TELEGRAM
 const TELEGRAM_BOT_TOKEN = '9131635244:AAHUqedO0Jv_1HYn21EFgvAEp_O1GpwJq0Y';
@@ -409,7 +409,7 @@ async function requestGeminiTacticalText(promptText, options = {}) {
     : GEMINI_TEXT_MODELS.map((model) => ({ model, json: false }));
 
   for (const attempt of attempts) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${attempt.model}:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${attempt.model}:generateContent`;
     try {
       const generationConfig = { temperature: 0.4 };
       if (attempt.json) generationConfig.responseMimeType = 'application/json';
@@ -419,7 +419,13 @@ async function requestGeminiTacticalText(promptText, options = {}) {
           contents: [{ parts: [{ text: promptText }] }],
           generationConfig
         },
-        { headers: { 'Content-Type': 'application/json' }, timeout: options.timeout || 20000 }
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_API_KEY
+          },
+          timeout: options.timeout || 20000
+        }
       );
       const text = response?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
       const cleaned = attempt.json ? String(text || '').trim() : cleanGeminiText(text);
