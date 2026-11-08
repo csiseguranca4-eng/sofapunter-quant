@@ -4,6 +4,8 @@
  * Odd justa = 1 / probabilidade.
  */
 
+const LIGAS_OFICIAIS = require('../ligasOficiais.json');
+
 function validarIntensidade(nome, valor) {
   const intensidade = Number(valor);
   if (!Number.isFinite(intensidade) || intensidade < 0) {
@@ -429,6 +431,7 @@ function montarMercadosAdicionais(mandante, visitante, oddsPorNome = {}) {
 }
 
 module.exports = {
+  LIGAS_OFICIAIS,
   calcularOddsQuant,
   calcularEV,
   analisarOportunidadesQuant,

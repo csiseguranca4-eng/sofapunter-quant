@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { apiUrl, urlVarredura } from './apiBase.js';
+import { apiUrl, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
 import RadarLive from './RadarLive.jsx';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -456,6 +456,55 @@ function jogoVisivelNoRadar(game, quant) {
   return ligaPrincipal(game) && media != null && media >= 2.2;
 }
 
+function probabilidadeOver15DoJogo(game, quant) {
+  const candidatos = [
+    game?.over15_prob,
+    quant?.probabilities?.over15,
+    game?.apiData?.probabilities?.over15,
+    game?.probabilities?.over15,
+    game?.over15
+  ];
+  for (const candidato of candidatos) {
+    const valor = lerProbabilidade(candidato);
+    if (valor != null) return valor;
+  }
+  const mercados = quant?.mercadosAuditados || quant?.mercados || [];
+  const linha = mercados.find((item) => (
+    item?.mercado === 'over15'
+    || /over\s*1[.,]5|acima de 1[.,]5/i.test(`${item?.nome || ''} ${item?.tipo || ''}`)
+  ));
+  return lerProbabilidade(linha?.probabilidade ?? linha?.probabilidadeModelo);
+}
+
+function estimarOver15PorMedia(media) {
+  const intensidade = Number(media);
+  if (!(intensidade > 0)) return null;
+  const under = Math.exp(-intensidade) * (1 + intensidade);
+  return Math.min(0.97, Math.max(0, 1 - under));
+}
+
+function altaProbabilidadeOver(game, quant) {
+  const media = mediaGolsDoJogo(game, quant);
+  const over25 = probabilidadeOver25DoJogo(game, quant) ?? estimarOverPorMedia(media);
+  const over15 = probabilidadeOver15DoJogo(game, quant) ?? estimarOver15PorMedia(media);
+  return (over25 != null && over25 >= 0.60) || (over15 != null && over15 >= 0.78);
+}
+
+function rotuloJogoDia(game, quant) {
+  const prefixo = altaProbabilidadeOver(game, quant) ? '⭐ ALTA PROBABILIDADE (Over 1.5 / 2.5) ' : '';
+  return `${prefixo}[${game.league}] ${game.home} vs ${game.away} - ${game.time}`;
+}
+
+function SeletorLigas({ value, onChange, className }) {
+  return (
+    <select value={value} onChange={(event) => onChange(event.target.value)} className={className}>
+      {OPCOES_LIGA.map((opcao) => (
+        <option key={opcao.value} value={opcao.value}>{opcao.label}</option>
+      ))}
+    </select>
+  );
+}
+
 function textoTagOver25(game, quant) {
   const leitura = leituraOver25(game, quant);
   if (!leitura.conhecida) return 'Prob. Over 2.5: Em análise';
@@ -659,6 +708,8 @@ export default function App() {
     return localStorage.getItem('sp_active_shift') || 'europe';
   });
   const [selectedLeague, setSelectedLeague] = useState('all');
+  const [ligaPlanilha, setLigaPlanilha] = useState('all');
+  const [jogoFocado, setJogoFocado] = useState('');
 
   const [currentBankroll, setCurrentBankroll] = useState(PRIMARY_BANKROLL);
   const [sheetBets, setSheetBets] = useState([]);
@@ -879,11 +930,13 @@ export default function App() {
         setErroVarredura(data?.message || 'Não foi possível buscar os jogos do dia.');
         return;
       }
-      const jogosDaRegiao = data.games.map((jogo) => (
-        shift === 'brazil' ? { ...jogo, isBrazil: true, leagueGroup: 'brazil' } : { ...jogo, isBrazil: false }
-      ));
+      const ehBrasil = (jogo) => jogo?.regiao === 'Brasil' || jogo?.leagueGroup === 'brazil';
+      const jogosDaRegiao = data.games.map((jogo) => ({
+        ...jogo,
+        isBrazil: ehBrasil(jogo)
+      }));
       setOpportunities((atual) => {
-        const mantidos = atual.filter((jogo) => (shift === 'brazil' ? !jogo.isBrazil : Boolean(jogo.isBrazil)));
+        const mantidos = atual.filter((jogo) => (shift === 'brazil' ? !ehBrasil(jogo) : ehBrasil(jogo)));
         const idsNovos = new Set(jogosDaRegiao.map((jogo) => String(jogo.id)));
         const mescla = [
           ...jogosDaRegiao,
@@ -1691,10 +1744,16 @@ export default function App() {
     });
   }, [sheetBets]);
 
-  const jogosDaLiga = selectedLeague === 'all'
-    ? opportunities
-    : opportunities.filter((game) => game.leagueGroup === selectedLeague);
+  const jogosDaLiga = opportunities.filter((game) => grupoCompativel(selectedLeague, game.leagueGroup));
   const displayedGames = jogosDaLiga.filter((game) => jogoVisivelNoRadar(game, onewinQuants[game.id]));
+  const jogosDoDia = [...opportunities].sort((a, b) => String(a.time).localeCompare(String(b.time)) || String(a.home).localeCompare(String(b.home)));
+  const apostasDaPlanilha = dayStats.bets.filter((aposta) => grupoCompativel(ligaPlanilha, grupoDaLiga(`${aposta.league || ''} ${aposta.match || ''}`)));
+
+  useEffect(() => {
+    if (!jogoFocado || activeTab !== 'opps') return;
+    const alvo = document.getElementById(`jogo-${jogoFocado}`);
+    if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [jogoFocado, selectedLeague, activeTab, displayedGames.length]);
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-gray-100 font-sans pb-12">
@@ -1706,26 +1765,29 @@ export default function App() {
           </div>
           
           <div className="w-full min-w-0 sm:flex-1 flex flex-col gap-2">
-            <select
+            <SeletorLigas
               value={selectedLeague}
-              onChange={(e) => setSelectedLeague(e.target.value)}
+              onChange={setSelectedLeague}
+              className="w-full min-w-0 min-h-[42px] bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 outline-none"
+            />
+            <select
+              value={jogoFocado}
+              onChange={(event) => {
+                const id = event.target.value;
+                setJogoFocado(id);
+                if (!id) return;
+                const jogo = opportunities.find((item) => String(item.id) === String(id));
+                if (jogo && !grupoCompativel(selectedLeague, jogo.leagueGroup)) setSelectedLeague('all');
+                setActiveTab('opps');
+              }}
               className="w-full min-w-0 min-h-[42px] bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 outline-none"
             >
-              <option value="all">Todas as Ligas</option>
-              <option value="uefa_cups">🏆 UEFA Champions / Europa League</option>
-              <option value="national_cups">🏆 Copas Nacionais</option>
-              <option value="premier_league">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</option>
-              <option value="laliga">🇪🇸 LaLiga / LaLiga 2</option>
-              <option value="serie_a">🇮🇹 Serie A</option>
-              <option value="serie_b">🇮🇹 Serie B</option>
-              <option value="bundesliga">🇩🇪 Bundesliga</option>
-              <option value="bundesliga_2">🇩🇪 2. Bundesliga</option>
-              <option value="ligue_1">🇫🇷 Ligue 1 (França)</option>
-              <option value="portugal">🇵🇹 Liga Portugal</option>
-              <option value="turkey">🇹🇷 Turquia (Süper Lig)</option>
-              <option value="greece">🇬🇷 Grécia (Super League)</option>
-              <option value="brazil">🇧🇷 Brasil</option>
-              <option value="argentina">🇦🇷 Argentina</option>
+              <option value="">Jogos do dia</option>
+              {jogosDoDia.map((game) => (
+                <option key={game.id} value={game.id}>
+                  {rotuloJogoDia(game, onewinQuants[game.id])}
+                </option>
+              ))}
             </select>
             <div className="grid grid-cols-2 gap-2">
             <button
@@ -1864,8 +1926,15 @@ export default function App() {
                 const linkColado = String(onewinLinks[game.id] || '').trim();
                 const linkDireto = /^https?:\/\//i.test(linkColado) ? linkColado : `${base1win()}/pt/betting`;
                 const textoOver25 = textoTagOver25(game, onewinQuants[game.id]);
+                const alta = altaProbabilidadeOver(game, onewinQuants[game.id]);
+                const focado = String(jogoFocado) === String(game.id);
                 return (
-                <div key={game.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-4 min-w-0 overflow-hidden">
+                <div id={`jogo-${game.id}`} key={game.id} className={`scroll-mt-28 bg-[#161b22] rounded-xl p-4 min-w-0 overflow-hidden border ${alta ? 'border-[#EAB308] shadow-[inset_0_4px_0_#FACC15]' : 'border-gray-800'} ${focado ? 'ring-2 ring-[#FACC15]' : ''}`}>
+                  {alta && (
+                    <div className="mb-2">
+                      <span className="bg-[#FACC15] text-black font-bold px-2 py-0.5 rounded text-[11px]">⭐ ALTA PROBABILIDADE (Over 1.5 / 2.5)</span>
+                    </div>
+                  )}
                   <div className="mb-2">
                     <span className="bg-[#00c853]/20 text-[#00c853] font-bold px-2 py-0.5 rounded text-[11px]">{textoOver25}</span>
                   </div>
@@ -2217,6 +2286,11 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              <SeletorLigas
+                value={ligaPlanilha}
+                onChange={setLigaPlanilha}
+                className="w-full sm:max-w-xs min-h-[42px] bg-[#0d1117] border border-gray-700 text-xs text-gray-200 rounded-lg px-2 outline-none"
+              />
               <div className="text-xs text-gray-400">
                 Taxa de Acerto: <strong className="text-white">{dayStats.winRate}%</strong> | ROI: <strong className={Number(dayStats.roi) >= 0 ? 'text-[#00c853]' : 'text-red-500'}>{dayStats.roi}%</strong>
               </div>
@@ -2267,7 +2341,7 @@ export default function App() {
             </div>
 
             <div className="space-y-3">
-              {dayStats.bets.length === 0 ? (
+              {apostasDaPlanilha.length === 0 ? (
                 <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-400">
                   Nenhuma entrada para este filtro.
                   {sheetBets.length > 0 && selectedDate !== 'ALL' && (
@@ -2277,7 +2351,7 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                dayStats.bets.map(b => (
+                apostasDaPlanilha.map(b => (
                   <div key={b.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                     <div>
                       <div className="flex items-center gap-2">

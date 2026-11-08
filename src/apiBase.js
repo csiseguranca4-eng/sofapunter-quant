@@ -1,3 +1,5 @@
+export { LIGAS_OFICIAIS, OPCOES_LIGA, grupoCompativel, grupoDaLiga } from '../ligasOficiais.js';
+
 export function emLocal(host) {
   const nome = String(host ?? (typeof window !== 'undefined' ? window.location.hostname : '')).toLowerCase();
   return nome === 'localhost' || nome === '127.0.0.1';

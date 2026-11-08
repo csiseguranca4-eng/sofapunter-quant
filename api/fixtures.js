@@ -1,3 +1,5 @@
+import { ligaOficialPorTexto, partidaVirtual } from '../ligasOficiais.js';
+
 function hojeSaoPaulo() {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -17,58 +19,6 @@ function semAcento(valor) {
     .trim();
 }
 
-function temTexto(texto, frases) {
-  return frases.some((frase) => texto.includes(frase));
-}
-
-function temPais(texto, nomes) {
-  return nomes.some((nome) => new RegExp(`(^| )${nome}( |$)`).test(texto));
-}
-
-const LIGAS_API_FOOTBALL = new Map([
-  [71, 'brazil'],
-  [72, 'brazil'],
-  [73, 'brazil'],
-  [78, 'bundesliga'],
-  [79, 'bundesliga_2'],
-  [136, 'serie_b']
-]);
-
-function classificarLeagueGroup(textoLiga, jogoBrasil, leagueId) {
-  const porId = LIGAS_API_FOOTBALL.get(Number(leagueId));
-  if (porId) return porId;
-  const texto = String(textoLiga || '');
-  if (temTexto(texto, ['uefa champions', 'uefa europa', 'uefa conference', 'liga dos campeoes', 'liga europa'])) {
-    return 'uefa_cups';
-  }
-  if (temTexto(texto, ['copa del rey', 'copa do rei', 'fa cup', 'copa da inglaterra', 'coppa italia', 'dfb pokal', 'coupe de france', 'copa de la liga'])) {
-    return 'national_cups';
-  }
-  if (jogoBrasil || temTexto(texto, ['brasileirao', 'serie a brasil', 'serie b brasil']) || temPais(texto, ['brazil', 'brasil'])) {
-    return 'brazil';
-  }
-  if (temPais(texto, ['england', 'inglaterra'])) return 'premier_league';
-  if (temPais(texto, ['spain', 'espanha'])) return 'laliga';
-  if (temTexto(texto, ['2. bundesliga', '2 bundesliga', 'bundesliga 2', 'ii bundesliga'])) return 'bundesliga_2';
-  if (temTexto(texto, ['bundesliga'])) return 'bundesliga';
-  if (!jogoBrasil && temTexto(texto, ['serie b']) && !temPais(texto, ['brazil', 'brasil'])) return 'serie_b';
-  if (temPais(texto, ['italy', 'italia'])) return 'serie_a';
-  if (temPais(texto, ['france', 'franca'])) return 'ligue_1';
-  if (temPais(texto, ['portugal']) || temTexto(texto, ['liga betclic', 'primeira liga'])) {
-    return 'portugal';
-  }
-  if (temPais(texto, ['turkey', 'turquia']) || /(^| )super lig( |$)/.test(texto)) {
-    return 'turkey';
-  }
-  if (temPais(texto, ['greece', 'grecia']) || (temTexto(texto, ['super league']) && !temPais(texto, ['china', 'switzerland', 'swiss', 'suica']))) {
-    return 'greece';
-  }
-  if (temPais(texto, ['argentina']) || temTexto(texto, ['liga profesional'])) {
-    return 'argentina';
-  }
-  return 'others';
-}
-
 function montarJogo(jogo) {
   const home = jogo.teams?.home?.name;
   const away = jogo.teams?.away?.name;
@@ -76,10 +26,12 @@ function montarJogo(jogo) {
   if (!home || !away || !fixtureId) return null;
   const liga = jogo.league?.name || 'Futebol';
   const pais = jogo.league?.country || '';
-  const textoLiga = semAcento(`${liga} ${pais}`);
   const leagueId = Number(jogo.league?.id);
-  const isBrazil = semAcento(pais) === 'brazil' || semAcento(pais) === 'brasil' || temPais(textoLiga, ['brazil', 'brasil']);
-  const leagueGroup = classificarLeagueGroup(textoLiga, isBrazil, leagueId);
+  if (partidaVirtual(`${liga} ${pais}`, `${home} ${away}`)) return null;
+  const oficial = ligaOficialPorTexto(`${liga} ${pais}`, leagueId);
+  if (!oficial) return null;
+  const isBrazil = oficial.regiao === 'Brasil';
+  const leagueGroup = oficial.grupo;
   const oddHome = 1.95;
   const oddDraw = 3.3;
   const oddAway = 3.8;
@@ -95,19 +47,8 @@ function montarJogo(jogo) {
   const dnbProb = favProb / (favProb + underProb);
   const fairDnb = Number((1 / dnbProb).toFixed(2));
   const fairDc = Number((1 / (favProb + (pDraw / margin))).toFixed(2));
-  const nomeLiga = semAcento(liga);
-  const eliteDireta = (
-    (leagueGroup === 'uefa_cups' && nomeLiga.includes('uefa'))
-    || (leagueGroup === 'premier_league' && nomeLiga === 'premier league')
-    || (leagueGroup === 'laliga' && ['la liga', 'laliga', 'segunda division', 'laliga2'].includes(nomeLiga))
-    || (leagueGroup === 'serie_a' && nomeLiga === 'serie a')
-    || leagueGroup === 'serie_b'
-    || leagueGroup === 'bundesliga'
-    || leagueGroup === 'bundesliga_2'
-    || (leagueGroup === 'ligue_1' && ['ligue 1', 'ligue 2'].includes(nomeLiga))
-  );
   let score = Math.min(95, Math.round(dnbProb * 100) + 12);
-  if (eliteDireta) score += 40;
+  score += 40;
   if (/\bu\d{2}\b|\bii\b|\biii\b|youth|reserves|women|woman|feminino|feminina/.test(semAcento(`${home} ${away} ${liga}`))) score -= 30;
   const hora = new Date(jogo.fixture.date);
   const time = Number.isNaN(hora.getTime())
@@ -115,9 +56,10 @@ function montarJogo(jogo) {
     : hora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
   return {
     id: String(fixtureId),
-    league: liga,
-    leagueId: Number.isFinite(leagueId) ? leagueId : null,
+    league: oficial.nome,
+    leagueId: oficial.id,
     leagueGroup,
+    regiao: oficial.regiao,
     home,
     away,
     time,
@@ -185,17 +127,11 @@ export default async function handler(req, res) {
         if (aoVivo.has(status)) return true;
         return !ignorar.has(status);
       })
-      .filter((jogo) => !/cyber|simulated|srl|fifa|e-?soccer/i.test(`${jogo.league?.name || ''} ${jogo.league?.country || ''}`))
       .map(montarJogo)
       .filter(Boolean)
-      .filter((jogo) => (shift === 'brazil' ? jogo.isBrazil : !jogo.isBrazil))
+      .filter((jogo) => (shift === 'brazil' ? jogo.regiao === 'Brasil' : jogo.regiao !== 'Brasil'))
       .sort((a, b) => b.score - a.score || String(a.time).localeCompare(String(b.time)));
-    const selecionados = new Map(jogos.slice(0, 20).map((jogo) => [jogo.id, jogo]));
-    jogos.forEach((jogo) => {
-      if (LIGAS_API_FOOTBALL.has(jogo.leagueId)) selecionados.set(jogo.id, jogo);
-    });
-    const listaFinal = [...selecionados.values()]
-      .sort((a, b) => b.score - a.score || String(a.time).localeCompare(String(b.time)));
+    const listaFinal = jogos;
     res.status(200).json({ success: true, count: listaFinal.length, shift, games: listaFinal });
   } catch (erro) {
     res.status(500).json({ success: false, message: erro.message || 'Falha ao consultar os jogos do dia.' });

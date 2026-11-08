@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { partidaVirtual, ligaOficialPorTexto } from './ligasOficiais.js';
 
 /**
  * Conecta ao push-server-v2 da 1win e busca todos os mercados de um jogo por matchId
@@ -117,4 +118,9 @@ function parseOddsGroups(oddsGroups) {
   return result;
 }
 
-export { fetch1WinMatchOdds, codigoDuplaChance };
+function aceitarPartidaReal({ textoLiga, textoNome, leagueId }) {
+  if (partidaVirtual(textoLiga, textoNome)) return null;
+  return ligaOficialPorTexto(textoLiga, leagueId);
+}
+
+export { fetch1WinMatchOdds, codigoDuplaChance, aceitarPartidaReal };

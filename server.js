@@ -5,7 +5,8 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
-import { codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
+import { LIGAS_OFICIAIS } from './ligasOficiais.js';
+import { aceitarPartidaReal, codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
 import { iniciarMonitorCarpina } from './liveMonitor.js';
 import { TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
@@ -179,78 +180,7 @@ app.get('/api/daily-opportunities', async (req, res) => {
       return res.json({ success: true, count: 0, games: [] });
     }
 
-    const brazilianTerms = [
-      'brasil', 'brazil', 'brasileir', 'paulista', 'carioca', 'mineiro', 'gaucho',
-      'copa do brasil', 'flamengo', 'palmeiras', 'corinthians', 'sao paulo', 'santos',
-      'gremio', 'internacional', 'fluminense', 'botafogo', 'vasco', 'cruzeiro',
-      'atletico mineiro', 'atletico-mg', 'athletico-pr', 'athletico paranaense', 'bahia',
-      'fortaleza', 'cuiaba', 'bragantino', 'chapecoense', 'coritiba', 'sport recife',
-      'vitoria', 'goias', 'remo', 'ceara', 'avai', 'ponte preta', 'guarani', 'vila nova',
-      'novorizontino', 'mirassol', 'operario', 'amazonas', 'paysandu', 'crb', 'brusque',
-      'ituano', 'londrina', 'america-mg', 'america mg', 'juventude', 'criciuma',
-      'atletico-go', 'atletico goianiense', 'serie a', 'serie b', 'serie c', 'serie d'
-    ];
-
-    const virtualMatchRe = /\b(cyber|simulated|srl|fifa|e-?soccer|2x2|3x3|4x4|penalty)\b/i;
-    const LIGAS_API_FOOTBALL = new Map([
-      [71, 'brazil'],
-      [72, 'brazil'],
-      [73, 'brazil'],
-      [78, 'bundesliga'],
-      [79, 'bundesliga_2'],
-      [136, 'serie_b']
-    ]);
-    const gruposElite = new Set(['uefa_cups', 'premier_league', 'laliga', 'serie_a', 'ligue_1', 'bundesliga', 'bundesliga_2', 'serie_b']);
-    const temTexto = (texto, frases) => frases.some((frase) => texto.includes(frase));
-    const temPais = (texto, nomes) => nomes.some((nome) => new RegExp(`(^| )${nome}( |$)`).test(texto));
-    const classificarLeagueGroup = (textoLiga, jogoBrasil, leagueId) => {
-      const porId = LIGAS_API_FOOTBALL.get(Number(leagueId));
-      if (porId) return porId;
-      const texto = String(textoLiga || '');
-      if (temTexto(texto, ['champions league', 'liga dos campeoes', 'europa league', 'liga europa', 'conference league', 'uefa'])) {
-        return 'uefa_cups';
-      }
-      if (temTexto(texto, ['copa del rey', 'copa do rei', 'fa cup', 'copa da inglaterra', 'coppa italia', 'dfb pokal', 'coupe de france', 'copa de la liga'])) {
-        return 'national_cups';
-      }
-      if (jogoBrasil || temTexto(texto, ['brasileirao', 'serie a brasil', 'serie b brasil']) || temPais(texto, ['brazil', 'brasil'])) {
-        return 'brazil';
-      }
-      if (temPais(texto, ['england', 'inglaterra']) || (temTexto(texto, ['premier league']) && !temPais(texto, ['israel']))) {
-        return 'premier_league';
-      }
-      if (temTexto(texto, ['laliga', 'la liga', 'segunda division']) || temPais(texto, ['spain', 'espanha'])) {
-        return 'laliga';
-      }
-      if (temTexto(texto, ['2. bundesliga', '2 bundesliga', 'bundesliga 2', 'ii bundesliga'])) {
-        return 'bundesliga_2';
-      }
-      if (temTexto(texto, ['bundesliga'])) {
-        return 'bundesliga';
-      }
-      if (!jogoBrasil && temTexto(texto, ['serie b']) && !temPais(texto, ['brazil', 'brasil'])) {
-        return 'serie_b';
-      }
-      if (temPais(texto, ['italy', 'italia']) || temTexto(texto, ['serie a'])) {
-        return 'serie_a';
-      }
-      if (temTexto(texto, ['ligue 1']) || /(^| )league 1( |$)/.test(texto) || temPais(texto, ['france', 'franca'])) {
-        return 'ligue_1';
-      }
-      if (temPais(texto, ['portugal']) || temTexto(texto, ['liga betclic', 'primeira liga'])) {
-        return 'portugal';
-      }
-      if (temPais(texto, ['turkey', 'turquia']) || /(^| )super lig( |$)/.test(texto)) {
-        return 'turkey';
-      }
-      if (temPais(texto, ['greece', 'grecia']) || (temTexto(texto, ['super league']) && !temPais(texto, ['china', 'switzerland', 'swiss', 'suica']))) {
-        return 'greece';
-      }
-      if (temPais(texto, ['argentina']) || temTexto(texto, ['liga profesional'])) {
-        return 'argentina';
-      }
-      return 'others';
-    };
+    const idsOficiais = new Set(LIGAS_OFICIAIS.map((liga) => liga.id));
 
     const saoPauloDateKey = (date) => {
       const parts = new Intl.DateTimeFormat('en-US', {
@@ -312,11 +242,18 @@ app.get('/api/daily-opportunities', async (req, res) => {
 
       const sportSlug = item.sport?.slug || item.sport?.tag || (typeof item.sport === 'string' ? item.sport : '') || item.sportName || '';
       const tournamentSlug = item.tournament?.slug || '';
-      const fullString = `${homeName} ${awayName} ${tournamentName}`.toLowerCase();
-      const virtualText = `${fullString} ${sportSlug} ${tournamentSlug} ${item.name || ''}`;
-      if (item.sport?.isEsport === true || virtualMatchRe.test(virtualText)) continue;
+      const textoLiga = [tournamentName, tournamentSlug, item.category?.name, item.category?.slug, item.tournament?.category?.name]
+        .filter(Boolean)
+        .join(' ');
+      const leagueIdApi = Number(item.tournament?.apiFootballId ?? item.league?.id ?? item.leagueId);
+      const ligaOficial = aceitarPartidaReal({
+        textoLiga,
+        textoNome: `${item.name || ''} ${homeName} ${awayName} ${sportSlug}`,
+        leagueId: leagueIdApi
+      });
+      if (item.sport?.isEsport === true || !ligaOficial || !idsOficiais.has(ligaOficial.id)) continue;
 
-      let isBrazil = brazilianTerms.some(term => fullString.includes(term));
+      const isBrazil = ligaOficial.regiao === 'Brasil';
 
       let oddHome = 1.95;
       let oddDraw = 3.30;
@@ -346,24 +283,15 @@ app.get('/api/daily-opportunities', async (req, res) => {
       const fairDnb = Number((1 / dnbProb).toFixed(2));
       const fairDc = Number((1 / (favProb + (pDraw / margin))).toFixed(2));
 
-      const textoLiga = [tournamentName, tournamentSlug, item.category?.name, item.category?.slug]
-        .filter(Boolean)
-        .join(' ')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[-_]/g, ' ')
-        .replace(/\s+/g, ' ');
-      const leagueIdApi = Number(item.tournament?.apiFootballId ?? item.league?.id ?? item.leagueId);
-      if (leagueIdApi === 136 || (/\bserie b\b/.test(textoLiga) && /\b(italy|italia)\b/.test(textoLiga))) isBrazil = false;
-      const leagueGroup = classificarLeagueGroup(textoLiga, isBrazil, leagueIdApi);
       let score = Math.min(95, Math.round(dnbProb * 100) + 12);
-      if (gruposElite.has(leagueGroup)) score += 40;
+      score += 40;
 
       processedGames.push({
         id: matchId.toString(),
-        league: tournamentName,
-        leagueGroup,
+        league: ligaOficial.nome,
+        leagueId: ligaOficial.id,
+        leagueGroup: ligaOficial.grupo,
+        regiao: ligaOficial.regiao,
         home: homeName,
         away: awayName,
         time: timeFormatted,
@@ -401,19 +329,13 @@ app.get('/api/daily-opportunities', async (req, res) => {
     let filteredList = [];
 
     if (shift === 'europe') {
-      filteredList = processedGames.filter(g => !g.isBrazil);
+      filteredList = processedGames.filter((jogo) => jogo.regiao !== 'Brasil');
     } else {
-      filteredList = processedGames.filter(g => g.isBrazil);
+      filteredList = processedGames.filter((jogo) => jogo.regiao === 'Brasil');
     }
 
-    filteredList.sort((a, b) => b.score - a.score);
-
-    const gruposGarantidos = new Set(LIGAS_API_FOOTBALL.values());
-    const selected = filteredList.slice(0, 20);
-    const idsSelecionados = new Set(selected.map((jogo) => jogo.id));
-    filteredList.forEach((jogo) => {
-      if (gruposGarantidos.has(jogo.leagueGroup) && !idsSelecionados.has(jogo.id)) selected.push(jogo);
-    });
+    filteredList.sort((a, b) => b.score - a.score || String(a.time).localeCompare(String(b.time)));
+    const selected = filteredList;
 
     console.log(`✅ [SELEÇÃO ${shift.toUpperCase()}] ${selected.length} jogos carregados:`);
     selected.forEach((g, idx) => {
