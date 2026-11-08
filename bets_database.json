@@ -1,6 +1,24 @@
 {
   "bets": [
     {
+      "id": "bet_1794144453073nxi",
+      "match": "Ipswich Town x Bournemouth",
+      "league": "Futebol",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.92,
+      "evPercent": -12.8,
+      "isTopPick": false,
+      "odd": 1.67,
+      "stake": 50,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-08",
+      "timestamp": 1794144453073,
+      "gameLink": "https://1win.com/pt/betting/match/sport/ipswich-town-vs-bournemouth-42039173"
+    },
+    {
       "id": "bet_1794136263528a9w",
       "match": "Napoli x Lazio",
       "league": "Futebol",
@@ -16,7 +34,16 @@
       "realProfit": 0,
       "date": "2026-11-08",
       "timestamp": 1794136263528,
-      "gameLink": "https://1win.com/pt/betting/match/sport/napoli-vs-lazio-42369751"
+      "gameLink": "https://1win.com/pt/betting/match/sport/napoli-vs-lazio-42369751",
+      "fixtureId": 1550193,
+      "placarAoVivo": "1-1",
+      "minutoAtual": 65,
+      "statusMonitoramento": "ENCERRADO_65",
+      "metricasResumo": {
+        "xg": 2.75,
+        "chutes_alvo": 8,
+        "pressao_relativa": 0
+      }
     },
     {
       "id": "bet_17941360883134t9",
@@ -52,7 +79,16 @@
       "realProfit": 0,
       "date": "2026-11-08",
       "timestamp": 1794135271196,
-      "gameLink": "https://1win.com/pt/betting/match/sport/napoli-vs-lazio-42369751"
+      "gameLink": "https://1win.com/pt/betting/match/sport/napoli-vs-lazio-42369751",
+      "fixtureId": 1550193,
+      "placarAoVivo": "1-1",
+      "minutoAtual": 65,
+      "statusMonitoramento": "ENCERRADO_65",
+      "metricasResumo": {
+        "xg": 2.75,
+        "chutes_alvo": 8,
+        "pressao_relativa": 0
+      }
     },
     {
       "id": "bet_1794077626324cxu",

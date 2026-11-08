@@ -64,6 +64,19 @@
         "em": 1794142485385
       },
       "motivo": "encerrar"
+    },
+    "bet_1794144453073nxi": {
+      "betId": "bet_1794144453073nxi",
+      "nuvemId": null,
+      "match": "Ipswich Town x Bournemouth",
+      "fixtureId": 1557462,
+      "stake": 50,
+      "odd": 1.67,
+      "kickoff": "2026-11-08T11:00:00-03:00",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": false,
+      "ancora": null
     }
   }
 }
