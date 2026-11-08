@@ -531,33 +531,31 @@ async function requestGeminiTacticalText(promptText, options = {}) {
   console.log('Gemini Key carregada:', process.env.GEMINI_API_KEY ? 'OK (tamanho: ' + process.env.GEMINI_API_KEY.length + ')' : 'NÃO CARREGADA');
   const wantJson = options.json === true;
   const parecerLocal = () => textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
+  const MODELOS_CANDIDATOS = [
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash'
+  ];
+  let genAI;
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
-    const modelos = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-    for (const nome of modelos) {
-      try {
-        const model = genAI.getGenerativeModel({ model: nome });
-        const result = await model.generateContent(promptText, { timeout: options.timeout || 20000 });
-        const response = await result.response;
-        const text = response.text();
-        const cleaned = wantJson ? String(text || '').trim() : cleanGeminiText(text);
-        if (cleaned) return cleaned;
-        console.error('ERRO GEMINI DETALHADO:', nome, 'devolveu resposta sem texto.');
-      } catch (error) {
-        const mensagem = error?.message || 'erro sem mensagem';
-        console.error('ERRO GEMINI DETALHADO:', nome, mensagem);
-        const naoEncontrado = Number(error?.status) === 404 || /not found|404/i.test(mensagem);
-        if (naoEncontrado && nome !== 'gemini-2.5-flash-lite') continue;
-        console.warn('Parecer heurístico local ativado:', error?.status || error?.code || 'exceção');
-        return parecerLocal();
-      }
-    }
-  } catch (error) {
-    console.error('ERRO GEMINI DETALHADO:', error?.message || 'erro sem mensagem');
-    console.warn('Parecer heurístico local ativado:', error?.status || error?.code || 'exceção');
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
+  } catch (err) {
+    console.log(`[Aviso] Modelo cliente falhou: ${err.message}, tentando próximo...`);
     return parecerLocal();
   }
-  console.warn('Parecer heurístico local ativado: resposta sem texto');
+  for (const nomeModelo of MODELOS_CANDIDATOS) {
+    try {
+      const model = genAI.getGenerativeModel({ model: nomeModelo });
+      const result = await model.generateContent(promptText);
+      const response = await result.response;
+      const text = response.text();
+      if (text && text.trim().length > 0) return text;
+    } catch (err) {
+      console.log(`[Aviso] Modelo ${nomeModelo} falhou: ${err.message}, tentando próximo...`);
+    }
+  }
   return parecerLocal();
 }
 
