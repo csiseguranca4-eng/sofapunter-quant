@@ -206,14 +206,18 @@
         35,
         40,
         46,
-        48
+        48,
+        55,
+        57,
+        59,
+        61
       ],
       "precisaRetry48": true,
       "encerrado": false,
       "ancora": {
-        "elapsed": 45,
-        "status": "HT Halftime",
-        "em": 1794171057585
+        "elapsed": 62,
+        "status": "2H Second Half",
+        "em": 1794173013507
       },
       "notificados": [
         "notified_1570443_20",

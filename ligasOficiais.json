@@ -1,0 +1,191 @@
+[
+  {
+    "id": 39,
+    "nome": "Premier League",
+    "pais": "Inglaterra",
+    "regiao": "Europa",
+    "grupo": "premier_league"
+  },
+  {
+    "id": 140,
+    "nome": "LaLiga",
+    "pais": "Espanha",
+    "regiao": "Europa",
+    "grupo": "laliga"
+  },
+  {
+    "id": 141,
+    "nome": "LaLiga 2",
+    "pais": "Espanha",
+    "regiao": "Europa",
+    "grupo": "laliga"
+  },
+  {
+    "id": 135,
+    "nome": "Serie A",
+    "pais": "Itália",
+    "regiao": "Europa",
+    "grupo": "serie"
+  },
+  {
+    "id": 136,
+    "nome": "Serie B",
+    "pais": "Itália",
+    "regiao": "Europa",
+    "grupo": "serie"
+  },
+  {
+    "id": 78,
+    "nome": "Bundesliga",
+    "pais": "Alemanha",
+    "regiao": "Europa",
+    "grupo": "bundesliga"
+  },
+  {
+    "id": 79,
+    "nome": "2. Bundesliga",
+    "pais": "Alemanha",
+    "regiao": "Europa",
+    "grupo": "bundesliga"
+  },
+  {
+    "id": 61,
+    "nome": "Ligue 1",
+    "pais": "França",
+    "regiao": "Europa",
+    "grupo": "ligue"
+  },
+  {
+    "id": 62,
+    "nome": "Ligue 2",
+    "pais": "França",
+    "regiao": "Europa",
+    "grupo": "ligue"
+  },
+  {
+    "id": 94,
+    "nome": "Liga Portugal",
+    "pais": "Portugal",
+    "regiao": "Europa",
+    "grupo": "portugal"
+  },
+  {
+    "id": 88,
+    "nome": "Eredivisie",
+    "pais": "Holanda",
+    "regiao": "Europa",
+    "grupo": "eredivisie"
+  },
+  {
+    "id": 203,
+    "nome": "Süper Lig",
+    "pais": "Turquia",
+    "regiao": "Europa",
+    "grupo": "turkey"
+  },
+  {
+    "id": 197,
+    "nome": "Super League",
+    "pais": "Grécia",
+    "regiao": "Europa",
+    "grupo": "greece"
+  },
+  {
+    "id": 2,
+    "nome": "UEFA Champions League",
+    "pais": "Europa",
+    "regiao": "Europa",
+    "grupo": "uefa_cups"
+  },
+  {
+    "id": 3,
+    "nome": "UEFA Europa League",
+    "pais": "Europa",
+    "regiao": "Europa",
+    "grupo": "uefa_cups"
+  },
+  {
+    "id": 848,
+    "nome": "UEFA Conference League",
+    "pais": "Europa",
+    "regiao": "Europa",
+    "grupo": "uefa_cups"
+  },
+  {
+    "id": 71,
+    "nome": "Brasileirão Série A",
+    "pais": "Brasil",
+    "regiao": "Brasil",
+    "grupo": "brazil"
+  },
+  {
+    "id": 72,
+    "nome": "Brasileirão Série B",
+    "pais": "Brasil",
+    "regiao": "Brasil",
+    "grupo": "brazil"
+  },
+  {
+    "id": 73,
+    "nome": "Copa do Brasil",
+    "pais": "Brasil",
+    "regiao": "Brasil",
+    "grupo": "brazil"
+  },
+  {
+    "id": 128,
+    "nome": "Liga Profesional",
+    "pais": "Argentina",
+    "regiao": "Américas",
+    "grupo": "argentina"
+  },
+  {
+    "id": 130,
+    "nome": "Copa de la Liga",
+    "pais": "Argentina",
+    "regiao": "Américas",
+    "grupo": "argentina"
+  },
+  {
+    "id": 239,
+    "nome": "Primera A",
+    "pais": "Colômbia",
+    "regiao": "Américas",
+    "grupo": "colombia"
+  },
+  {
+    "id": 253,
+    "nome": "Major League Soccer (MLS)",
+    "pais": "USA",
+    "regiao": "Américas",
+    "grupo": "mls"
+  },
+  {
+    "id": 262,
+    "nome": "Liga MX",
+    "pais": "México",
+    "regiao": "Américas",
+    "grupo": "ligamx"
+  },
+  {
+    "id": 265,
+    "nome": "Primera División",
+    "pais": "Chile",
+    "regiao": "Américas",
+    "grupo": "chile"
+  },
+  {
+    "id": 13,
+    "nome": "Copa Libertadores",
+    "pais": "América do Sul",
+    "regiao": "Américas",
+    "grupo": "libertadores"
+  },
+  {
+    "id": 11,
+    "nome": "Copa Sudamericana",
+    "pais": "América do Sul",
+    "regiao": "Américas",
+    "grupo": "libertadores"
+  }
+]

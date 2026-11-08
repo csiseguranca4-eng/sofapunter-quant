@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T20:50:57.585Z",
+  "updated_at": "2026-11-08T21:23:33.507Z",
   "jogos": [
     {
       "id": null,
@@ -94,16 +94,16 @@
       "id": null,
       "partida": "Atletico Madrid x Barcelona FC",
       "fixture_id": 1570443,
-      "minuto_atual": 48,
+      "minuto_atual": 61,
       "placar": "1-1",
-      "status_monitoramento": "MONITORANDO",
+      "status_monitoramento": "MONITORANDO_61",
       "metricas_resumo": {
-        "xg": 1.99,
-        "chutes_alvo": 6,
-        "cantos": 4,
-        "pressao_relativa": 10
+        "xg": 2.47,
+        "chutes_alvo": 7,
+        "cantos": 5,
+        "pressao_relativa": 5
       },
-      "updated_at": "2026-11-08T20:50:57.585Z"
+      "updated_at": "2026-11-08T21:23:33.507Z"
     }
   ]
 }
