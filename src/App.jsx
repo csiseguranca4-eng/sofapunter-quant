@@ -431,6 +431,7 @@ function ligaPrincipal(game) {
   if (/\bpremier league\b/.test(nome)) return true;
   if (/\b(la liga|laliga)\b/.test(nome) && !/\b(2|ii|segunda)\b/.test(nome)) return true;
   if (/\bserie a\b/.test(nome) && !/\b(brasil|brazil|brasileir)/.test(nome)) return true;
+  if (/\bbundesliga\b/.test(nome) && !/\b(2|ii|segunda)\b/.test(nome)) return true;
   return /brasileir/.test(nome) && /\bserie [ab]\b/.test(nome);
 }
 
@@ -1705,6 +1706,9 @@ export default function App() {
               <option value="premier_league">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</option>
               <option value="laliga">🇪🇸 LaLiga / LaLiga 2</option>
               <option value="serie_a">🇮🇹 Serie A</option>
+              <option value="serie_b">🇮🇹 Serie B</option>
+              <option value="bundesliga">🇩🇪 Bundesliga</option>
+              <option value="bundesliga_2">🇩🇪 2. Bundesliga</option>
               <option value="ligue_1">🇫🇷 Ligue 1 (França)</option>
               <option value="portugal">🇵🇹 Liga Portugal</option>
               <option value="turkey">🇹🇷 Turquia (Süper Lig)</option>

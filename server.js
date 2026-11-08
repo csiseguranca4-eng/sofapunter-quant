@@ -176,10 +176,17 @@ app.get('/api/daily-opportunities', async (req, res) => {
     ];
 
     const virtualMatchRe = /\b(cyber|simulated|srl|fifa|e-?soccer|2x2|3x3|4x4|penalty)\b/i;
-    const gruposElite = new Set(['uefa_cups', 'premier_league', 'laliga', 'serie_a', 'ligue_1']);
+    const LIGAS_API_FOOTBALL = new Map([
+      [78, 'bundesliga'],
+      [79, 'bundesliga_2'],
+      [136, 'serie_b']
+    ]);
+    const gruposElite = new Set(['uefa_cups', 'premier_league', 'laliga', 'serie_a', 'ligue_1', 'bundesliga', 'bundesliga_2', 'serie_b']);
     const temTexto = (texto, frases) => frases.some((frase) => texto.includes(frase));
     const temPais = (texto, nomes) => nomes.some((nome) => new RegExp(`(^| )${nome}( |$)`).test(texto));
-    const classificarLeagueGroup = (textoLiga, jogoBrasil) => {
+    const classificarLeagueGroup = (textoLiga, jogoBrasil, leagueId) => {
+      const porId = LIGAS_API_FOOTBALL.get(Number(leagueId));
+      if (porId) return porId;
       const texto = String(textoLiga || '');
       if (temTexto(texto, ['champions league', 'liga dos campeoes', 'europa league', 'liga europa', 'conference league', 'uefa'])) {
         return 'uefa_cups';
@@ -195,6 +202,15 @@ app.get('/api/daily-opportunities', async (req, res) => {
       }
       if (temTexto(texto, ['laliga', 'la liga', 'segunda division']) || temPais(texto, ['spain', 'espanha'])) {
         return 'laliga';
+      }
+      if (temTexto(texto, ['2. bundesliga', '2 bundesliga', 'bundesliga 2', 'ii bundesliga'])) {
+        return 'bundesliga_2';
+      }
+      if (temTexto(texto, ['bundesliga'])) {
+        return 'bundesliga';
+      }
+      if (!jogoBrasil && temTexto(texto, ['serie b']) && !temPais(texto, ['brazil', 'brasil'])) {
+        return 'serie_b';
       }
       if (temPais(texto, ['italy', 'italia']) || temTexto(texto, ['serie a'])) {
         return 'serie_a';
@@ -278,7 +294,7 @@ app.get('/api/daily-opportunities', async (req, res) => {
       const virtualText = `${fullString} ${sportSlug} ${tournamentSlug} ${item.name || ''}`;
       if (item.sport?.isEsport === true || virtualMatchRe.test(virtualText)) continue;
 
-      const isBrazil = brazilianTerms.some(term => fullString.includes(term));
+      let isBrazil = brazilianTerms.some(term => fullString.includes(term));
 
       let oddHome = 1.95;
       let oddDraw = 3.30;
@@ -316,7 +332,9 @@ app.get('/api/daily-opportunities', async (req, res) => {
         .toLowerCase()
         .replace(/[-_]/g, ' ')
         .replace(/\s+/g, ' ');
-      const leagueGroup = classificarLeagueGroup(textoLiga, isBrazil);
+      const leagueIdApi = Number(item.tournament?.apiFootballId ?? item.league?.id ?? item.leagueId);
+      if (leagueIdApi === 136 || (/\bserie b\b/.test(textoLiga) && /\b(italy|italia)\b/.test(textoLiga))) isBrazil = false;
+      const leagueGroup = classificarLeagueGroup(textoLiga, isBrazil, leagueIdApi);
       let score = Math.min(95, Math.round(dnbProb * 100) + 12);
       if (gruposElite.has(leagueGroup)) score += 40;
 
@@ -368,7 +386,12 @@ app.get('/api/daily-opportunities', async (req, res) => {
 
     filteredList.sort((a, b) => b.score - a.score);
 
+    const gruposGarantidos = new Set(LIGAS_API_FOOTBALL.values());
     const selected = filteredList.slice(0, 20);
+    const idsSelecionados = new Set(selected.map((jogo) => jogo.id));
+    filteredList.forEach((jogo) => {
+      if (gruposGarantidos.has(jogo.leagueGroup) && !idsSelecionados.has(jogo.id)) selected.push(jogo);
+    });
 
     console.log(`✅ [SELEÇÃO ${shift.toUpperCase()}] ${selected.length} jogos carregados:`);
     selected.forEach((g, idx) => {

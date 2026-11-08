@@ -25,7 +25,15 @@ function temPais(texto, nomes) {
   return nomes.some((nome) => new RegExp(`(^| )${nome}( |$)`).test(texto));
 }
 
-function classificarLeagueGroup(textoLiga, jogoBrasil) {
+const LIGAS_API_FOOTBALL = new Map([
+  [78, 'bundesliga'],
+  [79, 'bundesliga_2'],
+  [136, 'serie_b']
+]);
+
+function classificarLeagueGroup(textoLiga, jogoBrasil, leagueId) {
+  const porId = LIGAS_API_FOOTBALL.get(Number(leagueId));
+  if (porId) return porId;
   const texto = String(textoLiga || '');
   if (temTexto(texto, ['uefa champions', 'uefa europa', 'uefa conference', 'liga dos campeoes', 'liga europa'])) {
     return 'uefa_cups';
@@ -38,6 +46,9 @@ function classificarLeagueGroup(textoLiga, jogoBrasil) {
   }
   if (temPais(texto, ['england', 'inglaterra'])) return 'premier_league';
   if (temPais(texto, ['spain', 'espanha'])) return 'laliga';
+  if (temTexto(texto, ['2. bundesliga', '2 bundesliga', 'bundesliga 2', 'ii bundesliga'])) return 'bundesliga_2';
+  if (temTexto(texto, ['bundesliga'])) return 'bundesliga';
+  if (!jogoBrasil && temTexto(texto, ['serie b']) && !temPais(texto, ['brazil', 'brasil'])) return 'serie_b';
   if (temPais(texto, ['italy', 'italia'])) return 'serie_a';
   if (temPais(texto, ['france', 'franca'])) return 'ligue_1';
   if (temPais(texto, ['portugal']) || temTexto(texto, ['liga betclic', 'primeira liga'])) {
@@ -63,8 +74,9 @@ function montarJogo(jogo) {
   const liga = jogo.league?.name || 'Futebol';
   const pais = jogo.league?.country || '';
   const textoLiga = semAcento(`${liga} ${pais}`);
+  const leagueId = Number(jogo.league?.id);
   const isBrazil = semAcento(pais) === 'brazil' || semAcento(pais) === 'brasil' || temPais(textoLiga, ['brazil', 'brasil']);
-  const leagueGroup = classificarLeagueGroup(textoLiga, isBrazil);
+  const leagueGroup = classificarLeagueGroup(textoLiga, isBrazil, leagueId);
   const oddHome = 1.95;
   const oddDraw = 3.3;
   const oddAway = 3.8;
@@ -85,7 +97,10 @@ function montarJogo(jogo) {
     (leagueGroup === 'uefa_cups' && nomeLiga.includes('uefa'))
     || (leagueGroup === 'premier_league' && nomeLiga === 'premier league')
     || (leagueGroup === 'laliga' && ['la liga', 'laliga', 'segunda division', 'laliga2'].includes(nomeLiga))
-    || (leagueGroup === 'serie_a' && ['serie a', 'serie b'].includes(nomeLiga))
+    || (leagueGroup === 'serie_a' && nomeLiga === 'serie a')
+    || leagueGroup === 'serie_b'
+    || leagueGroup === 'bundesliga'
+    || leagueGroup === 'bundesliga_2'
     || (leagueGroup === 'ligue_1' && ['ligue 1', 'ligue 2'].includes(nomeLiga))
   );
   let score = Math.min(95, Math.round(dnbProb * 100) + 12);
@@ -98,6 +113,7 @@ function montarJogo(jogo) {
   return {
     id: String(fixtureId),
     league: liga,
+    leagueId: Number.isFinite(leagueId) ? leagueId : null,
     leagueGroup,
     home,
     away,
@@ -165,9 +181,14 @@ export default async function handler(req, res) {
       .map(montarJogo)
       .filter(Boolean)
       .filter((jogo) => (shift === 'brazil' ? jogo.isBrazil : !jogo.isBrazil))
-      .sort((a, b) => b.score - a.score || String(a.time).localeCompare(String(b.time)))
-      .slice(0, 20);
-    res.status(200).json({ success: true, count: jogos.length, shift, games: jogos });
+      .sort((a, b) => b.score - a.score || String(a.time).localeCompare(String(b.time)));
+    const selecionados = new Map(jogos.slice(0, 20).map((jogo) => [jogo.id, jogo]));
+    jogos.forEach((jogo) => {
+      if (LIGAS_API_FOOTBALL.has(jogo.leagueId)) selecionados.set(jogo.id, jogo);
+    });
+    const listaFinal = [...selecionados.values()]
+      .sort((a, b) => b.score - a.score || String(a.time).localeCompare(String(b.time)));
+    res.status(200).json({ success: true, count: listaFinal.length, shift, games: listaFinal });
   } catch (erro) {
     res.status(500).json({ success: false, message: erro.message || 'Falha ao consultar os jogos do dia.' });
   }
