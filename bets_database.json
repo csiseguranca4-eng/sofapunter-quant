@@ -1,6 +1,24 @@
 {
   "bets": [
     {
+      "id": "bet_1794170491190t6g",
+      "match": "Goias x Ponte Preta",
+      "league": "Futebol",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.52,
+      "evPercent": -8.6,
+      "isTopPick": false,
+      "odd": 1.39,
+      "stake": 5,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-08",
+      "timestamp": 1794170491190,
+      "gameLink": "https://1win.com/pt/betting/match/sport/goias-vs-ponte-preta-42528700"
+    },
+    {
       "id": "bet_179416510378893z",
       "match": "Atletico Madrid x Barcelona FC",
       "league": "Futebol",
@@ -16,7 +34,17 @@
       "realProfit": 0,
       "date": "2026-11-08",
       "timestamp": 1794165103788,
-      "gameLink": "https://1win.com/pt/betting/match/sport/atletico-madrid-vs-barcelona-fc-42102094"
+      "gameLink": "https://1win.com/pt/betting/match/sport/atletico-madrid-vs-barcelona-fc-42102094",
+      "fixtureId": 1570443,
+      "placarAoVivo": "1-0",
+      "minutoAtual": 40,
+      "statusMonitoramento": "TAKE_PROFIT_PRONTO",
+      "metricasResumo": {
+        "xg": 1.23,
+        "chutes_alvo": 4,
+        "cantos": 4,
+        "pressao_relativa": 10
+      }
     },
     {
       "id": "bet_17941648801746nn",
@@ -34,7 +62,17 @@
       "realProfit": 0,
       "date": "2026-11-08",
       "timestamp": 1794164880175,
-      "gameLink": "https://1win.com/pt/betting/match/sport/atletico-madrid-vs-barcelona-fc-42102094"
+      "gameLink": "https://1win.com/pt/betting/match/sport/atletico-madrid-vs-barcelona-fc-42102094",
+      "fixtureId": 1570443,
+      "placarAoVivo": "1-0",
+      "minutoAtual": 40,
+      "statusMonitoramento": "TAKE_PROFIT_PRONTO",
+      "metricasResumo": {
+        "xg": 1.23,
+        "chutes_alvo": 4,
+        "cantos": 4,
+        "pressao_relativa": 10
+      }
     },
     {
       "id": "bet_1794162191998fvf",
@@ -47,9 +85,9 @@
       "isTopPick": false,
       "odd": 1.55,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 7.75,
+      "realProfit": 2.75,
       "date": "2026-11-08",
       "timestamp": 1794162191998,
       "gameLink": "https://1win.com/pt/betting/match/sport/vicenza-vs-unione-sportiva-cremonese-42437113"
@@ -65,21 +103,21 @@
       "isTopPick": false,
       "odd": 1.52,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 7.6,
+      "realProfit": 2.6,
       "date": "2026-11-08",
       "timestamp": 1794161734235,
       "gameLink": "https://1win.com/pt/betting/match/sport/tsg-1899-hoffenheim-vs-schalke-04-42101482",
       "fixtureId": 1575215,
-      "placarAoVivo": "1-0",
-      "minutoAtual": 25,
-      "statusMonitoramento": "TAKE_PROFIT_PRONTO",
+      "placarAoVivo": "2-0",
+      "minutoAtual": 65,
+      "statusMonitoramento": "ENCERRADO_65",
       "metricasResumo": {
-        "xg": 1.34,
-        "chutes_alvo": 5,
-        "cantos": 2,
-        "pressao_relativa": 7
+        "xg": 2.56,
+        "chutes_alvo": 7,
+        "cantos": 4,
+        "pressao_relativa": 17
       }
     },
     {
@@ -93,9 +131,9 @@
       "isTopPick": false,
       "odd": 1.45,
       "stake": 5,
-      "status": "PENDING",
+      "status": "RED",
       "returnedAmount": 0,
-      "realProfit": 0,
+      "realProfit": -5,
       "date": "2026-11-08",
       "timestamp": 1794157104928,
       "gameLink": "https://1win.com/pt/betting/match/sport/baltika-vs-dynamo-makhachkala-42099702"
@@ -1154,5 +1192,5 @@
       "timestamp": 1793311982369
     }
   ],
-  "bankroll": 396.21
+  "bankroll": 396.56
 }
