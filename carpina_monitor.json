@@ -121,14 +121,15 @@
       "feitos": [
         20,
         25,
-        46
+        46,
+        48
       ],
       "precisaRetry48": true,
       "encerrado": false,
       "ancora": {
         "elapsed": 45,
-        "status": "1H First Half",
-        "em": 1794153862940
+        "status": "HT Halftime",
+        "em": 1794154057993
       }
     },
     "bet_1794153221596vgh": {
