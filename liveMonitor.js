@@ -5,9 +5,30 @@
 
 import fs from 'fs';
 import path from 'path';
-import { encerrarApostaNuvem, garantirApostaPendente, gravarFixture, listarPendentesOver25 } from './lib/apostasSupabase.js';
+import { supabase as supabaseApostas } from './lib/supabase.js';
+import { createClient } from '@supabase/supabase-js';
+const getLaybackMarketData = async () => null;
 
-const MARCOS_ATIVOS = [55, 57, 59, 61, 63, 65];
+const TABELA_APOSTAS = 'apostas';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.VITE_SUPABASE_ANON_KEY
+  || process.env.SUPABASE_KEY;
+
+const supabase = (supabaseUrl && supabaseKey)
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    })
+  : null;
+
+function clienteApostas() {
+  return supabase || supabaseApostas;
+}
+
+const MARCOS_1T = [20, 25];
+const MARCOS_HT = [46, 48];
+const MARCOS_2T = [55, 57, 59, 61, 63, 65];
+const MARCOS_ATIVOS = MARCOS_2T;
 const INTERVALO_HT_MIN = 15;
 
 export function ehEntradaOver25(aposta) {
@@ -98,8 +119,14 @@ export function apostaAnteriorAHoje(aposta, watch, hoje) {
 }
 
 export function marcoDevido(minuto, feitos, precisaRetry48) {
-  if (!Number.isFinite(minuto) || minuto < 46 || minuto >= 66) return null;
+  if (!Number.isFinite(minuto) || minuto >= 66) return null;
   const feitosSet = feitos instanceof Set ? feitos : new Set(feitos || []);
+  if (minuto < MARCOS_HT[0]) {
+    for (const marco of MARCOS_1T) {
+      if (minuto >= marco && minuto < marco + 2 && !feitosSet.has(marco)) return marco;
+    }
+    return null;
+  }
   if (minuto < 48) return feitosSet.has(46) ? null : 46;
   if (minuto < 55) {
     if (precisaRetry48 && minuto >= 48 && minuto < 50 && !feitosSet.has(48)) return 48;
@@ -126,7 +153,11 @@ export function decidirCarpina(snapshot, marco) {
   const status = String(snapshot?.status || '');
 
   if (totalGols >= 3) {
-    return { acao: 'green', encerrar: true, mensagem: '✅ GREEN CONFIRMADO NO OVER 2.5!' };
+    return { acao: 'green', encerrar: true, statusMonitoramento: 'GREEN_TOTAL', mensagem: '✅ GREEN CONFIRMADO NO OVER 2.5!' };
+  }
+
+  if (MARCOS_1T.includes(marco)) {
+    return decidirPrimeiroTempo(snapshot, casa, fora, totalGols);
   }
 
   const auditoriaIntervalo = marco === 46 || marco === 48;
@@ -145,7 +176,7 @@ export function decidirCarpina(snapshot, marco) {
         const totalXg = Number((homeXg + awayXg).toFixed(2));
         const totalShotsOnTarget = homeShots + awayShots;
         if (totalXg < 0.8 && totalShotsOnTarget <= 2) {
-          return { acao: 'cashout-intervalo', encerrar: true, mensagem: textoIntervalo(totalXg, totalShotsOnTarget) };
+          return { acao: 'cashout-intervalo', encerrar: true, statusMonitoramento: 'STOP_LOSS_RECOMENDADO', mensagem: textoIntervalo(totalXg, totalShotsOnTarget) };
         }
       }
     }
@@ -156,6 +187,7 @@ export function decidirCarpina(snapshot, marco) {
     return {
       acao: 'stop-60',
       encerrar: true,
+      statusMonitoramento: 'STOP_LOSS_RECOMENDADO',
       mensagem: '🛑 OVER CARPINA 2.5 [60 MINUTOS]: Partida segue 0x0. SAÍDA MANDATÓRIA (Stop-Loss). Encerrar aposta agora para resgatar valor residual.'
     };
   }
@@ -164,12 +196,173 @@ export function decidirCarpina(snapshot, marco) {
     return {
       acao: 'stop-65',
       encerrar: true,
+      statusMonitoramento: 'STOP_LOSS_RECOMENDADO',
       mensagem: '💰 OVER CARPINA 2.5 [65 MINUTOS - LIMITE MÁXIMO]: Placar 1 gol no minuto 65. SAÍDA MANDATÓRIA. Momento de maior liquidez para resgate (35% a 45% da stake). Não segurar além deste minuto!'
     };
   }
 
-  if (minuto >= 65) return { acao: 'encerrar', encerrar: true, mensagem: null };
-  return { acao: 'seguir', encerrar: false, mensagem: null };
+  if (minuto >= 65) return { acao: 'encerrar', encerrar: true, statusMonitoramento: 'ENCERRADO_65', mensagem: null };
+  return {
+    acao: 'seguir',
+    encerrar: false,
+    mensagem: null,
+    statusMonitoramento: MARCOS_2T.includes(marco) ? `MONITORANDO_${marco}` : 'MONITORANDO'
+  };
+}
+
+function decidirPrimeiroTempo(snapshot, casa, fora, totalGols) {
+  const homeXg = Number(snapshot?.homeXg);
+  const awayXg = Number(snapshot?.awayXg);
+  const homeShots = Number(snapshot?.homeShotsOnTarget);
+  const awayShots = Number(snapshot?.awayShotsOnTarget);
+  const xgTotal = [homeXg, awayXg].every(Number.isFinite) ? homeXg + awayXg : null;
+  const chutes = [homeShots, awayShots].every(Number.isFinite) ? homeShots + awayShots : null;
+  if (totalGols >= 1) {
+    return {
+      acao: 'take-profit-1t',
+      encerrar: false,
+      statusMonitoramento: 'TAKE_PROFIT_PRONTO',
+      mensagem: 'Gol no 1T! Sugestão: Cashout defensivo (+20% a +30%) ou manter se xG > 1.2'
+    };
+  }
+  if (casa === 0 && fora === 0 && xgTotal != null && xgTotal < 0.35 && chutes != null && chutes <= 1) {
+    return {
+      acao: 'stop-loss-1t',
+      encerrar: false,
+      statusMonitoramento: 'STOP_LOSS_RECOMENDADO',
+      mensagem: "Ritmo baixo aos 20'-25' (0x0, xG baixo). Encerrar posição (-20% a -25% de perda controlada)."
+    };
+  }
+  return {
+    acao: 'pressao-1t',
+    encerrar: false,
+    statusMonitoramento: 'PRESSAO_ALTA_1T',
+    mensagem: "0x0 com volume alto. Manter posição até 30'."
+  };
+}
+
+function metricasDoSnapshot(snapshot) {
+  const homeXg = Number(snapshot?.homeXg);
+  const awayXg = Number(snapshot?.awayXg);
+  const homeShots = Number(snapshot?.homeShotsOnTarget);
+  const awayShots = Number(snapshot?.awayShotsOnTarget);
+  const xg = [homeXg, awayXg].every(Number.isFinite) ? Number((homeXg + awayXg).toFixed(2)) : null;
+  const chutes = [homeShots, awayShots].every(Number.isFinite) ? homeShots + awayShots : null;
+  const pressaoCasa = calcularIndicePressao({ rematesAlvo: Number.isFinite(homeShots) ? homeShots : 0, cantos: Number(snapshot?.homeCorners) || 0 });
+  const pressaoFora = calcularIndicePressao({ rematesAlvo: Number.isFinite(awayShots) ? awayShots : 0, cantos: Number(snapshot?.awayCorners) || 0 });
+  return { xg, chutes_alvo: chutes, pressao_relativa: Number((pressaoCasa - pressaoFora).toFixed(2)) };
+}
+
+function normalizarApostaNuvem(linha) {
+  if (!linha) return null;
+  return {
+    id: String(linha.id),
+    nuvemId: linha.id,
+    localBetId: null,
+    match: linha.partida || '',
+    market: linha.mercado || '',
+    odd: Number(linha.odd),
+    stake: Number(linha.stake),
+    status: String(linha.status || '').toUpperCase(),
+    fixtureId: linha.fixture_id || null,
+    createdAt: linha.created_at || null
+  };
+}
+
+async function listarPendentesOver25(ehOver25) {
+  const cliente = clienteApostas();
+  if (!cliente) throw new Error('Supabase indisponível.');
+  const { data, error } = await cliente
+    .from(TABELA_APOSTAS)
+    .select('id, fixture_id, partida, mercado, odd, stake, lucro, status, created_at, updated_at')
+    .eq('status', 'PENDENTE');
+  if (error) throw new Error(error.message);
+  return (data || []).map(normalizarApostaNuvem).filter((aposta) => aposta && ehOver25(aposta));
+}
+
+async function garantirApostaPendente(aposta) {
+  const cliente = clienteApostas();
+  if (!cliente) throw new Error('Supabase indisponível.');
+  const agora = new Date().toISOString();
+  const fixture = Number(aposta.fixtureId || aposta.fixture_id);
+  const { data, error } = await cliente.from(TABELA_APOSTAS).insert({
+    fixture_id: Number.isFinite(fixture) ? fixture : null,
+    partida: aposta.match,
+    mercado: aposta.market,
+    odd: Number(aposta.odd) || null,
+    stake: Number(aposta.stake) || null,
+    lucro: null,
+    status: 'PENDENTE',
+    created_at: agora,
+    updated_at: agora
+  }).select('id').single();
+  if (error) throw new Error(error.message);
+  return data.id;
+}
+
+async function gravarFixture(id, fixtureId) {
+  const cliente = clienteApostas();
+  if (!cliente) return;
+  const { error } = await cliente.from(TABELA_APOSTAS).update({
+    fixture_id: fixtureId,
+    updated_at: new Date().toISOString()
+  }).eq('id', String(id));
+  if (error) throw new Error(error.message);
+}
+
+async function encerrarApostaNuvem(id, { status, lucro }) {
+  const cliente = clienteApostas();
+  if (!cliente) return;
+  const payload = { status, updated_at: new Date().toISOString() };
+  if (status === 'PENDENTE') payload.lucro = null;
+  else if (Number.isFinite(Number(lucro))) payload.lucro = Number(Number(lucro).toFixed(2));
+  const { error } = await cliente.from(TABELA_APOSTAS).update(payload).eq('id', String(id));
+  if (error) throw new Error(error.message);
+}
+
+async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
+  const cliente = clienteApostas();
+  if (!cliente) return;
+  const casa = Number(snapshot?.golsCasa) || 0;
+  const fora = Number(snapshot?.golsFora) || 0;
+  const status = decisao?.statusMonitoramento || (MARCOS_2T.includes(marco) ? `MONITORANDO_${marco}` : 'MONITORANDO');
+  const metricas = metricasDoSnapshot(snapshot);
+  const agoraIso = new Date().toISOString();
+  const linha = {
+    fixture_id: watch.fixtureId,
+    minute: marco,
+    minuto_atual: marco,
+    placar: `${casa}-${fora}`,
+    status_monitoramento: status,
+    metricas_resumo: metricas,
+    relative_pressure: metricas.pressao_relativa,
+    home_shots_on_target: Number(snapshot?.homeShotsOnTarget) || 0,
+    away_shots_on_target: Number(snapshot?.awayShotsOnTarget) || 0,
+    updated_at: agoraIso
+  };
+  let gravou = false;
+  const { error } = await cliente.from('match_timeline').upsert(linha, { onConflict: 'fixture_id,minute' });
+  if (error) {
+    const inserido = await cliente.from('match_timeline').insert(linha);
+    if (inserido.error) console.log('[Monitor 2.5] match_timeline não gravou:', inserido.error.message);
+    else gravou = true;
+  } else {
+    gravou = true;
+  }
+  const patch = {
+    minuto_atual: marco,
+    placar: `${casa}-${fora}`,
+    status_monitoramento: status,
+    metricas_resumo: metricas,
+    updated_at: agoraIso
+  };
+  const consulta = watch.nuvemId != null
+    ? cliente.from(TABELA_APOSTAS).update(patch).eq('id', String(watch.nuvemId))
+    : cliente.from(TABELA_APOSTAS).update(patch).eq('partida', watch.match).eq('status', 'PENDENTE');
+  const atualizado = await consulta;
+  if (atualizado.error) console.log('[Monitor 2.5] apostas não atualizou:', atualizado.error.message);
+  else gravou = true;
+  if (gravou) console.log("📡 [Monitor 2.5] Marco " + marco + "' atualizado no Supabase.");
 }
 
 function lerJson(arquivo, fallback) {
@@ -495,6 +688,11 @@ export function iniciarMonitorCarpina(opcoes) {
       em: agora()
     };
     const decisao = decidirCarpina(snapshot, marco);
+    try {
+      await gravarMarcoNoSupabase(watch, snapshot, marco, decisao);
+    } catch (erro) {
+      console.log('[Monitor 2.5] Falha ao gravar o marco:', erro.message);
+    }
     if (marco === 46 && snapshot.status !== 'HT') watch.precisaRetry48 = true;
     if (decisao.mensagem) {
       const texto = `${watch.match}\n${decisao.mensagem}`;
@@ -539,7 +737,7 @@ export function iniciarMonitorCarpina(opcoes) {
   timer = setInterval(ciclo, intervaloMs);
   if (typeof timer.unref === 'function') timer.unref();
   ciclo();
-  console.log('🟢 [CARPINA] Monitor Over 2.5 ativo. Silêncio até os 46 minutos.');
+  console.log('🟢 [CARPINA] Monitor Over 2.5 ativo. Consultas em 20, 25, 46, 48 e 55–65.');
 
   return {
     parar() {
@@ -549,4 +747,69 @@ export function iniciarMonitorCarpina(opcoes) {
     sincronizar,
     watches
   };
+}
+
+/**
+ * Módulo Quant: Cálculo do Índice de Pressão (PI)
+ */
+function calcularIndicePressao(stats) {
+  const rematesAlvo = stats.rematesAlvo || 0;
+  const rematesFora = stats.rematesFora || 0;
+  const cantos = stats.cantos || 0;
+  const ataquesPerigosos = stats.ataquesPerigosos || 0;
+
+  return (rematesAlvo * 3.0) + (rematesFora * 1.5) + (cantos * 2.0) + (ataquesPerigosos * 0.4);
+}
+
+/**
+ * Grava o minuto ao vivo na tabela match_timeline para alimentar o gráfico
+ */
+export async function registarMinutoLive(fixtureId, minuto, dadosCasa, dadosFora) {
+  try {
+    const piCasa = calcularIndicePressao(dadosCasa);
+    const piFora = calcularIndicePressao(dadosFora);
+    const pressaoRelativa = piCasa - piFora;
+
+    const { error } = await supabase.from('match_timeline').insert({
+      fixture_id: fixtureId,
+      minute: minuto,
+      home_pressure: piCasa,
+      away_pressure: piFora,
+      relative_pressure: pressaoRelativa,
+      home_shots_on_target: dadosCasa.rematesAlvo || 0,
+      away_shots_on_target: dadosFora.rematesAlvo || 0,
+      home_corners: dadosCasa.cantos || 0,
+      away_corners: dadosFora.cantos || 0,
+      home_possession: dadosCasa.posse || 50,
+      away_possession: dadosFora.posse || 50
+    });
+
+    if (error) console.error('[Supabase Timeline Error]:', error.message);
+  } catch (err) {
+    console.error('[Erro registarMinutoLive]:', err.message);
+  }
+}
+
+/**
+ * Auditoria da Layback para Over 0.5 HT
+ */
+export async function auditarLaybackOverHT(fixtureId, marketId, minuto, placar) {
+  if (minuto < 12 || minuto > 26 || placar !== '0-0') return;
+
+  const dadosMercado = await getLaybackMarketData(marketId);
+  if (!dadosMercado) return;
+
+  const oddOver = dadosMercado.overOdd;
+  if (oddOver && oddOver >= 1.65 && oddOver <= 1.98) {
+    console.log(`🎯 [SINAL OVER 0.5 HT] Minuto: ${minuto}' | Odd: ${oddOver} | Liq: $${dadosMercado.liquidity}`);
+    
+    await supabase.from('trade_signals').insert({
+      fixture_id: fixtureId,
+      market_type: 'OVER_05_HT',
+      minute_triggered: minuto,
+      price_triggered: oddOver,
+      liquidity_available: dadosMercado.liquidity,
+      trigger_reason: 'Assimetria Over 0.5 HT detectada sem stream'
+    });
+  }
 }

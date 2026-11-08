@@ -1,5 +1,73 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { apiUrl, urlVarredura } from './apiBase.js';
+import RadarLive from './RadarLive.jsx';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseMonitor = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+function nomesIguais(a, b) {
+  const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const esquerda = limpar(a);
+  const direita = limpar(b);
+  if (!esquerda || !direita) return false;
+  return esquerda === direita || esquerda.includes(direita) || direita.includes(esquerda);
+}
+
+function aplicarMonitorNaAposta(aposta, linha) {
+  if (!linha) return aposta;
+  const mesmoId = linha.id != null && String(aposta.nuvemId || aposta.id) === String(linha.id);
+  const mesmoJogo = nomesIguais(aposta.match, linha.partida || linha.match);
+  const mesmoFixture = linha.fixture_id != null && aposta.fixtureId != null && String(aposta.fixtureId) === String(linha.fixture_id);
+  if (!mesmoId && !mesmoJogo && !mesmoFixture) return aposta;
+  return {
+    ...aposta,
+    fixtureId: linha.fixture_id || aposta.fixtureId || null,
+    placarAoVivo: linha.placar || aposta.placarAoVivo || null,
+    minutoAtual: linha.minuto_atual ?? linha.minute ?? aposta.minutoAtual ?? null,
+    statusMonitoramento: linha.status_monitoramento || aposta.statusMonitoramento || null,
+    metricasResumo: linha.metricas_resumo || aposta.metricasResumo || null
+  };
+}
+
+function placarOficial(aposta) {
+  const partes = String(aposta?.match || '').split(/\s+x\s+/i);
+  const casa = partes[0]?.trim();
+  const fora = partes.slice(1).join(' x ').trim();
+  const gols = String(aposta?.placarAoVivo || '').match(/(\d+)\s*[-xX]\s*(\d+)/);
+  if (!casa || !fora || !gols) return null;
+  return `${casa} ${gols[1]} - ${gols[2]} ${fora}`;
+}
+
+function textoTatico(aposta) {
+  const status = aposta?.statusMonitoramento;
+  if (status === 'STOP_LOSS_RECOMENDADO') return 'Stop Loss';
+  if (status === 'TAKE_PROFIT_PRONTO') return 'Take Profit';
+  if (status === 'GREEN_TOTAL') return 'Green';
+  if (status === 'PRESSAO_ALTA_1T') return 'Pressão alta';
+  const minuto = Number(aposta?.minutoAtual);
+  if (Number.isFinite(minuto) && minuto < 46) return "Silêncio até 46'";
+  return null;
+}
+
+function BadgeMonitor({ aposta }) {
+  const status = aposta.statusMonitoramento;
+  const minuto = aposta.minutoAtual;
+  if (status === 'STOP_LOSS_RECOMENDADO') {
+    return <span className="bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">⚠️ STOP LOSS SUGERIDO (-20%)</span>;
+  }
+  if (status === 'TAKE_PROFIT_PRONTO') {
+    return <span className="bg-[#00c853] text-black text-[10px] font-bold px-2 py-0.5 rounded">💰 TAKE PROFIT DISPONÍVEL</span>;
+  }
+  if (status === 'GREEN_TOTAL') {
+    return <span className="bg-[#00c853] text-black text-[10px] font-bold px-2 py-0.5 rounded">✅ GREEN</span>;
+  }
+  if (status === 'PRESSAO_ALTA_1T' || String(status || '').startsWith('MONITORANDO')) {
+    return <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">📡 AO VIVO (Minuto {minuto ?? '—'}')</span>;
+  }
+  return null;
+}
 
 const ESPELH0_1WIN_BRASIL = 'https://1win.com';
 
@@ -15,7 +83,7 @@ function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqu
     <div className="mt-2 space-y-2 min-w-0">
       <div className="grid grid-cols-2 gap-2">
         <div className="relative min-w-0">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-semibold">R$</span>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-semibold">$</span>
           <input
             type="number"
             step="0.01"
@@ -203,7 +271,7 @@ function formatRecapDate(value) {
 
 function signedMoney(value) {
   const n = Number(value) || 0;
-  return `${n >= 0 ? '+' : '-'}R$ ${Math.abs(n).toFixed(2)}`;
+  return `${n >= 0 ? '+' : '-'}$ ${Math.abs(n).toFixed(2)}`;
 }
 
 function signedUnits(value) {
@@ -226,7 +294,7 @@ function growthPercent(profit, base) {
   return (gain / start) * 100;
 }
 
-const PRIMARY_BANKROLL = 335;
+const PRIMARY_BANKROLL = 300;
 
 function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -497,7 +565,7 @@ export default function App() {
   });
   const [selectedLeague, setSelectedLeague] = useState('all');
 
-  const [currentBankroll, setCurrentBankroll] = useState(335);
+  const [currentBankroll, setCurrentBankroll] = useState(PRIMARY_BANKROLL);
   const [sheetBets, setSheetBets] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -505,7 +573,6 @@ export default function App() {
     gravarAba(activeTab);
   }, [activeTab]);
 
-  // 1. CARREGAMENTO INICIAL: Lê do backend (arquivo bets_database.json no seu PC)
   useEffect(() => {
     const loadFromDisk = async () => {
       try {
@@ -528,7 +595,6 @@ export default function App() {
     loadFromDisk();
   }, []);
 
-  // 2. SALVAMENTO AUTOMÁTICO EM DISCO (Só salva depois de carregar do PC)
   const persistToDisk = async (newBets, newBank) => {
     try {
       localStorage.setItem('sp_sheet_bets', JSON.stringify(newBets));
@@ -547,7 +613,6 @@ export default function App() {
     return Number((currentBankroll * 0.015).toFixed(2));
   }, [currentBankroll]);
 
-  // Persistência de Inputs Customizados (Odd/Stake de cada card)
   const [customInputs, setCustomInputs] = useState(() => {
     try {
       const saved = localStorage.getItem('sp_custom_inputs');
@@ -557,7 +622,6 @@ export default function App() {
     }
   });
 
-  // Persistência das Oportunidades Escaneadas
   const [opportunities, setOpportunities] = useState(() => {
     try {
       const saved = localStorage.getItem('sp_opportunities');
@@ -571,7 +635,6 @@ export default function App() {
   const [erroVarredura, setErroVarredura] = useState('');
   const [erroAuditoria, setErroAuditoria] = useState({});
 
-  // Persistência para URLs e Mercados da 1win
   const [onewinLinks, setOnewinLinks] = useState(() => {
     try {
       const saved = localStorage.getItem('sp_onewin_links');
@@ -611,6 +674,7 @@ export default function App() {
   const [multiplaOddText, setMultiplaOddText] = useState('');
   const [multiplaStakeText, setMultiplaStakeText] = useState('');
   const [multiplaOddEdited, setMultiplaOddEdited] = useState(false);
+  const [radarPlanilhaAberto, setRadarPlanilhaAberto] = useState({});
 
   const normalizeDate = (dStr) => {
     if (!dStr) return '';
@@ -638,6 +702,25 @@ export default function App() {
   const followTodayRef = useRef(true);
 
   useEffect(() => {
+    if (!supabaseMonitor) return undefined;
+    const receber = (payload) => {
+      const linha = payload?.new;
+      if (!linha) return;
+      setSheetBets((atual) => atual.map((aposta) => aplicarMonitorNaAposta(aposta, linha)));
+    };
+    const channel = supabaseMonitor
+      .channel('monitor-over-25')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'apostas' }, receber)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'apostas' }, receber)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'match_timeline' }, receber)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_timeline' }, receber)
+      .subscribe();
+    return () => {
+      supabaseMonitor.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       if (!followTodayRef.current) return;
       const today = getTodayLocal();
@@ -656,7 +739,6 @@ export default function App() {
     localStorage.setItem('sp_active_shift', activeShift);
   }, [opportunities, onewinLinks, onewinAudits, onewinQuants, customInputs, activeShift, isDataLoaded]);
 
-  // Busca calibrada por região
   const handleFetchOpps = async (shift = 'europe') => {
     setLoading(true);
     setActiveShift(shift);
@@ -705,7 +787,9 @@ export default function App() {
     }
 
     setErroAuditoria(prev => ({ ...prev, [game.id]: '' }));
-    setLoading1win(prev => ({ ...prev, [game.id]: true }));
+    loading1win[game.id] = true;
+    setLoading1win({ ...loading1win });
+
     try {
       const res = await fetch(apiUrl('/api/check-1win-match'), {
         method: 'POST',
@@ -879,7 +963,8 @@ export default function App() {
       date: getTodayLocal(),
       timestamp: Date.now(),
       ...(savedLink ? { gameLink: savedLink } : {}),
-      ...(cardReading ? { tacticalReading: cardReading } : {})
+      ...(cardReading ? { tacticalReading: cardReading } : {}),
+      ...(game.apiData?.fixture?.id ? { fixtureId: game.apiData.fixture.id } : {})
     };
 
     const updated = [newBet, ...sheetBets];
@@ -1092,7 +1177,7 @@ export default function App() {
     if (!bet) return;
 
     const inputVal = prompt(
-      `Jogo: ${bet.match}\nStake apostada: R$ ${Number(bet.stake).toFixed(2)}\n\nQuanto a casa devolveu no Saque/Cashout? (Ex: 2.31):`,
+      `Jogo: ${bet.match}\nStake apostada: $ ${Number(bet.stake).toFixed(2)}\n\nQuanto a casa devolveu no Saque/Cashout? (Ex: 2.31):`,
       bet.returnedAmount > 0 ? bet.returnedAmount.toString() : ''
     );
 
@@ -1138,7 +1223,6 @@ export default function App() {
     persistToDisk(updated, cleanBank);
   };
 
-  // Estatísticas calculadas
   const dayStats = useMemo(() => {
     const target = selectedDate === 'ALL' ? 'ALL' : normalizeDate(selectedDate);
     const filtered = target === 'ALL'
@@ -1250,14 +1334,14 @@ export default function App() {
     ? {
         netProfit: monthLedger.totalProfit,
         growth: monthLedger.historicalGrowth,
-        subtitle: `Banca Inicial: R$ ${monthLedger.primary.toFixed(2)} ➔ Atual: R$ ${monthLedger.current.toFixed(2)}`
+        subtitle: `Banca Inicial: $ ${monthLedger.primary.toFixed(2)} ➔ Atual: $ ${monthLedger.current.toFixed(2)}`
       }
     : {
         netProfit: selectedMonth?.profit || 0,
         growth: selectedMonth?.growth || 0,
         subtitle: profitSelectValue === 'CURRENT'
-          ? `Banca Inicial do Mês: R$ ${(selectedMonth?.initial ?? PRIMARY_BANKROLL).toFixed(2)}`
-          : `Banca Base: R$ ${(selectedMonth?.initial ?? PRIMARY_BANKROLL).toFixed(2)} ➔ Final: R$ ${(selectedMonth?.final ?? PRIMARY_BANKROLL).toFixed(2)}`
+          ? `Banca Inicial do Mês: $ ${(selectedMonth?.initial ?? PRIMARY_BANKROLL).toFixed(2)}`
+          : `Banca Base: $ ${(selectedMonth?.initial ?? PRIMARY_BANKROLL).toFixed(2)} ➔ Final: $ ${(selectedMonth?.final ?? PRIMARY_BANKROLL).toFixed(2)}`
       };
 
   const periodTitle = profitSelectValue === 'CURRENT' ? 'Lucro Mensal' : 'Lucro';
@@ -1360,7 +1444,6 @@ export default function App() {
     }
   };
 
-  // Agrupamento por Mercado
   const marketPerformance = useMemo(() => {
     const map = {};
 
@@ -1534,15 +1617,15 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Banca Atual</div>
-            <div className="text-xl font-bold text-white mt-1">R$ {currentBankroll.toFixed(2)}</div>
-            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Stake 1.5%: R$ {recommendedStake.toFixed(2)}</div>
+            <div className="text-xl font-bold text-white mt-1">$ {currentBankroll.toFixed(2)}</div>
+            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Stake 1.5%: $ {recommendedStake.toFixed(2)}</div>
           </div>
 
           <div className="bg-[#161b22] border border-[#00c853]/30 rounded-xl p-3.5 bg-gradient-to-br from-[#161b22] to-[#122319]">
             <div className="text-[11px] text-[#00c853] font-bold uppercase tracking-wider">
               {selectedDate === 'ALL' ? 'Total Apostado' : 'Apostado no Dia'}
             </div>
-            <div className="text-xl font-bold text-white mt-1">R$ {dayStats.totalInvested.toFixed(2)}</div>
+            <div className="text-xl font-bold text-white mt-1">$ {dayStats.totalInvested.toFixed(2)}</div>
             <div className="text-[10px] text-gray-400 mt-0.5">{dayStats.bets.length} entradas ({dayStats.pendings} ativas)</div>
           </div>
 
@@ -1551,7 +1634,7 @@ export default function App() {
               {selectedDate === 'ALL' ? 'Lucro Total' : 'Resultado do Dia'}
             </div>
             <div className={`text-xl font-bold mt-1 ${dayStats.netProfit >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
-              {dayStats.netProfit >= 0 ? '+' : ''}R$ {dayStats.netProfit.toFixed(2)}
+              {dayStats.netProfit >= 0 ? '+' : ''}$ {dayStats.netProfit.toFixed(2)}
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5">
               Acertos: <strong className="text-[#00c853]">{dayStats.greens}G</strong> | <strong className="text-yellow-400">{dayStats.cashouts}C</strong> | <strong className="text-red-500">{dayStats.reds}R</strong>
@@ -1574,7 +1657,7 @@ export default function App() {
             </select>
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{periodTitle}</div>
             <div className={`text-xl font-bold mt-1 ${profitCard.netProfit >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
-              {profitCard.netProfit >= 0 ? '+' : ''}R$ {profitCard.netProfit.toFixed(2)}
+              {profitCard.netProfit >= 0 ? '+' : ''}$ {profitCard.netProfit.toFixed(2)}
             </div>
             <div className={`text-[10px] mt-0.5 font-semibold ${profitCard.growth >= 0 ? 'text-[#00c853]' : 'text-red-400'}`}>
               {growthLabel}: {signedGrowth(profitCard.growth)}
@@ -1616,7 +1699,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* ABA 1: OPORTUNIDADES + AUDITORIA 1WIN */}
+        {/* ABA 1: OPORTUNIDADES + AUDITORIA 1WIN + RADAR LIVE */}
         {activeTab === 'opps' && (
           <div className="mt-5 space-y-5">
             {erroVarredura ? (
@@ -1784,6 +1867,12 @@ export default function App() {
                         <DetalheQuantExtra quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                       </div>
                     )}
+
+                    {/* Radar Quant ao Vivo e Escada Layback */}
+                    <RadarLive 
+                      fixtureId={game.apiData?.fixture?.id || game.id} 
+                      marketId={game.laybackMarketId || onewinLinks[game.id]} 
+                    />
 
                     {/* Mercados Auditados na 1win */}
                     {((onewinAudits[game.id]?.length ? onewinAudits[game.id] : linhasOperacionaisQuant(onewinQuants[game.id], game.id)).length > 0) && (
@@ -2032,6 +2121,31 @@ export default function App() {
                         <span className="text-[10px] text-gray-500">({normalizeDate(b.date)})</span>
                       </div>
                       <div className="text-xs text-[#00c853] font-medium mt-0.5">{b.market} (Odd: {b.odd})</div>
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {b.minutoAtual != null && (
+                            <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">📡 {b.minutoAtual}'</span>
+                          )}
+                          <BadgeMonitor aposta={b} />
+                        </div>
+                        {placarOficial(b) && (
+                          <div className="text-sm font-bold text-white">{placarOficial(b)}</div>
+                        )}
+                        <div className="text-[10px] text-gray-400">
+                          xG {b.metricasResumo?.xg ?? '—'} · chutes no alvo {b.metricasResumo?.chutes_alvo ?? '—'}
+                          {textoTatico(b) ? ` · ${textoTatico(b)}` : ''}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setRadarPlanilhaAberto((atual) => ({ ...atual, [b.id]: !atual[b.id] }))}
+                          className="text-[11px] font-bold text-sky-300 hover:text-white"
+                        >
+                          📡 Ver Radar 2D
+                        </button>
+                        {radarPlanilhaAberto[b.id] && (
+                          <RadarLive fixtureId={b.fixtureId || null} marketId={b.marketId || null} />
+                        )}
+                      </div>
                       {b.gameLink && (
                         /^https?:\/\//i.test(b.gameLink) ? (
                           <a href={b.gameLink} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:underline mt-1 inline-block">
@@ -2042,20 +2156,20 @@ export default function App() {
                         )
                       )}
                       <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap items-center gap-2">
-                        <span>Participação: R$ {Number(b.stake).toFixed(2)}</span>
+                        <span>Participação: $ {Number(b.stake).toFixed(2)}</span>
                         {b.status === 'GREEN' && (
                           <span className="bg-[#00c853] text-black font-bold px-2 py-0.5 rounded">
-                            + R$ {Number(b.realProfit).toFixed(2)}
+                            + $ {Number(b.realProfit).toFixed(2)}
                           </span>
                         )}
                         {b.status === 'RED' && (
                           <span className="bg-red-600 text-white font-bold px-2 py-0.5 rounded">
-                            - R$ {Number(b.stake).toFixed(2)}
+                            - $ {Number(b.stake).toFixed(2)}
                           </span>
                         )}
                         {b.status === 'CASHOUT' && (
                           <span className="font-bold text-yellow-400">
-                            Devolvido: R$ {Number(b.returnedAmount).toFixed(2)} | Real: {Number(b.realProfit) < 0 ? '-' : '+'} R$ {Math.abs(Number(b.realProfit)).toFixed(2)}
+                            Devolvido: $ {Number(b.returnedAmount).toFixed(2)} | Real: {Number(b.realProfit) < 0 ? '-' : '+'} $ {Math.abs(Number(b.realProfit)).toFixed(2)}
                           </span>
                         )}
                         {b.status !== 'GREEN' && b.status !== 'RED' && b.status !== 'CASHOUT' && (
@@ -2183,9 +2297,9 @@ export default function App() {
                               {m.winRate}%
                             </span>
                           </td>
-                          <td className="py-3 text-right text-gray-300">R$ {m.invested.toFixed(2)}</td>
+                          <td className="py-3 text-right text-gray-300">$ {m.invested.toFixed(2)}</td>
                           <td className={`py-3 text-right font-bold ${m.profit >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
-                            {m.profit >= 0 ? '+' : ''}R$ {m.profit.toFixed(2)}
+                            {m.profit >= 0 ? '+' : ''}$ {m.profit.toFixed(2)}
                           </td>
                           <td className={`py-3 text-right font-bold ${m.roi >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
                             {m.roi >= 0 ? '+' : ''}{m.roi}%
@@ -2314,7 +2428,7 @@ export default function App() {
                 />
               </label>
               <label className="text-[10px] text-gray-400 w-full sm:w-28">
-                Stake (R$)
+                Stake ($)
                 <input
                   type="number"
                   step="0.01"
