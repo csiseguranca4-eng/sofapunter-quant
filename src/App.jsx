@@ -378,6 +378,7 @@ function lerProbabilidade(valor) {
 
 function probabilidadeOver25DoJogo(game, quant) {
   const candidatos = [
+    game?.over25_prob,
     quant?.probabilities?.over25,
     game?.apiData?.probabilities?.over25,
     game?.probabilities?.over25,
@@ -393,6 +394,71 @@ function probabilidadeOver25DoJogo(game, quant) {
     || /over\s*2[.,]5|acima de 2[.,]5/i.test(`${item?.nome || ''} ${item?.tipo || ''}`)
   ));
   return lerProbabilidade(linha?.probabilidade ?? linha?.probabilidadeModelo);
+}
+
+function estimarOverPorMedia(media) {
+  const intensidade = Number(media);
+  if (!(intensidade > 0)) return null;
+  const base = Math.exp(-intensidade);
+  const under = base * (1 + intensidade + (intensidade * intensidade) / 2);
+  return Math.min(0.97, Math.max(0, 1 - under));
+}
+
+function mediaGolsDoJogo(game, quant) {
+  const pares = [
+    [quant?.lambda, quant?.mu],
+    [game?.lambda, game?.mu],
+    [game?.homeXg, game?.awayXg],
+    [game?.xgCasa, game?.xgFora],
+    [quant?.perfilTimes?.mandante?.mediaGolsMarcados, quant?.perfilTimes?.visitante?.mediaGolsMarcados],
+    [game?.apiData?.perfil?.mandante?.mediaGolsMarcados, game?.apiData?.perfil?.visitante?.mediaGolsMarcados]
+  ];
+  for (const [casa, fora] of pares) {
+    const mandante = Number(casa);
+    const visitante = Number(fora);
+    if (mandante > 0 && visitante > 0) return mandante + visitante;
+  }
+  const diretos = [game?.mediaGols, game?.xg, game?.expectedGoals, quant?.totalGols, game?.golsEsperados];
+  for (const item of diretos) {
+    const numero = Number(item);
+    if (numero > 0) return numero;
+  }
+  return null;
+}
+
+function ligaPrincipal(game) {
+  const nome = String(game?.league || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (/\bpremier league\b/.test(nome)) return true;
+  if (/\b(la liga|laliga)\b/.test(nome) && !/\b(2|ii|segunda)\b/.test(nome)) return true;
+  if (/\bserie a\b/.test(nome) && !/\b(brasil|brazil|brasileir)/.test(nome)) return true;
+  return /brasileir/.test(nome) && /\bserie [ab]\b/.test(nome);
+}
+
+function leituraOver25(game, quant) {
+  const explicita = probabilidadeOver25DoJogo(game, quant);
+  if (explicita != null) return { probabilidade: explicita, conhecida: true };
+  const pelaMedia = estimarOverPorMedia(mediaGolsDoJogo(game, quant));
+  if (pelaMedia != null) return { probabilidade: pelaMedia, conhecida: true };
+  const score = Number(game?.score);
+  if (score >= 100) {
+    return { probabilidade: Math.min(0.72, 0.58 + (score - 100) / 250), conhecida: true };
+  }
+  return { probabilidade: null, conhecida: false };
+}
+
+function jogoVisivelNoRadar(game, quant) {
+  const leitura = leituraOver25(game, quant);
+  if (!leitura.conhecida) return true;
+  if (leitura.probabilidade >= 0.58) return true;
+  if (Number(game?.score) >= 100) return true;
+  const media = mediaGolsDoJogo(game, quant);
+  return ligaPrincipal(game) && media != null && media >= 2.2;
+}
+
+function textoTagOver25(game, quant) {
+  const leitura = leituraOver25(game, quant);
+  if (!leitura.conhecida) return 'Prob. Over 2.5: Em análise';
+  return `Prob. Over 2.5: ${(leitura.probabilidade * 100).toFixed(1)}%`;
 }
 
 function GradeProbabilidades({ probabilities, home, away }) {
@@ -986,17 +1052,24 @@ export default function App() {
   const handleOddChange = (marketId, value) => {
     setCustomInputs(prev => ({
       ...prev,
-      [marketId]: { ...prev[marketId], odd: Number(value) }
+      [marketId]: { ...prev[marketId], odd: value }
     }));
   };
 
   const handleAddToSheet = (game, market, originOdd = null, gameLink = '') => {
     const currentInput = customInputs[market.id] || { stake: recommendedStake, odd: market.defaultOdd || market.odd1win };
-    const finalOdd = originOdd || Number(currentInput.odd) || market.defaultOdd || market.odd1win;
+    const finalOdd = Number(originOdd) > 1
+      ? Number(originOdd)
+      : (Number(currentInput.odd) || Number(market.defaultOdd) || Number(market.odd1win));
     const typedStake = currentInput.stake;
     const parsedStake = Number(Number(
       typedStake === undefined || typedStake === null || typedStake === '' ? recommendedStake : typedStake
     ).toFixed(2));
+    const oddSalva = Number(Number(finalOdd).toFixed(2));
+    const justa = Number(market.fairOdd);
+    const evSalvo = justa > 1 && oddSalva > 1
+      ? Number((((oddSalva / justa) - 1) * 100).toFixed(1))
+      : Number(market.evPercent) || 0;
     const savedLink = String(gameLink || '').trim();
     const cardReading = String(game.tacticalReading || '').trim();
     const formattedName = formatMarketName(market.name, { home: game.home, away: game.away });
@@ -1008,9 +1081,9 @@ export default function App() {
       market: formattedName,
       marketType: categoriaMercado(formattedName, market.marketType) || market.marketType || 'Outro',
       fairOdd: Number(market.fairOdd) || 0,
-      evPercent: Number(market.evPercent) || 0,
+      evPercent: evSalvo,
       isTopPick: !!(market.isTopPick || market.isTopEV),
-      odd: Number(finalOdd) || 1.40,
+      odd: oddSalva > 1 ? oddSalva : 1.40,
       stake: parsedStake,
       status: 'PENDING',
       returnedAmount: 0,
@@ -1608,10 +1681,7 @@ export default function App() {
   const jogosDaLiga = selectedLeague === 'all'
     ? opportunities
     : opportunities.filter((game) => game.leagueGroup === selectedLeague);
-  const displayedGames = jogosDaLiga.filter((game) => {
-    const probabilidade = probabilidadeOver25DoJogo(game, onewinQuants[game.id]);
-    return probabilidade != null && probabilidade >= 0.58;
-  });
+  const displayedGames = jogosDaLiga.filter((game) => jogoVisivelNoRadar(game, onewinQuants[game.id]));
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-gray-100 font-sans pb-12">
@@ -1771,19 +1841,17 @@ export default function App() {
               </div>
             ) : displayedGames.length === 0 ? (
               <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-400">
-                {jogosDaLiga.length === 0
-                  ? 'Nenhum jogo desta liga na varredura atual.'
-                  : 'Nenhum jogo com probabilidade de Over 2.5 a partir de 58%.'}
+                Nenhum jogo desta liga na varredura atual.
               </div>
             ) : (
               displayedGames.map(game => {
                 const linkColado = String(onewinLinks[game.id] || '').trim();
                 const linkDireto = /^https?:\/\//i.test(linkColado) ? linkColado : `${base1win()}/pt/betting`;
-                const textoOver25 = `${(probabilidadeOver25DoJogo(game, onewinQuants[game.id]) * 100).toFixed(1)}%`;
+                const textoOver25 = textoTagOver25(game, onewinQuants[game.id]);
                 return (
                 <div key={game.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-4 min-w-0 overflow-hidden">
                   <div className="mb-2">
-                    <span className="bg-[#00c853]/20 text-[#00c853] font-bold px-2 py-0.5 rounded text-[11px]">Prob. Over 2.5: {textoOver25}</span>
+                    <span className="bg-[#00c853]/20 text-[#00c853] font-bold px-2 py-0.5 rounded text-[11px]">{textoOver25}</span>
                   </div>
                   <div className="flex flex-wrap justify-between items-center gap-2 text-xs text-gray-400 mb-1 min-w-0">
                     <span className="min-w-0 break-words">{game.league} • {game.time}</span>
@@ -1945,6 +2013,9 @@ export default function App() {
                         <div className="text-[11px] text-gray-400 font-semibold">Mercados Encontrados na 1win:</div>
                         {(onewinAudits[game.id]?.length ? onewinAudits[game.id] : linhasOperacionaisQuant(onewinQuants[game.id], game.id)).map(m => {
                           const stakeValue = customInputs[m.id]?.stake ?? recommendedStake;
+                          const oddInformada = customInputs[m.id]?.odd ?? m.odd1win ?? m.defaultOdd ?? '';
+                          const oddNumero = Number(oddInformada);
+                          const retornoProjetado = oddNumero > 1 ? Number((Number(stakeValue) * (oddNumero - 1)).toFixed(2)) : null;
                           return (
                           <div 
                             key={m.id} 
@@ -1969,14 +2040,27 @@ export default function App() {
                                 {m.badge === '+EV' && m.tag !== 'VALOR' && <span className="bg-[#00c853] text-black text-[9px] px-1.5 py-0.5 rounded font-extrabold">+EV</span>}
                                 {m.isTopEV && <span className="bg-blue-500 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold">+EV TOP</span>}
                               </div>
-                              <div className="text-[10px] text-gray-400 mt-0.5">
-                                Odd 1win: <strong className="text-white">{m.odd1win}</strong> | Odd Justa: <strong className="text-gray-300">{m.fairOdd}</strong> | <span className={m.evPercent > 0 ? 'text-[#00c853] font-bold' : 'text-red-400 font-bold'}>+EV: {m.evPercent}%</span>
+                              <div className="text-[10px] text-gray-400 mt-0.5 flex flex-wrap items-center gap-1">
+                                <span>Odd:</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="1.01"
+                                  value={oddInformada}
+                                  onChange={(e) => handleOddChange(m.id, e.target.value)}
+                                  className="w-16 bg-[#0d1117] border border-gray-700 text-white font-bold text-xs rounded px-1.5 py-0.5 text-center outline-none"
+                                />
+                                <span>| Odd Justa: <strong className="text-gray-300">{m.fairOdd}</strong></span>
+                                <span className={(Number(m.fairOdd) > 1 && oddNumero > 1 ? ((oddNumero / Number(m.fairOdd)) - 1) : Number(m.evPercent)) > 0 ? 'text-[#00c853] font-bold' : 'text-red-400 font-bold'}>
+                                  +EV: {(Number(m.fairOdd) > 1 && oddNumero > 1 ? ((oddNumero / Number(m.fairOdd)) - 1) * 100 : Number(m.evPercent) || 0).toFixed(1)}%
+                                </span>
+                                {retornoProjetado != null && <span className="text-[#00c853] font-bold">Retorno: +$ {retornoProjetado.toFixed(2)}</span>}
                               </div>
                             </div>
                             <AcoesMercado
                               stake={stakeValue}
                               onStake={(valor) => handleStakeChange(m.id, valor)}
-                              onSheet={() => handleAddToSheet(game, m, m.odd1win, linkDireto)}
+                              onSheet={() => handleAddToSheet(game, m, null, linkDireto)}
                               onMultipla={() => toggleMultipla(game, m, m.odd1win, m.fairOdd)}
                               naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
                               destaqueMultipla={m.aptoMultipla === true || m.tag === 'FAVORITO' || m.tag === 'BASE MULTIPLA'}
