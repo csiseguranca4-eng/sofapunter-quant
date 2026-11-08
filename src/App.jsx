@@ -1014,6 +1014,7 @@ export default function App() {
           homeTeam: game.home,
           awayTeam: game.away,
           league: game.league,
+          score: game.score,
           oddsCapturadas,
           apiData: game.apiData || {
             probabilities: onewinQuants[game.id]?.probabilities || null,

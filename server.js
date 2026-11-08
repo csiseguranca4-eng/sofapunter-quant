@@ -399,6 +399,146 @@ function buildDynamicTacticalReading(homeTeam, awayTeam, odds) {
   return `Leitura tática: ${homeTeam} tem tendência ofensiva clara diante de ${awayTeam}. ${projection}`;
 }
 
+function falhaGeminiParaFallback(error) {
+  const status = Number(error?.response?.status);
+  if (status === 401 || status === 403) return true;
+  if (error?.response) return false;
+  const codigo = String(error?.code || '');
+  if (['ECONNABORTED', 'ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ENETUNREACH', 'EHOSTUNREACH'].includes(codigo)) {
+    return true;
+  }
+  return /network|timeout|fetch failed|getaddrinfo|socket/i.test(String(error?.message || ''));
+}
+
+function textoClassificacaoLocal(nome, lado) {
+  if (!lado || typeof lado !== 'object') return null;
+  const rank = lado.rank ?? lado.pos;
+  const points = lado.points ?? lado.pts;
+  const form = String(lado.form || lado.forma || '').trim();
+  const partes = [];
+  if (rank != null && rank !== '-' && rank !== '') partes.push(`${rank}º`);
+  if (points != null && points !== '-' && points !== '') partes.push(`${points} pts`);
+  if (form && form !== '-----') partes.push(`forma ${form}`);
+  if (!partes.length) return null;
+  return `${nome} (${partes.join(', ')})`;
+}
+
+function parecerHeuristicoLocal(contexto = {}) {
+  const api = contexto?.apiData && typeof contexto.apiData === 'object' ? contexto.apiData : {};
+  const home = String(contexto?.homeTeam || '').trim() || 'Mandante';
+  const away = String(contexto?.awayTeam || '').trim() || 'Visitante';
+  const league = String(contexto?.league || '').trim();
+  const probs = api.probabilities || {};
+  const lambda = numeroHeuristico(api.lambda);
+  const mu = numeroHeuristico(api.mu);
+  const gols = lambda != null && mu != null ? Number((lambda + mu).toFixed(2)) : null;
+  const over25 = numeroPercentual(probs.over25);
+  const casa = numeroPercentual(probs.homeWin);
+  const empate = numeroPercentual(probs.draw);
+  const fora = numeroPercentual(probs.awayWin);
+  const score = numeroHeuristico(contexto?.score);
+  const standings = api.standings || {};
+  const classCasa = textoClassificacaoLocal(home, standings.home);
+  const classFora = textoClassificacaoLocal(away, standings.away);
+  const perfilCasa = api.perfil?.mandante || api.perfilTimes?.mandante || {};
+  const perfilFora = api.perfil?.visitante || api.perfilTimes?.visitante || {};
+  const formaCasa = String(standings.home?.form || perfilCasa.forma || '').trim();
+  const formaFora = String(standings.away?.form || perfilFora.forma || '').trim();
+  const retrospecto = (Array.isArray(api.h2h) ? api.h2h : [])
+    .slice(0, 5)
+    .map((jogo) => [jogo?.home, jogo?.score, jogo?.away].filter(Boolean).join(' '))
+    .filter(Boolean);
+
+  const frases = ['Leitura local do confronto, com o Gemini indisponível.'];
+  frases.push(league ? `${home} x ${away} na ${league}.` : `${home} x ${away}.`);
+  if (score != null) frases.push(`Score do card: ${Math.round(score)}%.`);
+  if (gols != null) frases.push(`Expectativa de gols ${gols} (λ ${lambda} e μ ${mu}).`);
+  if (casa != null || empate != null || fora != null) {
+    frases.push(`1X2 do modelo: casa ${casa != null ? casa.toFixed(1) : '—'}%, empate ${empate != null ? empate.toFixed(1) : '—'}%, fora ${fora != null ? fora.toFixed(1) : '—'}%.`);
+  }
+  if (over25 != null) frases.push(`Over 2.5 no modelo: ${over25.toFixed(1)}%.`);
+  if (classCasa || classFora) frases.push(`Classificação: ${[classCasa, classFora].filter(Boolean).join(' | ')}.`);
+  if ((formaCasa && formaCasa !== '-----') || (formaFora && formaFora !== '-----')) {
+    frases.push(`Retrospecto recente: ${home} ${formaCasa || 'sem forma'} e ${away} ${formaFora || 'sem forma'}.`);
+  }
+  if (retrospecto.length) frases.push(`H2H: ${retrospecto.join('; ')}.`);
+
+  const odds = (Array.isArray(contexto?.oddsCapturadas) ? contexto.oddsCapturadas : [])
+    .filter((item) => item?.tipo && Number(item.odd1win) > 1);
+  const tipoExato = (nome) => odds.find((item) => item.tipo === nome)?.tipo || null;
+  const tipoCasa = tipoExato(`Resultado: ${home}`);
+  const tipoFora = tipoExato(`Resultado: ${away}`);
+  const tipoOver15 = odds.find((item) => /Acima de 1\.5/i.test(String(item.tipo)))?.tipo || null;
+  const tipoOver25 = odds.find((item) => /Acima de 2\.5/i.test(String(item.tipo)))?.tipo || null;
+  const multipla = [];
+  const casaFavorita = casa != null && (fora == null || casa >= fora);
+  const favoritoClaro = casa != null && fora != null && Math.max(casa, fora) >= 55;
+  if (favoritoClaro) {
+    const favorito = casaFavorita ? tipoCasa : tipoFora;
+    if (favorito) multipla.push(favorito);
+  }
+  const jogoAberto = (over25 != null && over25 >= 50) || (gols != null && gols >= 2.6);
+  if (jogoAberto) {
+    const over = tipoOver15 || tipoOver25;
+    if (over && !multipla.includes(over)) multipla.push(over);
+  }
+  if (multipla.length < 2) {
+    const apoio = odds
+      .filter((item) => Number(item.edge) > 0 && !multipla.includes(item.tipo))
+      .sort((a, b) => Number(b.edge) - Number(a.edge))[0];
+    if (apoio) multipla.push(apoio.tipo);
+  }
+
+  const sugestaoValor = odds
+    .filter((item) => Number(item.edge) > 0)
+    .sort((a, b) => Number(b.edge) - Number(a.edge))
+    .slice(0, 2)
+    .map((item) => item.tipo);
+
+  let alertaRisco = 'Sem um risco dominante além da margem já visível nas odds auditadas.';
+  if (jogoAberto) alertaRisco = 'Jogo com expectativa de gols: o Under fica frágil se o ritmo se confirmar.';
+  else if (gols != null && gols < 2.2) alertaRisco = 'Expectativa de gols contida: linhas de Over dependem de um desvio do retrospecto.';
+  const derrotas = `${formaCasa}${formaFora}`.match(/L/gi);
+  if (derrotas && derrotas.length >= 3) {
+    alertaRisco = 'As formas recentes trazem derrotas; o favorito do modelo pode não se confirmar.';
+  }
+
+  return {
+    diagnostico: frases.join(' '),
+    sugestaoMultipla: multipla.slice(0, 2),
+    sugestaoValor,
+    alertaRisco
+  };
+}
+
+function numeroHeuristico(valor) {
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+  const texto = String(valor ?? '').trim().replace('%', '').replace(',', '.');
+  if (!texto) return null;
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function textoDoParecerLocal(parecer, promptText, wantJson) {
+  if (!wantJson) return parecer.diagnostico;
+  const texto = String(promptText || '');
+  if (texto.includes('tacticalReading')) {
+    return JSON.stringify({ tacticalReading: parecer.diagnostico, aiPicks: [] });
+  }
+  if (texto.includes('resumoTatico')) {
+    return JSON.stringify({ resumoTatico: parecer.diagnostico, mensagemTelegram: parecer.diagnostico });
+  }
+  if (texto.includes('resumoVisual') || texto.includes('estiloConfronto')) {
+    return JSON.stringify({
+      estiloConfronto: 'Leitura local',
+      validacaoTatica: parecer.diagnostico,
+      resumoVisual: parecer.diagnostico.slice(0, 160),
+      scoreConfianca: null
+    });
+  }
+  return JSON.stringify(parecer);
+}
+
 async function requestGeminiTacticalText(promptText, options = {}) {
   console.log('Gemini Key carregada:', process.env.GEMINI_API_KEY ? 'OK (tamanho: ' + process.env.GEMINI_API_KEY.length + ')' : 'NÃO CARREGADA');
   const wantJson = options.json === true;
@@ -437,6 +577,10 @@ async function requestGeminiTacticalText(promptText, options = {}) {
       const mensagem = corpo?.error?.message || corpo?.message || error?.message || 'erro sem mensagem';
       console.error('ERRO GEMINI DETALHADO:', attempt.model, mensagem);
       if (corpo) console.error('ERRO GEMINI CORPO:', typeof corpo === 'string' ? corpo : JSON.stringify(corpo));
+      if (falhaGeminiParaFallback(error)) {
+        console.warn('Parecer heurístico local ativado:', error?.response?.status || error?.code || 'rede');
+        return textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
+      }
     }
   }
   return '';
@@ -1750,7 +1894,18 @@ Odds capturadas na 1win: ${JSON.stringify(capturadas)}
 Dados da API-Football: ${JSON.stringify(apiData || {})}`;
 
     console.log(`\n🤖 [ANALISAR IA] ${homeTeam} vs ${awayTeam}`);
-    const texto = await requestGeminiTacticalText(prompt, { json: true, timeout: 45000 });
+    const texto = await requestGeminiTacticalText(prompt, {
+      json: true,
+      timeout: 45000,
+      contexto: {
+        homeTeam,
+        awayTeam,
+        league,
+        score: req.body?.score,
+        oddsCapturadas: capturadas,
+        apiData: apiData || {}
+      }
+    });
     const lido = extrairJsonGemini(texto);
     const diagnostico = String(lido?.diagnostico || '').trim();
     const sugestaoMultipla = listaTextoIa(lido?.sugestaoMultipla);
