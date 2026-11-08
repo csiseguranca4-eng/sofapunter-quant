@@ -120,14 +120,15 @@
       "kickoff": "2026-11-08T12:15:00-03:00",
       "feitos": [
         20,
-        25
+        25,
+        46
       ],
-      "precisaRetry48": false,
+      "precisaRetry48": true,
       "encerrado": false,
       "ancora": {
-        "elapsed": 26,
+        "elapsed": 45,
         "status": "1H First Half",
-        "em": 1794152662079
+        "em": 1794153862940
       }
     },
     "bet_1794153221596vgh": {
