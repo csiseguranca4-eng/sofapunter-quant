@@ -400,6 +400,7 @@ function buildDynamicTacticalReading(homeTeam, awayTeam, odds) {
 }
 
 async function requestGeminiTacticalText(promptText, options = {}) {
+  console.log('Gemini Key carregada:', process.env.GEMINI_API_KEY ? 'OK (tamanho: ' + process.env.GEMINI_API_KEY.length + ')' : 'NÃO CARREGADA');
   const wantJson = options.json === true;
   const attempts = wantJson
     ? [
@@ -430,8 +431,12 @@ async function requestGeminiTacticalText(promptText, options = {}) {
       const text = response?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
       const cleaned = attempt.json ? String(text || '').trim() : cleanGeminiText(text);
       if (cleaned) return cleaned;
+      console.error('ERRO GEMINI DETALHADO:', attempt.model, 'devolveu resposta sem texto.');
     } catch (error) {
-      console.error('ERRO GEMINI DETALHADO:', error?.response?.data || error?.message || error);
+      const corpo = error?.response?.data;
+      const mensagem = corpo?.error?.message || corpo?.message || error?.message || 'erro sem mensagem';
+      console.error('ERRO GEMINI DETALHADO:', attempt.model, mensagem);
+      if (corpo) console.error('ERRO GEMINI CORPO:', typeof corpo === 'string' ? corpo : JSON.stringify(corpo));
     }
   }
   return '';
@@ -1726,6 +1731,8 @@ function listaTextoIa(valor) {
 app.post('/api/analisar-ia', async (req, res) => {
   try {
     const { homeTeam, awayTeam, league, oddsCapturadas, apiData } = req.body || {};
+    console.log('POST /api/analisar-ia recebido:', homeTeam || '(sem mandante)', 'vs', awayTeam || '(sem visitante)');
+    console.log('Gemini Key carregada:', process.env.GEMINI_API_KEY ? 'OK (tamanho: ' + process.env.GEMINI_API_KEY.length + ')' : 'NÃO CARREGADA');
     if (!homeTeam || !awayTeam) {
       return res.status(400).json({ success: false, message: 'Informe os dois times para a análise.' });
     }
