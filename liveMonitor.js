@@ -253,7 +253,7 @@ export function decidirCarpina(snapshot, marco, mercado) {
   }
 
   if (MARCOS_1T.includes(marco)) {
-    return decidirPrimeiroTempo(snapshot, casa, fora, totalGols);
+    return decidirPrimeiroTempo(snapshot, casa, fora, totalGols, marco);
   }
 
   const auditoriaIntervalo = marco === 46 || marco === 48;
@@ -313,13 +313,23 @@ export function decidirCarpina(snapshot, marco, mercado) {
   };
 }
 
-function decidirPrimeiroTempo(snapshot, casa, fora, totalGols) {
+function decidirPrimeiroTempo(snapshot, casa, fora, totalGols, marco) {
   const homeXg = Number(snapshot?.homeXg);
   const awayXg = Number(snapshot?.awayXg);
   const homeShots = Number(snapshot?.homeShotsOnTarget);
   const awayShots = Number(snapshot?.awayShotsOnTarget);
   const xgTotal = [homeXg, awayXg].every(Number.isFinite) ? homeXg + awayXg : null;
   const chutes = [homeShots, awayShots].every(Number.isFinite) ? homeShots + awayShots : null;
+  const risco_stoploss = marco === 20 && riscoStopLossPrecoce(snapshot, minutoParaRisco(snapshot, marco));
+  if (risco_stoploss) {
+    return {
+      acao: 'stop-loss-1t',
+      encerrar: false,
+      risco_stoploss: true,
+      statusMonitoramento: 'STOP_LOSS_RECOMENDADO',
+      mensagem: "Ritmo baixo aos 20'-25' (0x0, xG baixo). Encerrar posição (-20% a -25% de perda controlada)."
+    };
+  }
   if (totalGols >= 1) {
     return {
       acao: 'take-profit-1t',
@@ -390,6 +400,68 @@ export function mensagemRadar1T({ minuto, mandante, visitante, golsCasa, golsFor
 
 function chaveNotificacao(fixtureId, minuto) {
   return `notified_${fixtureId}_${minuto}`;
+}
+
+const notificacoesServidor = new Set();
+
+export function reservarAvisoUnico(fixtureId, minuto) {
+  const chave = chaveNotificacao(fixtureId, minuto);
+  if (notificacoesServidor.has(chave)) return false;
+  notificacoesServidor.add(chave);
+  return true;
+}
+
+export function riscoStopLossPrecoce(snapshot, minuto) {
+  const minutoNum = Number(minuto);
+  if (!Number.isFinite(minutoNum) || minutoNum < 20 || minutoNum > 25) return false;
+  const casa = Number(snapshot?.golsCasa) || 0;
+  const fora = Number(snapshot?.golsFora) || 0;
+  if ((casa + fora) !== 0) return false;
+  const homeXg = Number(snapshot?.homeXg);
+  const awayXg = Number(snapshot?.awayXg);
+  const homeShots = Number(snapshot?.homeShotsOnTarget);
+  const awayShots = Number(snapshot?.awayShotsOnTarget);
+  if (![homeXg, awayXg, homeShots, awayShots].every(Number.isFinite)) return false;
+  const xG_total = homeXg + awayXg;
+  const chutesNoAlvoTotal = homeShots + awayShots;
+  return xG_total < 0.40 && chutesNoAlvoTotal <= 1;
+}
+
+export function minutoParaRisco(snapshot, marco) {
+  const elapsed = Number(snapshot?.elapsed);
+  if (marco === 20) {
+    if (!Number.isFinite(elapsed)) return 20;
+    if (elapsed >= 19 && elapsed < 20) return 20;
+    return elapsed;
+  }
+  return Number.isFinite(elapsed) ? elapsed : marco;
+}
+
+function totaisOfensivos(snapshot) {
+  const homeXg = Number(snapshot?.homeXg);
+  const awayXg = Number(snapshot?.awayXg);
+  const homeShots = Number(snapshot?.homeShotsOnTarget);
+  const awayShots = Number(snapshot?.awayShotsOnTarget);
+  return {
+    xG_total: [homeXg, awayXg].every(Number.isFinite) ? (homeXg + awayXg).toFixed(2) : '—',
+    chutesAlvoTotal: [homeShots, awayShots].every(Number.isFinite) ? String(homeShots + awayShots) : '—'
+  };
+}
+
+const PARECER_STOP_LOCAL = [
+  'O Over 1.5 e o Over 2.5 correm risco real de não bater neste volume.',
+  'Stop-loss preventivo recomendado para encerrar e salvar a banca residual.'
+].join('\n');
+
+export function mensagemStopLoss20({ mandante, visitante, mercado, xG_total, chutesAlvoTotal, parecerGeminiStopLoss }) {
+  return [
+    "⚠️ ALERTA STOP-LOSS PREVENTIVO [MINUTO 20']",
+    `⚽ Partida: ${mandante} 0 x 0 ${visitante}`,
+    `🎯 Mercado: ${mercado}`,
+    `📉 xG Acumulado: ${xG_total} | Chutes no Alvo: ${chutesAlvoTotal}`,
+    `🚨 Parecer da I.A.: ${parecerGeminiStopLoss}`,
+    "🔴 Recomendação Carpina: Saída defensiva sugerida se não houver finalização até os 30'."
+  ].join('\n');
 }
 
 function normalizarApostaNuvem(linha) {
@@ -546,6 +618,7 @@ export function iniciarMonitorCarpina(opcoes) {
   const consultarFixture = opcoes.consultarFixture;
   const listarDia = opcoes.listarDia;
   const enviarTelegram = opcoes.enviarTelegram;
+  const pedirParecerStopLoss = opcoes.pedirParecerStopLoss;
   const agora = opcoes.agora || (() => Date.now());
   const intervaloMs = opcoes.intervaloMs || 15000;
   const watches = new Map();
@@ -575,6 +648,7 @@ export function iniciarMonitorCarpina(opcoes) {
         feitos: new Set(watch.feitos || []),
         notificados: new Set(watch.notificados || [])
       };
+      for (const chave of atual.notificados) notificacoesServidor.add(chave);
       if (atual.encerrado && atual.fixtureId != null) fixturesBloqueados.add(String(atual.fixtureId));
       watches.set(id, atual);
     }
@@ -874,26 +948,52 @@ export function iniciarMonitorCarpina(opcoes) {
     if (!(watch.notificados instanceof Set)) watch.notificados = new Set(watch.notificados || []);
     const chaveAviso = chaveNotificacao(watch.fixtureId, marco);
     const aviso1T = MARCOS_1T.includes(marco);
-    if (aviso1T && !watch.notificados.has(chaveAviso)) {
-      const times = partidaDaAposta({ match: watch.match });
-      const texto = mensagemRadar1T({
-        minuto: marco,
-        mandante: times?.home || snapshot.home || 'Mandante',
-        visitante: times?.away || snapshot.away || 'Visitante',
-        golsCasa: Number(snapshot.golsCasa) || 0,
-        golsFora: Number(snapshot.golsFora) || 0,
-        mercado: rotuloMercadoMonitorado({ market: watch.market }),
-        snapshot,
-        decisao
-      });
+    if (aviso1T) {
+      const primeiraVez = reservarAvisoUnico(watch.fixtureId, marco);
       watch.notificados.add(chaveAviso);
-      try {
-        await enviarTelegram(texto);
-        console.log(`📣 [CARPINA] ${watch.match}: radar ${marco}'`);
-      } catch (erro) {
-        watch.notificados.delete(chaveAviso);
-        watch.feitos.delete(marco);
-        console.log('[CARPINA] Telegram não enviado:', erro.message);
+      if (primeiraVez) {
+        const times = partidaDaAposta({ match: watch.match });
+        const mandante = times?.home || snapshot.home || 'Mandante';
+        const visitante = times?.away || snapshot.away || 'Visitante';
+        const mercado = rotuloMercadoMonitorado({ market: watch.market });
+        let texto;
+        if (decisao.risco_stoploss) {
+          const totais = totaisOfensivos(snapshot);
+          let parecerGeminiStopLoss = PARECER_STOP_LOCAL;
+          if (typeof pedirParecerStopLoss === 'function') {
+            try {
+              const parecer = await pedirParecerStopLoss({ xG: totais.xG_total, chutes: totais.chutesAlvoTotal });
+              if (String(parecer || '').trim()) parecerGeminiStopLoss = String(parecer).trim();
+            } catch (erro) {
+              console.log('[CARPINA] Parecer de stop-loss indisponível:', erro.message);
+            }
+          }
+          texto = mensagemStopLoss20({
+            mandante,
+            visitante,
+            mercado,
+            xG_total: totais.xG_total,
+            chutesAlvoTotal: totais.chutesAlvoTotal,
+            parecerGeminiStopLoss
+          });
+        } else {
+          texto = mensagemRadar1T({
+            minuto: marco,
+            mandante,
+            visitante,
+            golsCasa: Number(snapshot.golsCasa) || 0,
+            golsFora: Number(snapshot.golsFora) || 0,
+            mercado,
+            snapshot,
+            decisao
+          });
+        }
+        try {
+          await enviarTelegram(texto);
+          console.log(`📣 [CARPINA] ${watch.match}: ${decisao.risco_stoploss ? 'stop-loss 20' : 'radar'} ${marco}'`);
+        } catch (erro) {
+          console.log('[CARPINA] Telegram não enviado:', erro.message);
+        }
       }
     } else if (!aviso1T && decisao.mensagem) {
       const texto = `${watch.match}\n${decisao.mensagem}`;

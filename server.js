@@ -457,6 +457,16 @@ function textoClassificacaoLocal(nome, lado) {
 }
 
 function parecerHeuristicoLocal(contexto = {}) {
+  if (contexto?.alertaStopLoss) {
+    const xG = contexto.xG ?? '—';
+    const chutes = contexto.chutes ?? '—';
+    return {
+      diagnostico: `Over 1.5 e Over 2.5 têm risco alto de não bater (xG ${xG}, ${chutes} chute(s) no alvo).\nStop-loss preventivo recomendado para encerrar e preservar a banca residual.`,
+      sugestaoMultipla: [],
+      sugestaoValor: [],
+      alertaRisco: 'Volume ofensivo insuficiente aos 20 minutos.'
+    };
+  }
   const api = contexto?.apiData && typeof contexto.apiData === 'object' ? contexto.apiData : {};
   const home = String(contexto?.homeTeam || '').trim() || 'Mandante';
   const away = String(contexto?.awayTeam || '').trim() || 'Visitante';
@@ -602,6 +612,42 @@ async function requestGeminiTacticalText(promptText, options = {}) {
     }
   }
   return parecerLocal();
+}
+
+function promptAlertaStopLoss20({ xG, chutes }) {
+  return `A partida está aos 20 minutos em 0x0 com baixíssimo volume ofensivo (xG: ${xG}, Chutes no alvo: ${chutes}).
+Emita uma recomendação técnica concisa de 2 linhas sobre:
+- Risco do Over 1.5 / Over 2.5 não bater.
+- Recomendação de Stop-Loss preventivo / encerramento para salvar banca residual.`;
+}
+
+function duasLinhasParecer(texto) {
+  const linhas = String(texto || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .split(/\n+/)
+    .map((linha) => linha.trim())
+    .filter(Boolean);
+  return linhas.slice(0, 2).join('\n');
+}
+
+async function pedirParecerStopLoss20({ xG, chutes }) {
+  const prompt = promptAlertaStopLoss20({ xG, chutes });
+  const local = () => duasLinhasParecer(
+    textoDoParecerLocal(parecerHeuristicoLocal({ alertaStopLoss: true, xG, chutes }), prompt, false)
+  );
+  let texto = '';
+  try {
+    texto = await Promise.race([
+      requestGeminiTacticalText(prompt, { contexto: { alertaStopLoss: true, xG, chutes } }),
+      new Promise((resolve) => setTimeout(() => resolve(''), 12000))
+    ]);
+  } catch (erro) {
+    console.log(`[Aviso] Parecer de stop-loss indisponível: ${erro.message}`);
+    return local();
+  }
+  const linhas = duasLinhasParecer(texto);
+  if (linhas && !/leitura local do confronto/i.test(linhas)) return linhas;
+  return local();
 }
 
 function normalizeAiPicks(picks, teams = {}) {
@@ -2178,7 +2224,8 @@ if (executadoDiretamente) {
       tabelaApostas: TABELA_APOSTAS,
       consultarFixture: obterFixtureAoVivo,
       listarDia: listarFixturesDoDia,
-      enviarTelegram: enviarTelegramTexto
+      enviarTelegram: enviarTelegramTexto,
+      pedirParecerStopLoss: pedirParecerStopLoss20
     });
   });
 }
