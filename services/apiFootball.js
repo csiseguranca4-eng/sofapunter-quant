@@ -519,7 +519,9 @@ function resumirFixtureAoVivo(jogo) {
     homeXg: lerEstatistica(estatisticasCasa, ['expected_goals', 'Expected Goals']),
     awayXg: lerEstatistica(estatisticasFora, ['expected_goals', 'Expected Goals']),
     homeShotsOnTarget: lerEstatistica(estatisticasCasa, ['Shots on Goal', 'Shots on Target']),
-    awayShotsOnTarget: lerEstatistica(estatisticasFora, ['Shots on Goal', 'Shots on Target'])
+    awayShotsOnTarget: lerEstatistica(estatisticasFora, ['Shots on Goal', 'Shots on Target']),
+    homeCorners: lerEstatistica(estatisticasCasa, ['Corner Kicks', 'Corners']),
+    awayCorners: lerEstatistica(estatisticasFora, ['Corner Kicks', 'Corners'])
   };
 }
 

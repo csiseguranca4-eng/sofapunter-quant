@@ -740,7 +740,7 @@ export default function App() {
       } catch (_) { /* o monitor ainda não gravou o fallback */ }
     };
     lerEstadoLocal();
-    const timer = setInterval(lerEstadoLocal, 5000);
+    const timer = setInterval(lerEstadoLocal, 4000);
     return () => {
       ativo = false;
       clearInterval(timer);
@@ -2159,7 +2159,7 @@ export default function App() {
                           <div className="text-sm font-bold text-white">{placarOficial(b)}</div>
                         )}
                         <div className="text-[10px] text-gray-400">
-                          xG {b.metricasResumo?.xg ?? '—'} · chutes no alvo {b.metricasResumo?.chutes_alvo ?? '—'}
+                          xG {b.metricasResumo?.xg ?? '—'} · chutes no alvo {b.metricasResumo?.chutes_alvo ?? '—'} · cantos {b.metricasResumo?.cantos ?? '—'}
                           {textoTatico(b) ? ` · ${textoTatico(b)}` : ''}
                         </div>
                         <button

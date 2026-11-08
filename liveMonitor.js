@@ -8,8 +8,6 @@ dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
 dns.setDefaultResultOrder('ipv4first');
 
 import fs from 'fs';
-import http from 'node:http';
-import https from 'node:https';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
@@ -22,82 +20,36 @@ const ARQUIVO_LIVE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
 const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-function lookupPorDns(hostname, options, callback) {
-  const cb = typeof options === 'function' ? options : callback;
-  const opts = typeof options === 'function' ? {} : (options || {});
-  dns.resolve4(hostname, (erro, enderecos) => {
-    if (!erro && enderecos?.length) {
-      if (opts.all) cb(null, enderecos.map((address) => ({ address, family: 4 })));
-      else cb(null, enderecos[0], 4);
-      return;
-    }
-    if (typeof options === 'function') dns.lookup(hostname, cb);
-    else dns.lookup(hostname, opts, cb);
-  });
+let supabaseIndisponivelAte = 0;
+
+function pausarSupabase() {
+  supabaseIndisponivelAte = Date.now() + 60000;
 }
 
-https.globalAgent = new https.Agent({ keepAlive: true, lookup: lookupPorDns });
-http.globalAgent = new http.Agent({ keepAlive: true, lookup: lookupPorDns });
-
-function cabecalhosPlainos(headers) {
-  if (!headers) return {};
-  if (typeof headers.forEach === 'function') {
-    const saida = {};
-    headers.forEach((valor, chave) => { saida[chave] = valor; });
-    return saida;
-  }
-  return { ...headers };
-}
-
-function fetchPorDns(entrada, opcoes = {}) {
-  const url = typeof entrada === 'string' ? entrada : entrada.url;
-  const alvo = new URL(url);
-  const lib = alvo.protocol === 'http:' ? http : https;
-  const metodo = opcoes.method || (typeof entrada === 'string' ? 'GET' : entrada.method) || 'GET';
-  const body = opcoes.body ?? null;
-  return new Promise((resolve, reject) => {
-    const req = lib.request({
-      protocol: alvo.protocol,
-      hostname: alvo.hostname,
-      port: alvo.port || undefined,
-      path: `${alvo.pathname}${alvo.search}`,
-      method: metodo,
-      headers: cabecalhosPlainos(opcoes.headers || (typeof entrada === 'string' ? null : entrada.headers)),
-      lookup: lookupPorDns
-    }, (res) => {
-      const partes = [];
-      res.on('data', (parte) => partes.push(parte));
-      res.on('end', () => {
-        const headers = new Headers();
-        for (const [chave, valor] of Object.entries(res.headers)) {
-          if (Array.isArray(valor)) valor.forEach((item) => headers.append(chave, item));
-          else if (valor != null) headers.set(chave, String(valor));
-        }
-        resolve(new Response(Buffer.concat(partes), { status: res.statusCode, headers }));
-      });
+async function fetchSupabase(entrada, opcoes = {}) {
+  if (Date.now() < supabaseIndisponivelAte) {
+    return new Response(JSON.stringify({ message: 'ETIMEDOUT', code: 'fetch_failed' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
     });
-    req.on('error', reject);
-    if (opcoes.signal) {
-      const abortar = () => req.destroy(opcoes.signal.reason || new Error('aborted'));
-      if (opcoes.signal.aborted) abortar();
-      else opcoes.signal.addEventListener('abort', abortar, { once: true });
-    }
-    if (typeof body === 'string' || Buffer.isBuffer(body)) req.write(body);
-    else if (body instanceof Uint8Array) req.write(Buffer.from(body));
-    req.end();
-  });
-}
-
-async function fetchSupabase(entrada, opcoes) {
+  }
+  const controlador = new AbortController();
+  const timer = setTimeout(() => controlador.abort(), 4000);
+  if (opcoes.signal) {
+    if (opcoes.signal.aborted) controlador.abort();
+    else opcoes.signal.addEventListener('abort', () => controlador.abort(), { once: true });
+  }
   try {
-    return await fetchPorDns(entrada, opcoes);
+    return await fetch(entrada, { ...opcoes, signal: controlador.signal });
   } catch (erro) {
-    const causa = erro?.cause?.message || erro?.message || 'fetch failed';
-    console.log('[Monitor 2.5] Supabase sem rede:', causa);
+    pausarSupabase();
+    const causa = erro?.name === 'AbortError' ? 'ETIMEDOUT' : (erro?.cause?.message || erro?.message || 'fetch failed');
     return new Response(JSON.stringify({ message: causa, code: 'fetch_failed' }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }
     });
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -109,6 +61,7 @@ const supabase = (supabaseUrl.startsWith('http') && supabaseKey)
   : null;
 
 function clienteApostas() {
+  if (Date.now() < supabaseIndisponivelAte) return null;
   return supabase || supabaseApostas;
 }
 
@@ -144,7 +97,6 @@ function gravarEstadoLocal(watch, snapshot, marco, decisao) {
   else jogos.push(linha);
   fs.mkdirSync(path.dirname(ARQUIVO_LIVE), { recursive: true });
   fs.writeFileSync(ARQUIVO_LIVE, JSON.stringify({ updated_at: linha.updated_at, jogos }, null, 2));
-  console.log(`[Monitor 2.5] Supabase indisponível. Estado local gravado para ${watch.match}.`);
 }
 
 const MARCOS_1T = [20, 25];
@@ -370,9 +322,12 @@ function metricasDoSnapshot(snapshot) {
   const awayShots = Number(snapshot?.awayShotsOnTarget);
   const xg = [homeXg, awayXg].every(Number.isFinite) ? Number((homeXg + awayXg).toFixed(2)) : null;
   const chutes = [homeShots, awayShots].every(Number.isFinite) ? homeShots + awayShots : null;
-  const pressaoCasa = calcularIndicePressao({ rematesAlvo: Number.isFinite(homeShots) ? homeShots : 0, cantos: Number(snapshot?.homeCorners) || 0 });
-  const pressaoFora = calcularIndicePressao({ rematesAlvo: Number.isFinite(awayShots) ? awayShots : 0, cantos: Number(snapshot?.awayCorners) || 0 });
-  return { xg, chutes_alvo: chutes, pressao_relativa: Number((pressaoCasa - pressaoFora).toFixed(2)) };
+  const cantosCasa = Number(snapshot?.homeCorners);
+  const cantosFora = Number(snapshot?.awayCorners);
+  const cantos = [cantosCasa, cantosFora].every(Number.isFinite) ? cantosCasa + cantosFora : null;
+  const pressaoCasa = calcularIndicePressao({ rematesAlvo: Number.isFinite(homeShots) ? homeShots : 0, cantos: Number.isFinite(cantosCasa) ? cantosCasa : 0 });
+  const pressaoFora = calcularIndicePressao({ rematesAlvo: Number.isFinite(awayShots) ? awayShots : 0, cantos: Number.isFinite(cantosFora) ? cantosFora : 0 });
+  return { xg, chutes_alvo: chutes, cantos, pressao_relativa: Number((pressaoCasa - pressaoFora).toFixed(2)) };
 }
 
 function normalizarApostaNuvem(linha) {
@@ -467,10 +422,19 @@ async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
   };
   let gravou = false;
   const { error } = await cliente.from('match_timeline').upsert(linha, { onConflict: 'fixture_id,minute' });
+  if (error && falhaDeRede(error.message)) {
+    pausarSupabase();
+    gravarEstadoLocal(watch, snapshot, marco, decisao);
+    return;
+  }
   if (error) {
     const inserido = await cliente.from('match_timeline').insert(linha);
-    if (inserido.error) console.log('[Monitor 2.5] match_timeline não gravou:', inserido.error.message);
-    else gravou = true;
+    if (inserido.error && falhaDeRede(inserido.error.message)) {
+      pausarSupabase();
+      gravarEstadoLocal(watch, snapshot, marco, decisao);
+      return;
+    }
+    if (!inserido.error) gravou = true;
   } else {
     gravou = true;
   }
@@ -485,12 +449,14 @@ async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
     ? cliente.from(TABELA_APOSTAS).update(patch).eq('id', String(watch.nuvemId))
     : cliente.from(TABELA_APOSTAS).update(patch).eq('partida', watch.match).eq('status', 'PENDENTE');
   const atualizado = await consulta;
+  if (atualizado.error && falhaDeRede(atualizado.error.message)) {
+    pausarSupabase();
+    gravarEstadoLocal(watch, snapshot, marco, decisao);
+    return;
+  }
   if (atualizado.error) console.log('[Monitor 2.5] apostas não atualizou:', atualizado.error.message);
   else gravou = true;
   if (gravou) console.log("📡 [Monitor 2.5] Marco " + marco + "' atualizado no Supabase.");
-  else if (falhaDeRede(atualizado.error?.message) || falhaDeRede(error?.message)) {
-    gravarEstadoLocal(watch, snapshot, marco, decisao);
-  }
 }
 
 function lerJson(arquivo, fallback) {
@@ -589,7 +555,10 @@ export function iniciarMonitorCarpina(opcoes) {
       pendentes = await listarPendentesOver25(ehEntradaOver25);
       nuvemOk = true;
     } catch (erro) {
-      console.log('[CARPINA] Leitura no Supabase indisponível:', erro.message);
+      if (!falhaDeRede(erro.message) && !/indisponível/i.test(erro.message)) {
+        console.log('[CARPINA] Leitura no Supabase indisponível:', erro.message);
+      }
+      pausarSupabase();
       pendentes = locais.map((aposta) => ({
         id: String(aposta.id),
         nuvemId: null,
