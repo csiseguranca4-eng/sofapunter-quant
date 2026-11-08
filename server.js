@@ -530,23 +530,35 @@ function textoDoParecerLocal(parecer, promptText, wantJson) {
 async function requestGeminiTacticalText(promptText, options = {}) {
   console.log('Gemini Key carregada:', process.env.GEMINI_API_KEY ? 'OK (tamanho: ' + process.env.GEMINI_API_KEY.length + ')' : 'NÃO CARREGADA');
   const wantJson = options.json === true;
+  const parecerLocal = () => textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const result = await model.generateContent(promptText, { timeout: options.timeout || 20000 });
-    const response = await result.response;
-    const text = response.text();
-    const cleaned = wantJson ? String(text || '').trim() : cleanGeminiText(text);
-    if (cleaned) return cleaned;
-    console.error('ERRO GEMINI DETALHADO:', 'gemini-1.5-flash', 'devolveu resposta sem texto.');
+    const modelos = ['gemini-1.5-flash-latest', 'gemini-2.0-flash'];
+    for (const nome of modelos) {
+      try {
+        const model = genAI.getGenerativeModel({ model: nome });
+        const result = await model.generateContent(promptText, { timeout: options.timeout || 20000 });
+        const response = await result.response;
+        const text = response.text();
+        const cleaned = wantJson ? String(text || '').trim() : cleanGeminiText(text);
+        if (cleaned) return cleaned;
+        console.error('ERRO GEMINI DETALHADO:', nome, 'devolveu resposta sem texto.');
+      } catch (error) {
+        const mensagem = error?.message || 'erro sem mensagem';
+        console.error('ERRO GEMINI DETALHADO:', nome, mensagem);
+        const naoEncontrado = Number(error?.status) === 404 || /not found|404/i.test(mensagem);
+        if (naoEncontrado && nome !== 'gemini-2.0-flash') continue;
+        console.warn('Parecer heurístico local ativado:', error?.status || error?.code || 'exceção');
+        return parecerLocal();
+      }
+    }
   } catch (error) {
-    const mensagem = error?.message || 'erro sem mensagem';
-    console.error('ERRO GEMINI DETALHADO:', 'gemini-1.5-flash', mensagem);
+    console.error('ERRO GEMINI DETALHADO:', error?.message || 'erro sem mensagem');
     console.warn('Parecer heurístico local ativado:', error?.status || error?.code || 'exceção');
-    return textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
+    return parecerLocal();
   }
   console.warn('Parecer heurístico local ativado: resposta sem texto');
-  return textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
+  return parecerLocal();
 }
 
 function normalizeAiPicks(picks, teams = {}) {
