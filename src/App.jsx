@@ -721,6 +721,33 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let ativo = true;
+    const lerEstadoLocal = async () => {
+      try {
+        const resposta = await fetch(`/live_status.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (!resposta.ok) return;
+        const dados = await resposta.json();
+        const jogos = Array.isArray(dados?.jogos) ? dados.jogos : [];
+        if (!jogos.length || !ativo) return;
+        setSheetBets((atual) => atual.map((aposta) => {
+          const linha = jogos.find((item) => (
+            nomesIguais(aposta.match, item.partida || item.match)
+            || (item.id != null && String(aposta.nuvemId || aposta.id) === String(item.id))
+            || (item.fixture_id != null && aposta.fixtureId != null && String(aposta.fixtureId) === String(item.fixture_id))
+          ));
+          return linha ? aplicarMonitorNaAposta(aposta, linha) : aposta;
+        }));
+      } catch (_) { /* o monitor ainda não gravou o fallback */ }
+    };
+    lerEstadoLocal();
+    const timer = setInterval(lerEstadoLocal, 5000);
+    return () => {
+      ativo = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       if (!followTodayRef.current) return;
       const today = getTodayLocal();

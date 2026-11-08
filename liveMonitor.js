@@ -3,26 +3,79 @@
  * Só consulta a API-Football nos marcos 46, 48 (se o intervalo atrasar), 55, 57, 59, 61, 63 e 65.
  */
 
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 import { supabase as supabaseApostas } from './lib/supabase.js';
 import { createClient } from '@supabase/supabase-js';
 const getLaybackMarketData = async () => null;
 
 const TABELA_APOSTAS = 'apostas';
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  || process.env.VITE_SUPABASE_ANON_KEY
-  || process.env.SUPABASE_KEY;
+const ARQUIVO_LIVE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'public', 'live_status.json');
+const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-const supabase = (supabaseUrl && supabaseKey)
+async function fetchSupabase(url, opcoes) {
+  try {
+    return await fetch(url, opcoes);
+  } catch (erro) {
+    const causa = erro?.cause?.message || erro?.message || 'fetch failed';
+    console.log('[Monitor 2.5] Supabase sem rede:', causa);
+    return new Response(JSON.stringify({ message: causa, code: 'fetch_failed' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+const supabase = (supabaseUrl.startsWith('http') && supabaseKey)
   ? createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: fetchSupabase }
     })
   : null;
 
 function clienteApostas() {
   return supabase || supabaseApostas;
+}
+
+function falhaDeRede(mensagem) {
+  return /ENOTFOUND|EAI_AGAIN|ECONN|ETIMEDOUT|fetch failed|fetch_failed|getaddrinfo|sem rede/i.test(String(mensagem || ''));
+}
+
+function gravarEstadoLocal(watch, snapshot, marco, decisao) {
+  const casa = Number(snapshot?.golsCasa) || 0;
+  const fora = Number(snapshot?.golsFora) || 0;
+  const status = decisao?.statusMonitoramento || (MARCOS_2T.includes(marco) ? `MONITORANDO_${marco}` : 'MONITORANDO');
+  const metricas = metricasDoSnapshot(snapshot);
+  let atual = { jogos: [] };
+  try {
+    atual = JSON.parse(fs.readFileSync(ARQUIVO_LIVE, 'utf8'));
+  } catch (_) { /* o ficheiro nasce na primeira falha de rede */ }
+  const jogos = Array.isArray(atual.jogos) ? atual.jogos : [];
+  const linha = {
+    id: watch.nuvemId ?? null,
+    partida: watch.match,
+    fixture_id: watch.fixtureId ?? null,
+    minuto_atual: marco,
+    placar: `${casa}-${fora}`,
+    status_monitoramento: status,
+    metricas_resumo: metricas,
+    updated_at: new Date().toISOString()
+  };
+  const indice = jogos.findIndex((item) => (
+    (linha.fixture_id != null && String(item.fixture_id) === String(linha.fixture_id))
+    || item.partida === linha.partida
+  ));
+  if (indice >= 0) jogos[indice] = linha;
+  else jogos.push(linha);
+  fs.mkdirSync(path.dirname(ARQUIVO_LIVE), { recursive: true });
+  fs.writeFileSync(ARQUIVO_LIVE, JSON.stringify({ updated_at: linha.updated_at, jogos }, null, 2));
+  console.log(`[Monitor 2.5] Supabase indisponível. Estado local gravado para ${watch.match}.`);
 }
 
 const MARCOS_1T = [20, 25];
@@ -322,7 +375,10 @@ async function encerrarApostaNuvem(id, { status, lucro }) {
 
 async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
   const cliente = clienteApostas();
-  if (!cliente) return;
+  if (!cliente) {
+    gravarEstadoLocal(watch, snapshot, marco, decisao);
+    return;
+  }
   const casa = Number(snapshot?.golsCasa) || 0;
   const fora = Number(snapshot?.golsFora) || 0;
   const status = decisao?.statusMonitoramento || (MARCOS_2T.includes(marco) ? `MONITORANDO_${marco}` : 'MONITORANDO');
@@ -363,6 +419,9 @@ async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
   if (atualizado.error) console.log('[Monitor 2.5] apostas não atualizou:', atualizado.error.message);
   else gravou = true;
   if (gravou) console.log("📡 [Monitor 2.5] Marco " + marco + "' atualizado no Supabase.");
+  else if (falhaDeRede(atualizado.error?.message) || falhaDeRede(error?.message)) {
+    gravarEstadoLocal(watch, snapshot, marco, decisao);
+  }
 }
 
 function lerJson(arquivo, fallback) {
@@ -734,8 +793,9 @@ export function iniciarMonitorCarpina(opcoes) {
   };
 
   carregarEstado();
-  timer = setInterval(ciclo, intervaloMs);
-  if (typeof timer.unref === 'function') timer.unref();
+  timer = setInterval(() => {
+    ciclo();
+  }, intervaloMs);
   ciclo();
   console.log('🟢 [CARPINA] Monitor Over 2.5 ativo. Consultas em 20, 25, 46, 48 e 55–65.');
 
@@ -812,4 +872,21 @@ export async function auditarLaybackOverHT(fixtureId, marketId, minuto, placar) 
       trigger_reason: 'Assimetria Over 0.5 HT detectada sem stream'
     });
   }
+}
+
+const executadoDiretamente = process.argv[1]
+  && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+
+if (executadoDiretamente) {
+  const require = createRequire(import.meta.url);
+  const { obterFixtureAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
+  const arquivoBets = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'bets_database.json');
+  iniciarMonitorCarpina({
+    arquivoBets,
+    consultarFixture: obterFixtureAoVivo,
+    listarDia: listarFixturesDoDia,
+    enviarTelegram: async (texto) => {
+      console.log(`[CARPINA] ${texto}`);
+    }
+  });
 }
