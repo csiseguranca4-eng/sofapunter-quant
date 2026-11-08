@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T14:46:03.176Z",
+  "updated_at": "2026-11-08T15:44:22.081Z",
   "jogos": [
     {
       "id": null,
@@ -44,6 +44,21 @@
         "pressao_relativa": 0
       },
       "updated_at": "2026-11-08T14:26:28.900Z"
+    },
+    {
+      "id": null,
+      "partida": "Real Sociedad x Rayo Vallecano",
+      "fixture_id": 1570449,
+      "minuto_atual": 25,
+      "placar": "0-0",
+      "status_monitoramento": "STOP_LOSS_RECOMENDADO",
+      "metricas_resumo": {
+        "xg": 0.22,
+        "chutes_alvo": 1,
+        "cantos": 1,
+        "pressao_relativa": -5
+      },
+      "updated_at": "2026-11-08T15:44:22.081Z"
     }
   ]
 }

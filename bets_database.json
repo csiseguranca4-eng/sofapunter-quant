@@ -1,6 +1,24 @@
 {
   "bets": [
     {
+      "id": "bet_1794153221596vgh",
+      "match": "Manchester United x Aston Villa",
+      "league": "Futebol",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.85,
+      "evPercent": -18.9,
+      "isTopPick": false,
+      "odd": 1.5,
+      "stake": 5,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-08",
+      "timestamp": 1794153221597,
+      "gameLink": "https://1win.com/pt/betting/match/sport/manchester-united-vs-aston-villa-42039352"
+    },
+    {
       "id": "bet_1794149468208nol",
       "match": "Real Sociedad x Rayo Vallecano",
       "league": "Futebol",
@@ -16,7 +34,17 @@
       "realProfit": 0,
       "date": "2026-11-08",
       "timestamp": 1794149468208,
-      "gameLink": "https://1win.com/pt/betting/match/sport/crystal-palace-vs-real-sociedad-42724090"
+      "gameLink": "https://1win.com/pt/betting/match/sport/crystal-palace-vs-real-sociedad-42724090",
+      "fixtureId": 1570449,
+      "placarAoVivo": "0-0",
+      "minutoAtual": 25,
+      "statusMonitoramento": "STOP_LOSS_RECOMENDADO",
+      "metricasResumo": {
+        "xg": 0.22,
+        "chutes_alvo": 1,
+        "cantos": 1,
+        "pressao_relativa": -5
+      }
     },
     {
       "id": "bet_17941460349518hy",
