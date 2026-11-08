@@ -1,29 +1,61 @@
 {
   "fixturesBloqueados": [
-    "1492446"
+    "1492447"
   ],
   "watches": {
-    "3": {
-      "betId": "bet_1793748181115xag",
-      "nuvemId": 3,
-      "match": "Internacional x Coritiba",
-      "fixtureId": 1492446,
+    "bet_1793915440129p6m": {
+      "betId": "bet_1793915440129p6m",
+      "nuvemId": null,
+      "match": "Palmeiras x Remo",
+      "fixtureId": 1492447,
       "stake": 5,
-      "odd": 1.78,
-      "kickoff": "2026-11-03T21:30:00-03:00",
+      "odd": 1.56,
+      "kickoff": "2026-11-05T19:30:00-03:00",
       "feitos": [
-        46,
-        48,
-        55
+        46
       ],
       "precisaRetry48": true,
       "encerrado": true,
       "ancora": {
         "elapsed": 45,
-        "status": "HT",
-        "em": 1793755765586
+        "status": "1H First Half",
+        "em": 1793920572428
       },
-      "motivo": "apos-65"
+      "motivo": "green"
+    },
+    "bet_1793955464930yby": {
+      "betId": "bet_1793955464930yby",
+      "nuvemId": null,
+      "match": "Palmeiras x Remo",
+      "fixtureId": null,
+      "stake": 5,
+      "odd": 1.56,
+      "kickoff": null,
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "motivo": "encerrada"
+    },
+    "bet_1794136263528a9w": {
+      "betId": "bet_1794136263528a9w",
+      "nuvemId": null,
+      "match": "Napoli x Lazio",
+      "fixtureId": 1550193,
+      "stake": 5,
+      "odd": 1.64,
+      "kickoff": "2026-11-08T08:30:00-03:00",
+      "feitos": [
+        46,
+        48
+      ],
+      "precisaRetry48": true,
+      "encerrado": false,
+      "ancora": {
+        "elapsed": 45,
+        "status": "HT Halftime",
+        "em": 1794140414020
+      }
     }
   }
 }
