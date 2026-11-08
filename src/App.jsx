@@ -864,7 +864,6 @@ export default function App() {
   const handleFetchOpps = async (shift = 'europe') => {
     setLoading(true);
     setActiveShift(shift);
-    setSelectedLeague('all');
     setErroVarredura('');
     setActiveTab('opps');
     try {
@@ -880,10 +879,22 @@ export default function App() {
         setErroVarredura(data?.message || 'Não foi possível buscar os jogos do dia.');
         return;
       }
-      localStorage.setItem('sp_opportunities', JSON.stringify(data.games));
-      setOpportunities(data.games);
+      const jogosDaRegiao = data.games.map((jogo) => (
+        shift === 'brazil' ? { ...jogo, isBrazil: true, leagueGroup: 'brazil' } : { ...jogo, isBrazil: false }
+      ));
+      setOpportunities((atual) => {
+        const mantidos = atual.filter((jogo) => (shift === 'brazil' ? !jogo.isBrazil : Boolean(jogo.isBrazil)));
+        const idsNovos = new Set(jogosDaRegiao.map((jogo) => String(jogo.id)));
+        const mescla = [
+          ...jogosDaRegiao,
+          ...mantidos.filter((jogo) => !idsNovos.has(String(jogo.id)))
+        ];
+        localStorage.setItem('sp_opportunities', JSON.stringify(mescla));
+        return mescla;
+      });
+      setSelectedLeague(shift === 'brazil' ? 'brazil' : 'all');
       const initialInputs = { ...customInputs };
-      data.games.forEach(g => {
+      jogosDaRegiao.forEach(g => {
         g.markets?.forEach(m => {
           if (!initialInputs[m.id]) {
             initialInputs[m.id] = {

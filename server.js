@@ -144,19 +144,35 @@ app.get('/api/daily-opportunities', async (req, res) => {
     console.log('\n======================================================');
     console.log(`📡 [1WIN VARREDURA] Região solicitada: ${shift.toUpperCase()} (O DIA TODO)`);
 
-    const response = await axios.post(
-      `${ONEWIN_GATEWAY}/matches/get-many`,
-      {
-        service: 'prematch',
-        excludeSportType: 'polybet',
-        sportId: 18,
-        limit: 800,
-        hotsLimit: 400
-      },
-      { headers: onewinHeaders, timeout: 12000 }
-    );
-
-    const items = response.data?.result?.items || [];
+    const pedir1win = async (service) => {
+      const response = await axios.post(
+        `${ONEWIN_GATEWAY}/matches/get-many`,
+        {
+          service,
+          excludeSportType: 'polybet',
+          sportId: 18,
+          limit: 800,
+          hotsLimit: 400
+        },
+        { headers: onewinHeaders, timeout: 12000 }
+      );
+      return response.data?.result?.items || [];
+    };
+    const prematch = await pedir1win('prematch');
+    let aoVivo = [];
+    try {
+      aoVivo = await pedir1win('live');
+    } catch (erro) {
+      console.log('[1WIN] Jogos ao vivo indisponíveis:', erro.message);
+    }
+    const vistos = new Set();
+    const items = [];
+    for (const item of [...aoVivo.map((jogo) => ({ ...jogo, _aoVivo: true })), ...prematch]) {
+      const id = String(item?.id || '');
+      if (!id || vistos.has(id)) continue;
+      vistos.add(id);
+      items.push(item);
+    }
     console.log(`⚽ Total bruto recebido da 1win: ${items.length} partidas`);
 
     if (!items || items.length === 0) {
@@ -177,6 +193,9 @@ app.get('/api/daily-opportunities', async (req, res) => {
 
     const virtualMatchRe = /\b(cyber|simulated|srl|fifa|e-?soccer|2x2|3x3|4x4|penalty)\b/i;
     const LIGAS_API_FOOTBALL = new Map([
+      [71, 'brazil'],
+      [72, 'brazil'],
+      [73, 'brazil'],
       [78, 'bundesliga'],
       [79, 'bundesliga_2'],
       [136, 'serie_b']
@@ -191,7 +210,7 @@ app.get('/api/daily-opportunities', async (req, res) => {
       if (temTexto(texto, ['champions league', 'liga dos campeoes', 'europa league', 'liga europa', 'conference league', 'uefa'])) {
         return 'uefa_cups';
       }
-      if (temTexto(texto, ['copa del rey', 'copa do rei', 'fa cup', 'copa da inglaterra', 'coppa italia', 'copa do brasil', 'dfb pokal', 'coupe de france', 'copa de la liga'])) {
+      if (temTexto(texto, ['copa del rey', 'copa do rei', 'fa cup', 'copa da inglaterra', 'coppa italia', 'dfb pokal', 'coupe de france', 'copa de la liga'])) {
         return 'national_cups';
       }
       if (jogoBrasil || temTexto(texto, ['brasileirao', 'serie a brasil', 'serie b brasil']) || temPais(texto, ['brazil', 'brasil'])) {
@@ -280,7 +299,10 @@ app.get('/api/daily-opportunities', async (req, res) => {
         dateObj = new Date(timestamp);
       }
 
-      if (Number.isNaN(dateObj.getTime()) || saoPauloDateKey(dateObj) !== todaySaoPaulo) continue;
+      const statusAoVivo = `${item.status || ''} ${item.state || ''} ${item.matchStatus || ''} ${item.period || ''}`;
+      const emAndamento = item._aoVivo === true || item.isLive === true || /live|inplay|in progress|1st half|2nd half|\bht\b|intervalo/i.test(statusAoVivo);
+      if (!emAndamento && (Number.isNaN(dateObj.getTime()) || saoPauloDateKey(dateObj) !== todaySaoPaulo)) continue;
+      if (emAndamento && Number.isNaN(dateObj.getTime())) dateObj = new Date();
 
       const timeFormatted = dateObj.toLocaleTimeString('pt-BR', {
         hour: '2-digit',
@@ -2150,6 +2172,7 @@ if (executadoDiretamente) {
   app.listen(PORT, () => {
     console.log(`✅ SofaPunter Motor 1WIN ativo em http://localhost:${PORT}`);
     console.log(`☁️ Apostas ao vivo na tabela ${TABELA_APOSTAS}`);
+    console.log('📡 Monitor ao vivo: Over 1.5 e Over 2.5. 1T em 20, 30, 35 e 40.');
     iniciarMonitorCarpina({
       arquivoBets: DB_FILE,
       tabelaApostas: TABELA_APOSTAS,

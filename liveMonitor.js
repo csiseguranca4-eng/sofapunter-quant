@@ -1,6 +1,6 @@
 /**
- * Monitor ao vivo do Over Carpina 2.5.
- * Só consulta a API-Football nos marcos 46, 48 (se o intervalo atrasar), 55, 57, 59, 61, 63 e 65.
+ * Monitor ao vivo de Over 1.5 e Over 2.5.
+ * 1º tempo: 20, 30, 35 e 40 (±1 min). 2º tempo: 46, 48 (se o intervalo atrasar), 55, 57, 59, 61, 63 e 65.
  */
 
 import dns from 'node:dns';
@@ -99,15 +99,32 @@ function gravarEstadoLocal(watch, snapshot, marco, decisao) {
   fs.writeFileSync(ARQUIVO_LIVE, JSON.stringify({ updated_at: linha.updated_at, jogos }, null, 2));
 }
 
-const MARCOS_1T = [20, 25];
+const MARCOS_1T = [20, 30, 35, 40];
 const MARCOS_HT = [46, 48];
 const MARCOS_2T = [55, 57, 59, 61, 63, 65];
 const MARCOS_ATIVOS = MARCOS_2T;
 const INTERVALO_HT_MIN = 15;
 
+function textoMercado(aposta) {
+  return `${aposta?.market || ''} ${aposta?.marketType || ''} ${aposta?.tipo || ''} ${aposta?.mercado || ''}`;
+}
+
+export function ehEntradaOver15(aposta) {
+  return /acima de 1[.,]5|over\s*1[.,]5/i.test(textoMercado(aposta));
+}
+
 export function ehEntradaOver25(aposta) {
-  const texto = `${aposta?.market || ''} ${aposta?.marketType || ''}`;
-  return /acima de 2[.,]5|over\s*2[.,]5/i.test(texto);
+  return /acima de 2[.,]5|over\s*2[.,]5/i.test(textoMercado(aposta));
+}
+
+export function ehEntradaMonitorada(aposta) {
+  return ehEntradaOver15(aposta) || ehEntradaOver25(aposta);
+}
+
+export function rotuloMercadoMonitorado(aposta) {
+  if (ehEntradaOver25(aposta)) return 'Over 2.5';
+  if (ehEntradaOver15(aposta)) return 'Over 1.5';
+  return 'Over';
 }
 
 export function partidaDaAposta(aposta) {
@@ -197,7 +214,7 @@ export function marcoDevido(minuto, feitos, precisaRetry48) {
   const feitosSet = feitos instanceof Set ? feitos : new Set(feitos || []);
   if (minuto < MARCOS_HT[0]) {
     for (const marco of MARCOS_1T) {
-      if (minuto >= marco && minuto < marco + 2 && !feitosSet.has(marco)) return marco;
+      if (minuto >= marco - 1 && minuto < marco + 2 && !feitosSet.has(marco)) return marco;
     }
     return null;
   }
@@ -216,7 +233,7 @@ function textoIntervalo(totalXg, totalShotsOnTarget) {
   return `🚨 OVER CARPINA 2.5 [INTERVALO]: Jogo Frio identificado (0x0, xG: ${totalXg}, Chutes no Gol: ${totalShotsOnTarget}). Recomendado CASH OUT imediato no intervalo.`;
 }
 
-export function decidirCarpina(snapshot, marco) {
+export function decidirCarpina(snapshot, marco, mercado) {
   const golsCasa = Number(snapshot?.golsCasa);
   const golsFora = Number(snapshot?.golsFora);
   const casa = Number.isFinite(golsCasa) ? golsCasa : 0;
@@ -225,6 +242,11 @@ export function decidirCarpina(snapshot, marco) {
   const elapsed = Number(snapshot?.elapsed);
   const minuto = Number.isFinite(elapsed) ? elapsed : marco;
   const status = String(snapshot?.status || '');
+  const over15 = ehEntradaOver15({ market: mercado }) && !ehEntradaOver25({ market: mercado });
+
+  if (over15 && totalGols >= 2) {
+    return { acao: 'green', encerrar: true, statusMonitoramento: 'GREEN_TOTAL', mensagem: '✅ GREEN CONFIRMADO NO OVER 1.5!' };
+  }
 
   if (totalGols >= 3) {
     return { acao: 'green', encerrar: true, statusMonitoramento: 'GREEN_TOTAL', mensagem: '✅ GREEN CONFIRMADO NO OVER 2.5!' };
@@ -250,7 +272,10 @@ export function decidirCarpina(snapshot, marco) {
         const totalXg = Number((homeXg + awayXg).toFixed(2));
         const totalShotsOnTarget = homeShots + awayShots;
         if (totalXg < 0.8 && totalShotsOnTarget <= 2) {
-          return { acao: 'cashout-intervalo', encerrar: true, statusMonitoramento: 'STOP_LOSS_RECOMENDADO', mensagem: textoIntervalo(totalXg, totalShotsOnTarget) };
+          const mensagem = over15
+            ? `🚨 OVER CARPINA 1.5 [INTERVALO]: Jogo Frio identificado (0x0, xG: ${totalXg}, Chutes no Gol: ${totalShotsOnTarget}). Recomendado CASH OUT imediato no intervalo.`
+            : textoIntervalo(totalXg, totalShotsOnTarget);
+          return { acao: 'cashout-intervalo', encerrar: true, statusMonitoramento: 'STOP_LOSS_RECOMENDADO', mensagem };
         }
       }
     }
@@ -262,7 +287,9 @@ export function decidirCarpina(snapshot, marco) {
       acao: 'stop-60',
       encerrar: true,
       statusMonitoramento: 'STOP_LOSS_RECOMENDADO',
-      mensagem: '🛑 OVER CARPINA 2.5 [60 MINUTOS]: Partida segue 0x0. SAÍDA MANDATÓRIA (Stop-Loss). Encerrar aposta agora para resgatar valor residual.'
+      mensagem: over15
+        ? '🛑 OVER CARPINA 1.5 [60 MINUTOS]: Partida segue 0x0. SAÍDA MANDATÓRIA (Stop-Loss). Encerrar aposta agora para resgatar valor residual.'
+        : '🛑 OVER CARPINA 2.5 [60 MINUTOS]: Partida segue 0x0. SAÍDA MANDATÓRIA (Stop-Loss). Encerrar aposta agora para resgatar valor residual.'
     };
   }
 
@@ -271,7 +298,9 @@ export function decidirCarpina(snapshot, marco) {
       acao: 'stop-65',
       encerrar: true,
       statusMonitoramento: 'STOP_LOSS_RECOMENDADO',
-      mensagem: '💰 OVER CARPINA 2.5 [65 MINUTOS - LIMITE MÁXIMO]: Placar 1 gol no minuto 65. SAÍDA MANDATÓRIA. Momento de maior liquidez para resgate (35% a 45% da stake). Não segurar além deste minuto!'
+      mensagem: over15
+        ? '💰 OVER CARPINA 1.5 [65 MINUTOS - LIMITE MÁXIMO]: Placar 1 gol no minuto 65. SAÍDA MANDATÓRIA. Momento de maior liquidez para resgate (35% a 45% da stake). Não segurar além deste minuto!'
+        : '💰 OVER CARPINA 2.5 [65 MINUTOS - LIMITE MÁXIMO]: Placar 1 gol no minuto 65. SAÍDA MANDATÓRIA. Momento de maior liquidez para resgate (35% a 45% da stake). Não segurar além deste minuto!'
     };
   }
 
@@ -328,6 +357,39 @@ function metricasDoSnapshot(snapshot) {
   const pressaoCasa = calcularIndicePressao({ rematesAlvo: Number.isFinite(homeShots) ? homeShots : 0, cantos: Number.isFinite(cantosCasa) ? cantosCasa : 0 });
   const pressaoFora = calcularIndicePressao({ rematesAlvo: Number.isFinite(awayShots) ? awayShots : 0, cantos: Number.isFinite(cantosFora) ? cantosFora : 0 });
   return { xg, chutes_alvo: chutes, cantos, pressao_relativa: Number((pressaoCasa - pressaoFora).toFixed(2)) };
+}
+
+function valorOuTraco(valor, casas) {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return '—';
+  return casas == null ? String(numero) : numero.toFixed(casas);
+}
+
+function classificacaoRitmo(decisao) {
+  if (decisao?.acao === 'green' || decisao?.statusMonitoramento === 'GREEN_TOTAL') return 'GREEN';
+  if (decisao?.acao === 'take-profit-1t') return 'Gol no jogo — pressão ofensiva';
+  if (decisao?.acao === 'stop-loss-1t') return 'Ritmo baixo';
+  if (decisao?.acao === 'pressao-1t') return 'Pressão alta';
+  return 'Em leitura';
+}
+
+export function mensagemRadar1T({ minuto, mandante, visitante, golsCasa, golsFora, mercado, snapshot, decisao }) {
+  const xgCasa = Number(snapshot?.homeXg);
+  const xgFora = Number(snapshot?.awayXg);
+  const xgTotal = [xgCasa, xgFora].every(Number.isFinite) ? (xgCasa + xgFora).toFixed(2) : '—';
+  return [
+    `📊 RADAR SOFAPUNTER [MINUTO ${minuto}']`,
+    `⚽ Partida: ${mandante} ${golsCasa} x ${golsFora} ${visitante}`,
+    `🎯 Mercado Monitorado: ${mercado}`,
+    `📈 xG Acumulado: ${xgTotal} (${valorOuTraco(xgCasa, 2)} vs ${valorOuTraco(xgFora, 2)})`,
+    `🎯 Chutes no Alvo: ${valorOuTraco(snapshot?.homeShotsOnTarget)} vs ${valorOuTraco(snapshot?.awayShotsOnTarget)}`,
+    `🚩 Escanteios: ${valorOuTraco(snapshot?.homeCorners)} vs ${valorOuTraco(snapshot?.awayCorners)}`,
+    `⚡ Ritmo/Pressão: ${classificacaoRitmo(decisao)}`
+  ].join('\n');
+}
+
+function chaveNotificacao(fixtureId, minuto) {
+  return `notified_${fixtureId}_${minuto}`;
 }
 
 function normalizarApostaNuvem(linha) {
@@ -495,7 +557,11 @@ export function iniciarMonitorCarpina(opcoes) {
   const persistir = () => {
     const saida = {};
     for (const [id, watch] of watches) {
-      saida[id] = { ...watch, feitos: [...(watch.feitos || [])] };
+      saida[id] = {
+        ...watch,
+        feitos: [...(watch.feitos || [])],
+        notificados: [...(watch.notificados || [])]
+      };
     }
     gravarJson(arquivoEstado, { fixturesBloqueados: [...fixturesBloqueados], watches: saida });
   };
@@ -504,7 +570,11 @@ export function iniciarMonitorCarpina(opcoes) {
     const salvo = lerJson(arquivoEstado, { watches: {} });
     for (const id of salvo.fixturesBloqueados || []) fixturesBloqueados.add(String(id));
     for (const [id, watch] of Object.entries(salvo.watches || {})) {
-      const atual = { ...watch, feitos: new Set(watch.feitos || []) };
+      const atual = {
+        ...watch,
+        feitos: new Set(watch.feitos || []),
+        notificados: new Set(watch.notificados || [])
+      };
       if (atual.encerrado && atual.fixtureId != null) fixturesBloqueados.add(String(atual.fixtureId));
       watches.set(id, atual);
     }
@@ -548,11 +618,11 @@ export function iniciarMonitorCarpina(opcoes) {
 
   const sincronizar = async () => {
     const banco = lerJson(arquivoBets, { bets: [] });
-    const locais = (banco.bets || []).filter((aposta) => String(aposta.status).toUpperCase() === 'PENDING' && ehEntradaOver25(aposta));
+    const locais = (banco.bets || []).filter((aposta) => String(aposta.status).toUpperCase() === 'PENDING' && ehEntradaMonitorada(aposta));
     let pendentes = [];
     let nuvemOk = false;
     try {
-      pendentes = await listarPendentesOver25(ehEntradaOver25);
+      pendentes = await listarPendentesOver25(ehEntradaMonitorada);
       nuvemOk = true;
     } catch (erro) {
       if (!falhaDeRede(erro.message) && !/indisponível/i.test(erro.message)) {
@@ -576,7 +646,7 @@ export function iniciarMonitorCarpina(opcoes) {
       const chavePartida = (aposta) => `${String(aposta.match || '').trim().toLowerCase()}|${String(aposta.market || '').trim().toLowerCase()}`;
       const fechadas = (banco.bets || []).filter((aposta) => {
         const status = String(aposta.status || '').toUpperCase();
-        return ehEntradaOver25(aposta) && (status === 'GREEN' || status === 'RED' || status === 'CASHOUT');
+        return ehEntradaMonitorada(aposta) && (status === 'GREEN' || status === 'RED' || status === 'CASHOUT');
       });
       const aindaPendentes = [];
       for (const aposta of pendentes) {
@@ -680,6 +750,7 @@ export function iniciarMonitorCarpina(opcoes) {
         betId: aposta.localBetId || null,
         nuvemId: aposta.nuvemId ?? null,
         match: aposta.match,
+        market: aposta.market || '',
         fixtureId: aposta.fixtureId || null,
         stake: Number(aposta.stake) || 0,
         odd: Number(aposta.odd) || 0,
@@ -687,11 +758,14 @@ export function iniciarMonitorCarpina(opcoes) {
         feitos: new Set(),
         precisaRetry48: false,
         encerrado: false,
-        ancora: null
+        ancora: null,
+        notificados: new Set()
       };
       atual.betId = aposta.localBetId || atual.betId || null;
       atual.nuvemId = aposta.nuvemId ?? atual.nuvemId ?? null;
       atual.match = aposta.match;
+      atual.market = aposta.market || atual.market || '';
+      if (!(atual.notificados instanceof Set)) atual.notificados = new Set(atual.notificados || []);
       atual.stake = Number(aposta.stake) || atual.stake || 0;
       atual.odd = Number(aposta.odd) || atual.odd || 0;
       if (!atual.fixtureId && aposta.fixtureId && !fixturesBloqueados.has(String(aposta.fixtureId))) {
@@ -728,7 +802,9 @@ export function iniciarMonitorCarpina(opcoes) {
       const watch = watches.get(aposta.id);
       const minuto = minutoDoAcompanhamento(watch, agora());
       const minutoTexto = Number.isFinite(minuto) ? String(Math.floor(minuto)) : '—';
-      const status = minuto != null && minuto >= 46 ? 'Em andamento' : "Silêncio até 46'";
+      const status = minuto != null && minuto >= 46
+        ? 'Em andamento'
+        : (minuto != null && minuto >= 19 ? '1º tempo' : "Silêncio até 20'");
       console.log(`Monitorando jogo: ${aposta.match} | Minuto atual na API: ${minutoTexto} | Status: ${status}`);
     }
     persistir();
@@ -766,9 +842,13 @@ export function iniciarMonitorCarpina(opcoes) {
     if (fixtureEncerrado(snapshot.status)) {
       bloquearFixture(watch);
       const gols = (Number(snapshot.golsCasa) || 0) + (Number(snapshot.golsFora) || 0);
-      if (gols >= 3) {
+      const limiteGreen = ehEntradaOver15({ market: watch.market }) && !ehEntradaOver25({ market: watch.market }) ? 2 : 3;
+      const textoGreen = limiteGreen === 2
+        ? '✅ GREEN CONFIRMADO NO OVER 1.5!'
+        : '✅ GREEN CONFIRMADO NO OVER 2.5!';
+      if (gols >= limiteGreen) {
         try {
-          await enviarTelegram(`${watch.match}\n✅ GREEN CONFIRMADO NO OVER 2.5!`);
+          await enviarTelegram(`${watch.match}\n${textoGreen}`);
           await registrarGreen(watch);
         } catch (erro) {
           console.log('[CARPINA] Jogo finalizado sem gravar o GREEN:', erro.message);
@@ -784,14 +864,38 @@ export function iniciarMonitorCarpina(opcoes) {
       status: snapshot.status,
       em: agora()
     };
-    const decisao = decidirCarpina(snapshot, marco);
+    const decisao = decidirCarpina(snapshot, marco, watch.market);
     try {
       await gravarMarcoNoSupabase(watch, snapshot, marco, decisao);
     } catch (erro) {
       console.log('[Monitor 2.5] Falha ao gravar o marco:', erro.message);
     }
     if (marco === 46 && snapshot.status !== 'HT') watch.precisaRetry48 = true;
-    if (decisao.mensagem) {
+    if (!(watch.notificados instanceof Set)) watch.notificados = new Set(watch.notificados || []);
+    const chaveAviso = chaveNotificacao(watch.fixtureId, marco);
+    const aviso1T = MARCOS_1T.includes(marco);
+    if (aviso1T && !watch.notificados.has(chaveAviso)) {
+      const times = partidaDaAposta({ match: watch.match });
+      const texto = mensagemRadar1T({
+        minuto: marco,
+        mandante: times?.home || snapshot.home || 'Mandante',
+        visitante: times?.away || snapshot.away || 'Visitante',
+        golsCasa: Number(snapshot.golsCasa) || 0,
+        golsFora: Number(snapshot.golsFora) || 0,
+        mercado: rotuloMercadoMonitorado({ market: watch.market }),
+        snapshot,
+        decisao
+      });
+      watch.notificados.add(chaveAviso);
+      try {
+        await enviarTelegram(texto);
+        console.log(`📣 [CARPINA] ${watch.match}: radar ${marco}'`);
+      } catch (erro) {
+        watch.notificados.delete(chaveAviso);
+        watch.feitos.delete(marco);
+        console.log('[CARPINA] Telegram não enviado:', erro.message);
+      }
+    } else if (!aviso1T && decisao.mensagem) {
       const texto = `${watch.match}\n${decisao.mensagem}`;
       try {
         await enviarTelegram(texto);
@@ -835,7 +939,7 @@ export function iniciarMonitorCarpina(opcoes) {
     ciclo();
   }, intervaloMs);
   ciclo();
-  console.log('🟢 [CARPINA] Monitor Over 2.5 ativo. Consultas em 20, 25, 46, 48 e 55–65.');
+  console.log('🟢 [CARPINA] Monitor Over 1.5 e Over 2.5 ativo. Consultas em 20, 30, 35, 40, 46, 48 e 55–65.');
 
   return {
     parar() {

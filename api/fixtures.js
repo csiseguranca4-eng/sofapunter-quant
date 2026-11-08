@@ -26,6 +26,9 @@ function temPais(texto, nomes) {
 }
 
 const LIGAS_API_FOOTBALL = new Map([
+  [71, 'brazil'],
+  [72, 'brazil'],
+  [73, 'brazil'],
   [78, 'bundesliga'],
   [79, 'bundesliga_2'],
   [136, 'serie_b']
@@ -38,7 +41,7 @@ function classificarLeagueGroup(textoLiga, jogoBrasil, leagueId) {
   if (temTexto(texto, ['uefa champions', 'uefa europa', 'uefa conference', 'liga dos campeoes', 'liga europa'])) {
     return 'uefa_cups';
   }
-  if (temTexto(texto, ['copa del rey', 'copa do rei', 'fa cup', 'copa da inglaterra', 'coppa italia', 'copa do brasil', 'dfb pokal', 'coupe de france', 'copa de la liga'])) {
+  if (temTexto(texto, ['copa del rey', 'copa do rei', 'fa cup', 'copa da inglaterra', 'coppa italia', 'dfb pokal', 'coupe de france', 'copa de la liga'])) {
     return 'national_cups';
   }
   if (jogoBrasil || temTexto(texto, ['brasileirao', 'serie a brasil', 'serie b brasil']) || temPais(texto, ['brazil', 'brasil'])) {
@@ -175,8 +178,13 @@ export default async function handler(req, res) {
       return;
     }
     const ignorar = new Set(['CANC', 'PST', 'ABD', 'AWD', 'WO']);
+    const aoVivo = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT']);
     const jogos = (corpo.response || [])
-      .filter((jogo) => !ignorar.has(String(jogo.fixture?.status?.short || '')))
+      .filter((jogo) => {
+        const status = String(jogo.fixture?.status?.short || '');
+        if (aoVivo.has(status)) return true;
+        return !ignorar.has(status);
+      })
       .filter((jogo) => !/cyber|simulated|srl|fifa|e-?soccer/i.test(`${jogo.league?.name || ''} ${jogo.league?.country || ''}`))
       .map(montarJogo)
       .filter(Boolean)
