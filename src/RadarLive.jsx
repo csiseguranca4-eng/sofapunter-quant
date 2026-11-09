@@ -28,7 +28,7 @@ class RadarProtegido extends Component {
     if (this.state.falhou) {
       return (
         <div className="bg-[#0d1117] border border-gray-800 p-3 rounded-lg text-xs text-gray-400 mt-3 text-center">
-          Radar indisponível neste cartão. A planilha foi preservada.
+          <span>Radar indisponível neste cartão. A planilha foi preservada.</span>
         </div>
       );
     }
@@ -103,7 +103,7 @@ function RadarLive({ fixtureId, marketId, partida }) {
   if (!fixtureId && !marketId) {
     return (
       <div className="bg-[#0d1117] border border-gray-800 p-3 rounded-lg text-xs text-gray-400 mt-3 text-center">
-        ⏳ Aguardando auditoria ou início da partida para carregar o Radar Quant...
+        <span>⏳ Aguardando auditoria ou início da partida para carregar o Radar Quant...</span>
       </div>
     );
   }

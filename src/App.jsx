@@ -109,7 +109,7 @@ function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqu
                 : 'bg-amber-500/15 text-amber-300 border border-amber-500/40'
           }`}
         >
-          {naMultipla ? 'Na múltipla' : '+ Múltipla'}
+          <span>{naMultipla ? 'Na múltipla' : '+ Múltipla'}</span>
         </button>
         <button
           type="button"
@@ -117,7 +117,7 @@ function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqu
           disabled={telegramDisabled}
           className="min-h-[42px] min-w-0 w-full bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-60 text-white font-bold text-xs px-2 rounded leading-tight"
         >
-          {telegramLabel}
+          <span>{telegramLabel}</span>
         </button>
       </div>
     </div>
@@ -1924,7 +1924,7 @@ export default function App() {
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
               }`}
             >
-              🇪🇺 {loading && activeShift === 'europe' ? 'Buscando...' : 'Europa (Dia Todo)'}
+              <span>🇪🇺 {loading && activeShift === 'europe' ? 'Buscando...' : 'Europa (Dia Todo)'}</span>
             </button>
 
             <button
@@ -1937,7 +1937,7 @@ export default function App() {
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
               }`}
             >
-              🇧🇷 {loading && activeShift === 'brazil' ? 'Buscando...' : 'Brasil (Dia Todo)'}
+              <span>🇧🇷 {loading && activeShift === 'brazil' ? 'Buscando...' : 'Brasil (Dia Todo)'}</span>
             </button>
             </div>
           </div>
@@ -2095,7 +2095,7 @@ export default function App() {
                         disabled={!!loading1win[game.id]}
                         className="min-h-[42px] w-full sm:w-auto shrink-0 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold text-xs px-3 rounded"
                       >
-                        {loading1win[game.id] ? 'Auditando...' : 'Auditar na 1win'}
+                        <span>{loading1win[game.id] ? 'Auditando...' : 'Auditar na 1win'}</span>
                       </button>
                       <button
                         type="button"
@@ -2103,7 +2103,7 @@ export default function App() {
                         disabled={!!loadingIa[game.id] || !auditoria.length}
                         className="min-h-[42px] w-full sm:w-auto shrink-0 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-bold text-xs px-3 rounded"
                       >
-                        {loadingIa[game.id] ? 'Analisando...' : 'Analisar com I.A.'}
+                        <span>{loadingIa[game.id] ? 'Analisando...' : 'Analisar com I.A.'}</span>
                       </button>
                     </div>
                     <a
@@ -2623,7 +2623,7 @@ export default function App() {
                   disabled={sendingRecap}
                   className="bg-[#229ED9] hover:bg-[#1b8ec4] disabled:opacity-60 text-white font-bold text-xs px-3 py-2 rounded transition"
                 >
-                  {sendingRecap ? 'Enviando...' : 'Confirmar envio'}
+                  <span>{sendingRecap ? 'Enviando...' : 'Confirmar envio'}</span>
                 </button>
               </div>
             </div>
