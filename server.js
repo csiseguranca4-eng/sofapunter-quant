@@ -7,7 +7,7 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 import { aceitarPartidaReal, codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
-import { iniciarMonitorCarpina } from './liveMonitor.js';
+import { garantirFixtureId, iniciarMonitorCarpina } from './liveMonitor.js';
 import { TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
@@ -2141,13 +2141,15 @@ if (executadoDiretamente) {
     console.log(`✅ SofaPunter Motor 1WIN ativo em http://localhost:${PORT}`);
     console.log(`☁️ Apostas ao vivo na tabela ${TABELA_APOSTAS}`);
     console.log('📡 Monitor ao vivo: Over 1.5 e Over 2.5. 1T em 20, 30, 35 e 40.');
+    console.log('🔗 Auto-vínculo de fixtures ativo. Apostas sem ID são resolvidas na API-Football.');
     iniciarMonitorCarpina({
       arquivoBets: DB_FILE,
       tabelaApostas: TABELA_APOSTAS,
       consultarFixture: obterFixtureAoVivo,
       listarDia: listarFixturesDoDia,
       enviarTelegram: enviarTelegramTexto,
-      pedirParecerStopLoss: pedirParecerStopLoss20
+      pedirParecerStopLoss: pedirParecerStopLoss20,
+      garantirFixtureId
     });
   });
 }

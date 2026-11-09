@@ -138,7 +138,8 @@ function normalizarNome(valor) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/\b(fc|cf|sc|ac|as)\b/g, '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\b(fc|cf|sc|ac|as|ec|cd|ud|fk|sk|afc|cfc)\b/g, '')
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -148,7 +149,77 @@ function nomesCompativeis(a, b) {
   const esquerda = normalizarNome(a);
   const direita = normalizarNome(b);
   if (!esquerda || !direita) return false;
-  return esquerda === direita || esquerda.includes(direita) || direita.includes(esquerda);
+  if (esquerda === direita || esquerda.includes(direita) || direita.includes(esquerda)) return true;
+  const chaves = (nome) => nome.split(' ').filter((parte) => parte.length >= 4);
+  const tokensA = chaves(esquerda);
+  const tokensB = chaves(direita);
+  if (!tokensA.length || !tokensB.length) return false;
+  return tokensA.some((token) => tokensB.some((outro) => outro.includes(token) || token.includes(outro)));
+}
+
+export function fixtureValido(id) {
+  const numero = Number(id);
+  return Number.isFinite(numero) && numero > 0;
+}
+
+const cacheFixturesDia = new Map();
+const CACHE_DIA_MS = 5 * 60 * 1000;
+
+export function dataConsultaFixture(aposta, agoraMs = Date.now()) {
+  const local = String(aposta?.date || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(local)) return local;
+  const criado = Date.parse(aposta?.createdAt || aposta?.created_at || '');
+  if (Number.isFinite(criado)) return diaEmSaoPaulo(criado);
+  return diaEmSaoPaulo(agoraMs);
+}
+
+export async function listarFixturesComCache(data, listarDia, agoraMs = Date.now()) {
+  const chave = String(data || '');
+  const salvo = cacheFixturesDia.get(chave);
+  if (salvo && agoraMs - salvo.em < CACHE_DIA_MS) return salvo.jogos;
+  const jogos = await listarDia(chave);
+  const lista = Array.isArray(jogos) ? jogos : [];
+  cacheFixturesDia.set(chave, { em: agoraMs, jogos: lista });
+  return lista;
+}
+
+export function localizarFixture(jogos, mandante, visitante) {
+  const candidatos = (Array.isArray(jogos) ? jogos : []).filter((jogo) => (
+    nomesCompativeis(jogo?.home, mandante) && nomesCompativeis(jogo?.away, visitante)
+  ));
+  return candidatos.find((jogo) => !fixtureEncerrado(jogo?.status)) || candidatos[0] || null;
+}
+
+export async function garantirFixtureId(aposta, dependencias) {
+  if (fixtureValido(aposta?.fixtureId || aposta?.fixture_id)) {
+    return { fixtureId: Number(aposta.fixtureId || aposta.fixture_id), kickoff: aposta.kickoff || null };
+  }
+  const times = partidaDaAposta(aposta);
+  const listarDia = dependencias?.listarDia;
+  if (!times || typeof listarDia !== 'function') return null;
+  const agoraMs = dependencias.agora ? dependencias.agora() : Date.now();
+  const datas = [dataConsultaFixture(aposta, agoraMs)];
+  const hoje = diaEmSaoPaulo(agoraMs);
+  if (!datas.includes(hoje)) datas.push(hoje);
+  let jogo = null;
+  for (const data of datas) {
+    let jogos = [];
+    try {
+      jogos = await listarFixturesComCache(data, listarDia, agoraMs);
+    } catch (erro) {
+      console.log('[CARPINA] Erro na API-Football ao listar os jogos do dia:', erro.message);
+      continue;
+    }
+    jogo = localizarFixture(jogos, times.home, times.away);
+    if (jogo) break;
+  }
+  if (!fixtureValido(jogo?.fixtureId)) return null;
+  const idNuvem = aposta.nuvemId ?? aposta.id;
+  if (idNuvem != null && typeof dependencias.gravarFixture === 'function') {
+    await dependencias.gravarFixture(idNuvem, jogo.fixtureId);
+  }
+  console.log(`[CARPINA AUTO-LINK] Jogo "${times.home} x ${times.away}" vinculado com sucesso ao fixture ID ${jogo.fixtureId}`);
+  return { fixtureId: Number(jogo.fixtureId), kickoff: jogo.kickoff || null };
 }
 
 export function minutoPeloKickoff(kickoffMs, agoraMs) {
@@ -203,6 +274,38 @@ export function diaDaAposta(aposta, watch) {
   if (Number.isFinite(criado)) return diaEmSaoPaulo(criado);
   return null;
 }
+
+export function statusCurto(snapshot) {
+  const direto = String(snapshot?.statusShort || '').trim().toUpperCase();
+  if (direto) return direto;
+  return String(snapshot?.status || '').trim().toUpperCase().split(/\s+/)[0] || '';
+}
+
+export function horaDoKickoff(iso) {
+  const data = new Date(iso || '');
+  if (Number.isNaN(data.getTime())) return null;
+  return data.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo'
+  });
+}
+
+export function linhaRelogio(match, snapshot) {
+  const curto = statusCurto(snapshot);
+  const hora = horaDoKickoff(snapshot?.kickoff);
+  if (curto === 'NS' && hora) {
+    return `Monitorando jogo: ${match} | Minuto atual na API: Pré-jogo (Inicia às ${hora}) | Status: Silêncio até 20'`;
+  }
+  if (['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT', 'P'].includes(curto)) {
+    const minuto = Number(snapshot?.elapsed);
+    const texto = Number.isFinite(minuto) ? `${minuto}'` : 'sem cronômetro';
+    return `Monitorando jogo: ${match} | Minuto atual na API: ${texto} | Status: Em andamento`;
+  }
+  return `Monitorando jogo: ${match} | Minuto atual na API: Pré-jogo | Status: Aguardando Início (NS)`;
+}
+
+const MARCOS_RELOGIO = new Set([20, 30, 35, 40, 46, 55, 60]);
 
 export function apostaAnteriorAHoje(aposta, watch, hoje) {
   const dia = diaDaAposta(aposta, watch);
@@ -617,13 +720,13 @@ export function iniciarMonitorCarpina(opcoes) {
   const arquivoEstado = opcoes.arquivoEstado || path.resolve(path.dirname(arquivoBets), 'carpina_monitor.json');
   const consultarFixture = opcoes.consultarFixture;
   const listarDia = opcoes.listarDia;
+  const resolverFixture = opcoes.garantirFixtureId || garantirFixtureId;
   const enviarTelegram = opcoes.enviarTelegram;
   const pedirParecerStopLoss = opcoes.pedirParecerStopLoss;
   const agora = opcoes.agora || (() => Date.now());
   const intervaloMs = opcoes.intervaloMs || 15000;
   const watches = new Map();
   const fixturesBloqueados = new Set();
-  let ultimoVinculo = 0;
   let timer = null;
   let cicloEmAndamento = false;
 
@@ -796,27 +899,6 @@ export function iniciarMonitorCarpina(opcoes) {
       if (!idsPendentes.has(id) && watch && !watch.encerrado) encerrar(watch, 'encerrada');
     }
 
-    const semVinculo = pendentes.filter((aposta) => {
-      const watch = watches.get(aposta.id);
-      return !watch?.fixtureId && !watch?.encerrado;
-    });
-    let fixturesDoDia = null;
-    if (semVinculo.length && agora() - ultimoVinculo > 30 * 60 * 1000) {
-      ultimoVinculo = agora();
-      try {
-        const data = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'America/Sao_Paulo',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        }).format(new Date(agora()));
-        fixturesDoDia = await listarDia(data);
-      } catch (erro) {
-        console.log('[CARPINA] Erro na API-Football ao listar os jogos do dia:', erro.message);
-        fixturesDoDia = [];
-      }
-    }
-
     for (const aposta of pendentes) {
       const times = partidaDaAposta(aposta);
       if (!times) continue;
@@ -842,20 +924,21 @@ export function iniciarMonitorCarpina(opcoes) {
       if (!(atual.notificados instanceof Set)) atual.notificados = new Set(atual.notificados || []);
       atual.stake = Number(aposta.stake) || atual.stake || 0;
       atual.odd = Number(aposta.odd) || atual.odd || 0;
-      if (!atual.fixtureId && aposta.fixtureId && !fixturesBloqueados.has(String(aposta.fixtureId))) {
-        atual.fixtureId = aposta.fixtureId;
+      if (!fixtureValido(atual.fixtureId) && fixtureValido(aposta.fixtureId) && !fixturesBloqueados.has(String(aposta.fixtureId))) {
+        atual.fixtureId = Number(aposta.fixtureId);
       }
-      if (!atual.fixtureId && fixturesDoDia) {
-        const jogo = fixturesDoDia.find((item) => nomesCompativeis(item.home, times.home) && nomesCompativeis(item.away, times.away));
-        if (jogo && !fixturesBloqueados.has(String(jogo.fixtureId))) {
-          atual.fixtureId = jogo.fixtureId;
-          atual.kickoff = jogo.kickoff;
-          if (aposta.nuvemId != null) {
-            gravarFixture(aposta.nuvemId, jogo.fixtureId).catch((erro) => {
-              console.log('[CARPINA] fixture_id não gravado na nuvem:', erro.message);
-            });
+      if (!fixtureValido(atual.fixtureId)) {
+        try {
+          const vinculo = await resolverFixture(
+            { ...aposta, fixtureId: atual.fixtureId },
+            { listarDia, gravarFixture, agora }
+          );
+          if (vinculo && !fixturesBloqueados.has(String(vinculo.fixtureId))) {
+            atual.fixtureId = vinculo.fixtureId;
+            atual.kickoff = atual.kickoff || vinculo.kickoff;
           }
-          console.log(`🔗 [CARPINA] ${aposta.match} vinculado ao fixture ${jogo.fixtureId}.`);
+        } catch (erro) {
+          console.log('[CARPINA] fixture_id não gravado na nuvem:', erro.message);
         }
       }
       const minuto = minutoDoAcompanhamento(atual, agora());
@@ -872,15 +955,6 @@ export function iniciarMonitorCarpina(opcoes) {
       return watch && !watch.encerrado;
     });
     console.log(`Consultando Supabase... ${ativos.length} apostas PENDENTES encontradas.`);
-    for (const aposta of ativos) {
-      const watch = watches.get(aposta.id);
-      const minuto = minutoDoAcompanhamento(watch, agora());
-      const minutoTexto = Number.isFinite(minuto) ? String(Math.floor(minuto)) : '—';
-      const status = minuto != null && minuto >= 46
-        ? 'Em andamento'
-        : (minuto != null && minuto >= 19 ? '1º tempo' : "Silêncio até 20'");
-      console.log(`Monitorando jogo: ${aposta.match} | Minuto atual na API: ${minutoTexto} | Status: ${status}`);
-    }
     persistir();
   };
 
@@ -890,27 +964,27 @@ export function iniciarMonitorCarpina(opcoes) {
       encerrar(watch, 'fixture-encerrado');
       return;
     }
-    const minuto = minutoDoAcompanhamento(watch, agora());
-    if (acompanhamentoEncerrado(minuto, watch.ancora?.elapsed)) {
-      bloquearFixture(watch);
-      encerrar(watch, 'apos-65');
+    if (!fixtureValido(watch.fixtureId)) {
+      console.log(linhaRelogio(watch.match, null));
       return;
     }
-    if (!watch.fixtureId || minuto == null) return;
-    const marco = marcoDevido(minuto, watch.feitos, watch.precisaRetry48);
-    if (marco == null) return;
-
-    watch.feitos.add(marco);
     let snapshot;
     try {
       snapshot = await consultarFixture(watch.fixtureId);
     } catch (erro) {
-      watch.feitos.delete(marco);
       console.log(`[CARPINA] Erro na API-Football ao consultar o fixture ${watch.fixtureId}:`, erro.message);
+      console.log(linhaRelogio(watch.match, null));
       return;
     }
     if (!snapshot) {
       console.log(`[CARPINA] Erro na API-Football: o fixture ${watch.fixtureId} não foi devolvido.`);
+      console.log(linhaRelogio(watch.match, null));
+      return;
+    }
+    console.log(linhaRelogio(watch.match, snapshot));
+    const curto = statusCurto(snapshot);
+    if (curto === 'NS' || curto === 'TBD' || curto === 'PST') {
+      watch.kickoff = watch.kickoff || snapshot.kickoff;
       return;
     }
     if (fixtureEncerrado(snapshot.status)) {
@@ -931,13 +1005,30 @@ export function iniciarMonitorCarpina(opcoes) {
       encerrar(watch, 'ft');
       return;
     }
-    if (acompanhamentoEncerrado(snapshot.elapsed, snapshot.elapsed)) bloquearFixture(watch);
     watch.kickoff = watch.kickoff || snapshot.kickoff;
+    let minuto = Number(snapshot.elapsed);
+    if (curto === 'HT' && !(minuto >= 46)) minuto = 46;
+    if (!Number.isFinite(minuto)) minuto = minutoDoAcompanhamento(watch, agora());
+    if (acompanhamentoEncerrado(minuto, snapshot.elapsed)) {
+      bloquearFixture(watch);
+      encerrar(watch, 'apos-65');
+      return;
+    }
+    if (!(watch.feitos instanceof Set)) watch.feitos = new Set(watch.feitos || []);
+    const marcoJanela = marcoDevido(minuto, watch.feitos, watch.precisaRetry48);
+    const minutoInteiro = Number.isFinite(Number(snapshot.elapsed)) ? Math.floor(Number(snapshot.elapsed)) : null;
+    const marcoRelogio = minutoInteiro != null && MARCOS_RELOGIO.has(minutoInteiro) && !watch.feitos.has(minutoInteiro)
+      ? minutoInteiro
+      : null;
+    const marco = marcoJanela ?? marcoRelogio;
     watch.ancora = {
-      elapsed: Number.isFinite(snapshot.elapsed) ? snapshot.elapsed : marco,
+      elapsed: Number.isFinite(snapshot.elapsed) ? snapshot.elapsed : minuto,
       status: snapshot.status,
       em: agora()
     };
+    if (marco == null) return;
+    watch.feitos.add(marco);
+    if (marcoRelogio != null) watch.feitos.add(marcoRelogio);
     const decisao = decidirCarpina(snapshot, marco, watch.market);
     try {
       await gravarMarcoNoSupabase(watch, snapshot, marco, decisao);

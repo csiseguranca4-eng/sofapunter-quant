@@ -510,6 +510,7 @@ function resumirFixtureAoVivo(jogo) {
   return {
     fixtureId: Number(jogo.fixture.id),
     status: [jogo.fixture.status?.short, jogo.fixture.status?.long].filter(Boolean).join(' '),
+    statusShort: String(jogo.fixture.status?.short || '').toUpperCase(),
     elapsed: numero(jogo.fixture.status?.elapsed),
     kickoff: jogo.fixture.date || null,
     home: jogo.teams?.home?.name || '',
