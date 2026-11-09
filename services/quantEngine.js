@@ -5,6 +5,7 @@
  */
 
 const LIGAS_OFICIAIS = require('../ligasOficiais.json');
+const { deveIgnorarPartida } = require('./filtroLigas.js');
 
 function validarIntensidade(nome, valor) {
   const intensidade = Number(valor);
@@ -432,6 +433,7 @@ function montarMercadosAdicionais(mandante, visitante, oddsPorNome = {}) {
 
 module.exports = {
   LIGAS_OFICIAIS,
+  deveIgnorarPartida,
   calcularOddsQuant,
   calcularEV,
   analisarOportunidadesQuant,

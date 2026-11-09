@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { deveIgnorarPartida } = require('./filtroLigas.js');
 
 const BASE_URL = 'https://v3.football.api-sports.io';
 const CHAVE_RESERVA = '6ae436cbf2752144b1c89b761207b84b';
@@ -80,13 +81,18 @@ async function pedir(caminho, tentativa = 0) {
 }
 
 async function buscarIdEquipa(nomeEquipa) {
-  const nome = String(nomeEquipa || '').trim();
-  if (!nome) throw new Error('Informe o nome da equipa.');
+  const timeLimpo = String(nomeEquipa || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!timeLimpo) throw new Error('Informe o nome da equipa.');
 
-  const dados = await pedir(`/teams?search=${encodeURIComponent(nome)}`);
+  const dados = await pedir(`/teams?search=${encodeURIComponent(timeLimpo)}`);
   const id = dados?.response?.[0]?.team?.id;
   if (!Number.isFinite(Number(id))) {
-    throw new Error(`Nenhuma equipa encontrada para "${nome}".`);
+    throw new Error(`Nenhuma equipa encontrada para "${timeLimpo}".`);
   }
   return Number(id);
 }
@@ -513,6 +519,7 @@ function resumirFixtureAoVivo(jogo) {
     statusShort: String(jogo.fixture.status?.short || '').toUpperCase(),
     elapsed: numero(jogo.fixture.status?.elapsed),
     kickoff: jogo.fixture.date || null,
+    league: jogo.league?.name || '',
     home: jogo.teams?.home?.name || '',
     away: jogo.teams?.away?.name || '',
     golsCasa: numero(jogo.goals?.home),
@@ -526,12 +533,24 @@ function resumirFixtureAoVivo(jogo) {
   };
 }
 
+function filtrarFixture(jogo) {
+  if (!jogo) return null;
+  if (deveIgnorarPartida(jogo.league, jogo.home, jogo.away)) return null;
+  return jogo;
+}
+
 async function obterFixtureAoVivo(fixtureId) {
   const id = Number(fixtureId);
   if (!Number.isFinite(id)) return null;
   const dados = await pedir(`/fixtures?id=${id}`);
   const jogo = Array.isArray(dados?.response) ? dados.response[0] : null;
-  return resumirFixtureAoVivo(jogo);
+  return filtrarFixture(resumirFixtureAoVivo(jogo));
+}
+
+async function listarFixturesAoVivo() {
+  const dados = await pedir('/fixtures?live=all');
+  const lista = Array.isArray(dados?.response) ? dados.response : [];
+  return lista.map(resumirFixtureAoVivo).map(filtrarFixture).filter(Boolean);
 }
 
 async function listarFixturesDoDia(dataIso) {
@@ -539,7 +558,7 @@ async function listarFixturesDoDia(dataIso) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return [];
   const dados = await pedir(`/fixtures?date=${data}&timezone=${encodeURIComponent('America/Sao_Paulo')}`);
   const lista = Array.isArray(dados?.response) ? dados.response : [];
-  return lista.map(resumirFixtureAoVivo).filter(Boolean);
+  return lista.map(resumirFixtureAoVivo).map(filtrarFixture).filter(Boolean);
 }
 
 module.exports = {
@@ -551,6 +570,7 @@ module.exports = {
   obterH2H,
   obterUltimosJogos,
   obterFixtureAoVivo,
+  listarFixturesAoVivo,
   listarFixturesDoDia
 };
 

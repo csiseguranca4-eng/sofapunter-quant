@@ -12,10 +12,9 @@ import { TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { analisarOportunidadesQuant, ancorarNoMercado, calcularOddsQuant, calibrarLambdasH2H, confrontoDeGols, favoritoDoConfronto, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
-const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos, obterFixtureAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
-const { calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
+const { analisarOportunidadesQuant, ancorarNoMercado, calcularOddsQuant, calibrarLambdasH2H, confrontoDeGols, deveIgnorarPartida, favoritoDoConfronto, montarMercadosAdicionais, probabilidadesPoisson } = require('./services/quantEngine.js');
+const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterClassificacao, obterH2H, obterUltimosJogos, obterFixtureAoVivo, listarFixturesAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
+const { MODELOS_GEMINI, cabecalhosGemini, calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
 const app = express();
 app.use(cors());
@@ -251,6 +250,7 @@ app.get('/api/daily-opportunities', async (req, res) => {
         textoNome: `${item.name || ''} ${homeName} ${awayName} ${sportSlug}`,
         leagueId: leagueIdApi
       });
+      if (deveIgnorarPartida(textoLiga, homeName, awayName)) continue;
       if (item.sport?.isEsport === true || !ligaOficial || !idsOficiais.has(ligaOficial.id)) continue;
 
       const isBrazil = ligaOficial.regiao === 'Brasil';
@@ -505,35 +505,33 @@ function textoDoParecerLocal(parecer, promptText, wantJson) {
 }
 
 async function requestGeminiTacticalText(promptText, options = {}) {
-  console.log('Gemini Key carregada:', process.env.GEMINI_API_KEY ? 'OK (tamanho: ' + process.env.GEMINI_API_KEY.length + ')' : 'NÃO CARREGADA');
+  const token = (process.env.GEMINI_API_KEY || GEMINI_API_KEY || '').trim();
+  console.log('Gemini Key carregada:', token ? 'OK (tamanho: ' + token.length + ')' : 'NÃO CARREGADA');
   const wantJson = options.json === true;
   const parecerLocal = () => textoDoParecerLocal(parecerHeuristicoLocal(options.contexto), promptText, wantJson);
-  const MODELOS_CANDIDATOS = [
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash'
-  ];
-  let genAI;
-  try {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
-  } catch (err) {
-    console.log(`[Aviso] Modelo cliente falhou: ${err.message}, tentando próximo...`);
-    return parecerLocal();
-  }
-  for (const nomeModelo of MODELOS_CANDIDATOS) {
+  if (!token) return parecerLocal();
+
+  const headers = cabecalhosGemini(token);
+  const entregar = (texto, modelo) => (options.detalhar ? { texto, modelo } : texto);
+  for (const model of MODELOS_GEMINI) {
     try {
-      const model = genAI.getGenerativeModel({ model: nomeModelo });
-      const result = await model.generateContent(promptText);
-      const response = await result.response;
-      const text = response.text();
-      if (text && text.trim().length > 0) return text;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }]
+        })
+      });
+      const data = await response.json().catch(() => null);
+      const textoIa = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (response.ok && textoIa && String(textoIa).trim()) return entregar(String(textoIa), model);
+      console.warn(`[Aviso] Modelo ${model} retornou erro:`, data?.error?.message || response.statusText);
     } catch (err) {
-      console.log(`[Aviso] Modelo ${nomeModelo} falhou: ${err.message}, tentando próximo...`);
+      console.warn(`[Aviso] Falha ao consultar ${model}:`, err.message);
     }
   }
-  return parecerLocal();
+  return entregar(parecerLocal(), null);
 }
 
 function promptAlertaStopLoss20({ xG, chutes }) {
@@ -1062,6 +1060,10 @@ function parseTaticaQuant(raw) {
 }
 
 async function montarBlocoQuant({ allMarkets, homeTeam, awayTeam, league, justification, semTatica = false }) {
+  if (deveIgnorarPartida(league, homeTeam, awayTeam)) {
+    console.log(`[FILTRO] Motor quantitativo ignorou ${homeTeam} x ${awayTeam} (${league || 'sem liga'}).`);
+    return null;
+  }
   const oddsBrutas = extrairOddsQuant(allMarkets, homeTeam, awayTeam);
   const oddsCasa = {};
   ['casa', 'empate', 'fora', 'dnbMandante', 'dnbVisitante', 'over15', 'under15', 'over25', 'under25', 'bttsSim', 'bttsNao'].forEach((chave) => {
@@ -1750,6 +1752,14 @@ app.post('/api/check-1win-match', async (req, res) => {
     if (!matchId) {
       return res.status(400).json({ success: false, message: 'ID da partida não identificado no link informado.' });
     }
+    if (deveIgnorarPartida(league, homeTeam, awayTeam)) {
+      console.log(`[FILTRO] Auditoria ignorada: ${homeTeam} x ${awayTeam} (${league || 'sem liga'}).`);
+      return res.json({
+        success: false,
+        sucesso: false,
+        message: 'Partida de base ou liga sem scout ao vivo. Auditoria não executada.'
+      });
+    }
 
     console.log(`\n======================================================`);
     console.log(`📡 [WEBSOCKET 1WIN] Auditando partida ${matchId}...`);
@@ -1866,6 +1876,14 @@ app.post('/api/analisar-ia', async (req, res) => {
     if (!homeTeam || !awayTeam) {
       return res.status(400).json({ success: false, message: 'Informe os dois times para a análise.' });
     }
+    if (deveIgnorarPartida(league, homeTeam, awayTeam)) {
+      console.log(`[FILTRO] Análise ignorada: ${homeTeam} x ${awayTeam} (${league || 'sem liga'}).`);
+      return res.status(400).json({
+        success: false,
+        sucesso: false,
+        message: 'Partida de base ou liga sem scout ao vivo. Análise não executada.'
+      });
+    }
     const capturadas = Array.isArray(oddsCapturadas) ? oddsCapturadas.slice(0, 40) : [];
     if (!capturadas.length) {
       return res.status(400).json({ success: false, message: 'Audite as odds da 1win antes de pedir a leitura da I.A.' });
@@ -1880,27 +1898,33 @@ Odds capturadas na 1win: ${JSON.stringify(capturadas)}
 Dados da API-Football: ${JSON.stringify(apiData || {})}`;
 
     console.log(`\n🤖 [ANALISAR IA] ${homeTeam} vs ${awayTeam}`);
-    const texto = await requestGeminiTacticalText(prompt, {
+    const contexto = {
+      homeTeam,
+      awayTeam,
+      league,
+      score: req.body?.score,
+      oddsCapturadas: capturadas,
+      apiData: apiData || {}
+    };
+    const detalhe = await requestGeminiTacticalText(prompt, {
       json: true,
+      detalhar: true,
       timeout: 45000,
-      contexto: {
-        homeTeam,
-        awayTeam,
-        league,
-        score: req.body?.score,
-        oddsCapturadas: capturadas,
-        apiData: apiData || {}
-      }
+      contexto
     });
-    const lido = extrairJsonGemini(texto);
-    const diagnostico = String(lido?.diagnostico || '').trim();
-    const sugestaoMultipla = listaTextoIa(lido?.sugestaoMultipla);
-    const sugestaoValor = listaTextoIa(lido?.sugestaoValor);
-    const alertaRisco = String(lido?.alertaRisco || '').trim();
-    if (!diagnostico && !sugestaoMultipla.length && !sugestaoValor.length && !alertaRisco) {
-      return res.status(502).json({ success: false, message: 'A I.A. não devolveu o parecer.' });
+    const texto = typeof detalhe === 'string' ? detalhe : detalhe?.texto;
+    const modelo = typeof detalhe === 'object' && detalhe ? detalhe.modelo || null : null;
+    const lido = extrairJsonGemini(texto) || parecerHeuristicoLocal(contexto);
+    const analise = {
+      diagnostico: String(lido?.diagnostico || '').trim(),
+      sugestaoMultipla: listaTextoIa(lido?.sugestaoMultipla),
+      sugestaoValor: listaTextoIa(lido?.sugestaoValor),
+      alertaRisco: String(lido?.alertaRisco || '').trim()
+    };
+    if (!analise.diagnostico && !analise.sugestaoMultipla.length && !analise.sugestaoValor.length && !analise.alertaRisco) {
+      return res.status(502).json({ success: false, sucesso: false, message: 'A I.A. não devolveu o parecer.' });
     }
-    res.json({ success: true, diagnostico, sugestaoMultipla, sugestaoValor, alertaRisco });
+    res.json({ success: true, sucesso: true, modelo, analise, ...analise });
   } catch (error) {
     console.error('❌ Falha na análise da I.A.:', error.message);
     res.status(500).json({ success: false, message: error.message });
@@ -1915,6 +1939,13 @@ app.post('/api/ai-scout-analyze', async (req, res) => {
 
   if (!homeTeam || !awayTeam) {
     return res.status(400).json({ success: false, message: 'Dados da partida incompletos.' });
+  }
+  if (deveIgnorarPartida(league, homeTeam, awayTeam)) {
+    console.log(`[FILTRO] Scout ignorado: ${homeTeam} x ${awayTeam} (${league || 'sem liga'}).`);
+    return res.status(400).json({
+      success: false,
+      message: 'Partida de base ou liga sem scout ao vivo. Análise não executada.'
+    });
   }
 
   console.log(`\n🤖 [IA SCOUT] Analisando: ${homeTeam} vs ${awayTeam} (${league})...`);
@@ -1988,6 +2019,13 @@ app.post('/api/publish-telegram-tip', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Informe liga, partida, mercado, odd 1win e stake para publicar o tip.'
+      });
+    }
+    if (deveIgnorarPartida(league, body.home || body.homeTeam || match, body.away || body.awayTeam || '')) {
+      console.log(`[FILTRO] Telegram ignorado: ${match} (${league}).`);
+      return res.status(400).json({
+        success: false,
+        message: 'Partida de base ou liga sem scout ao vivo. Alerta não enviado.'
       });
     }
 
@@ -2136,6 +2174,39 @@ async function enviarTelegramTexto(texto) {
   }
 }
 
+async function listarJogos1winAoVivo() {
+  const response = await axios.post(
+    `${ONEWIN_GATEWAY}/matches/get-many`,
+    {
+      service: 'live',
+      excludeSportType: 'polybet',
+      sportId: 18,
+      limit: 800,
+      hotsLimit: 200
+    },
+    { headers: onewinHeaders, timeout: 12000 }
+  );
+  const items = response.data?.result?.items || [];
+  return items
+    .filter((item) => Number(item?.sportId) === 18 && String(item?.service || item?.serviceV2 || '').toLowerCase() === 'live')
+    .filter((item) => !deveIgnorarPartida(
+      item.tournament?.name || item.category?.name || '',
+      item.homeTeam?.name || '',
+      item.awayTeam?.name || ''
+    ))
+    .map((item) => {
+      const bruto = Number(item.startAt);
+      const kickoffMs = bruto > 10000000000 ? bruto : bruto * 1000;
+      return {
+        id: String(item.id || ''),
+        home: item.homeTeam?.name || '',
+        away: item.awayTeam?.name || '',
+        kickoff: Number.isFinite(kickoffMs) ? new Date(kickoffMs).toISOString() : null,
+        aoVivo: true
+      };
+    });
+}
+
 if (executadoDiretamente) {
   app.listen(PORT, () => {
     console.log(`✅ SofaPunter Motor 1WIN ativo em http://localhost:${PORT}`);
@@ -2146,6 +2217,8 @@ if (executadoDiretamente) {
       arquivoBets: DB_FILE,
       tabelaApostas: TABELA_APOSTAS,
       consultarFixture: obterFixtureAoVivo,
+      listarAoVivo: listarFixturesAoVivo,
+      consultar1winAoVivo: listarJogos1winAoVivo,
       listarDia: listarFixturesDoDia,
       enviarTelegram: enviarTelegramTexto,
       pedirParecerStopLoss: pedirParecerStopLoss20,

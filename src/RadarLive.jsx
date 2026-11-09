@@ -41,6 +41,7 @@ function RadarLive({ fixtureId, marketId, partida }) {
   const [ladder, setLadder] = useState(null);
   const odds = listaSegura(partida?.odds);
   const estatisticas = objetoSeguro(partida?.estatisticas);
+  const analise = objetoSeguro(partida?.analise);
   const serieBase = listaSegura(timeline);
 
   useEffect(() => {
@@ -119,6 +120,20 @@ function RadarLive({ fixtureId, marketId, partida }) {
 
   return (
     <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-white space-y-3 mt-3" data-odds={odds.length}>
+      {(analise.diagnostico || analise.alertaRisco || (Array.isArray(analise.sugestaoMultipla) && analise.sugestaoMultipla.length) || (Array.isArray(analise.sugestaoValor) && analise.sugestaoValor.length)) && (
+        <div className="rounded-lg border border-purple-500/40 bg-purple-950/30 p-3 space-y-1.5">
+          <span className="block text-[11px] font-bold text-purple-200">Parecer da I.A.</span>
+          {analise.diagnostico ? <span className="block text-sm text-white">{String(analise.diagnostico)}</span> : null}
+          {analise.alertaRisco ? <span className="block text-xs text-amber-300">Risco: {String(analise.alertaRisco)}</span> : null}
+          {(Array.isArray(analise.sugestaoMultipla) ? analise.sugestaoMultipla : []).filter((item) => typeof item === 'string' && item).map((item) => (
+            <span key={`m-${item}`} className="block text-xs text-purple-100">Múltipla: {item}</span>
+          ))}
+          {(Array.isArray(analise.sugestaoValor) ? analise.sugestaoValor : []).filter((item) => typeof item === 'string' && item).map((item) => (
+            <span key={`v-${item}`} className="block text-xs text-[#00c853]">Valor: {item}</span>
+          ))}
+        </div>
+      )}
+
       <div className="flex justify-between items-center text-xs">
         <span className="text-orange-400 font-bold uppercase">Mandante (Pressão ↑)</span>
         <span className="text-slate-400 font-mono">Radar Quant ao Vivo (Sem Stream)</span>

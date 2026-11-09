@@ -125,7 +125,18 @@ function gerarPromptTaticoQuant(dadosJogo, analiseEV) {
   ].filter((linha) => linha != null).join('\n');
 }
 
+const MODELOS_GEMINI = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+
+function cabecalhosGemini(token) {
+  return {
+    'Content-Type': 'application/json',
+    'x-goog-api-key': String(token || '').trim()
+  };
+}
+
 module.exports = {
+  MODELOS_GEMINI,
+  cabecalhosGemini,
   calcularIndiceRitmo,
   gerarPromptTaticoQuant
 };

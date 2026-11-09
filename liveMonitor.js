@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 import { supabase as supabaseApostas } from './lib/supabase.js';
 import { createClient } from '@supabase/supabase-js';
 const getLaybackMarketData = async () => null;
+const { deveIgnorarPartida } = createRequire(import.meta.url)('./services/filtroLigas.js');
 
 const TABELA_APOSTAS = 'apostas';
 const ARQUIVO_LIVE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'public', 'live_status.json');
@@ -133,6 +134,19 @@ export function partidaDaAposta(aposta) {
   return { home: partes[0].trim(), away: partes.slice(1).join(' x ').trim() };
 }
 
+function partidaIgnorada(aposta) {
+  const times = partidaDaAposta(aposta);
+  return deveIgnorarPartida(
+    aposta?.league || aposta?.liga || '',
+    times?.home || aposta?.home || '',
+    times?.away || aposta?.away || ''
+  );
+}
+
+function confrontoIgnorado(jogo) {
+  return deveIgnorarPartida(jogo?.league || jogo?.liga || '', jogo?.home, jogo?.away);
+}
+
 function normalizarNome(valor) {
   return String(valor || '')
     .normalize('NFD')
@@ -140,6 +154,10 @@ function normalizarNome(valor) {
     .toLowerCase()
     .replace(/\([^)]*\)/g, ' ')
     .replace(/\b(fc|cf|sc|ac|as|ec|cd|ud|fk|sk|afc|cfc)\b/g, '')
+    .replace(/\b(women|woman|feminino|feminina|ladies|lady|femenino|femenina|frau|frauen)\b/g, '')
+    .replace(/\bcologne\b/g, 'koln')
+    .replace(/\bcolonia\b/g, 'koln')
+    .replace(/\bkoeln\b/g, 'koln')
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -158,8 +176,26 @@ function nomesCompativeis(a, b) {
 }
 
 export function fixtureValido(id) {
-  const numero = Number(id);
-  return Number.isFinite(numero) && numero > 0;
+  return fixtureIdParaColuna(id) != null;
+}
+
+export function idLinhaSupabase(id) {
+  const texto = String(id ?? '').trim();
+  if (!/^\d+$/.test(texto)) return null;
+  const numero = Number(texto);
+  return Number.isSafeInteger(numero) && numero > 0 ? numero : null;
+}
+
+export function fixtureIdParaColuna(valor) {
+  if (typeof valor === 'number') {
+    return Number.isSafeInteger(valor) && valor > 0 ? valor : null;
+  }
+  const texto = String(valor ?? '').trim();
+  if (!texto || /[a-z]/i.test(texto)) return null;
+  const digitos = texto.replace(/\D/g, '');
+  if (!digitos || digitos !== texto) return null;
+  const numero = Number(digitos);
+  return Number.isSafeInteger(numero) && numero > 0 ? numero : null;
 }
 
 const cacheFixturesDia = new Map();
@@ -173,10 +209,10 @@ export function dataConsultaFixture(aposta, agoraMs = Date.now()) {
   return diaEmSaoPaulo(agoraMs);
 }
 
-export async function listarFixturesComCache(data, listarDia, agoraMs = Date.now()) {
+export async function listarFixturesComCache(data, listarDia, agoraMs = Date.now(), opcoes = {}) {
   const chave = String(data || '');
   const salvo = cacheFixturesDia.get(chave);
-  if (salvo && agoraMs - salvo.em < CACHE_DIA_MS) return salvo.jogos;
+  if (!opcoes.ignorarCache && salvo && agoraMs - salvo.em < CACHE_DIA_MS) return salvo.jogos;
   const jogos = await listarDia(chave);
   const lista = Array.isArray(jogos) ? jogos : [];
   cacheFixturesDia.set(chave, { em: agoraMs, jogos: lista });
@@ -191,10 +227,12 @@ export function localizarFixture(jogos, mandante, visitante) {
 }
 
 export async function garantirFixtureId(aposta, dependencias) {
-  if (fixtureValido(aposta?.fixtureId || aposta?.fixture_id)) {
-    return { fixtureId: Number(aposta.fixtureId || aposta.fixture_id), kickoff: aposta.kickoff || null };
-  }
   const times = partidaDaAposta(aposta);
+  if (deveIgnorarPartida(aposta?.league || aposta?.liga || '', times?.home || '', times?.away || '')) return null;
+  const fixtureInformado = fixtureIdParaColuna(aposta?.fixtureId || aposta?.fixture_id);
+  if (fixtureInformado != null) {
+    return { fixtureId: fixtureInformado, kickoff: aposta.kickoff || null };
+  }
   const listarDia = dependencias?.listarDia;
   if (!times || typeof listarDia !== 'function') return null;
   const agoraMs = dependencias.agora ? dependencias.agora() : Date.now();
@@ -205,16 +243,33 @@ export async function garantirFixtureId(aposta, dependencias) {
   for (const data of datas) {
     let jogos = [];
     try {
-      jogos = await listarFixturesComCache(data, listarDia, agoraMs);
+      jogos = (await listarFixturesComCache(data, listarDia, agoraMs)).filter((jogo) => !confrontoIgnorado(jogo));
     } catch (erro) {
       console.log('[CARPINA] Erro na API-Football ao listar os jogos do dia:', erro.message);
       continue;
     }
     jogo = localizarFixture(jogos, times.home, times.away);
-    if (jogo) break;
+    if (jogo && preJogoAtrasado(jogo, agoraMs)) {
+      try {
+        const frescos = (await listarFixturesComCache(data, listarDia, agoraMs, { ignorarCache: true })).filter((item) => !confrontoIgnorado(item));
+        jogo = localizarFixture(frescos, times.home, times.away) || jogo;
+      } catch (erro) {
+        console.log('[CARPINA] Erro na API-Football ao atualizar o jogo atrasado:', erro.message);
+      }
+    }
+    if (jogo && statusEmAndamento(jogo)) break;
+  }
+  if (!statusEmAndamento(jogo) && typeof dependencias.listarAoVivo === 'function') {
+    try {
+      const aoVivo = (await dependencias.listarAoVivo()).filter((item) => !confrontoIgnorado(item));
+      const fresco = localizarFixture(aoVivo, times.home, times.away);
+      if (fresco && statusEmAndamento(fresco)) jogo = fresco;
+    } catch (erro) {
+      console.log('[CARPINA] Erro na API-Football ao listar os jogos ao vivo:', erro.message);
+    }
   }
   if (!fixtureValido(jogo?.fixtureId)) return null;
-  const idNuvem = aposta.nuvemId ?? aposta.id;
+  const idNuvem = idLinhaSupabase(aposta.nuvemId ?? aposta.id);
   if (idNuvem != null && typeof dependencias.gravarFixture === 'function') {
     await dependencias.gravarFixture(idNuvem, jogo.fixtureId);
   }
@@ -289,6 +344,48 @@ export function horaDoKickoff(iso) {
     minute: '2-digit',
     timeZone: 'America/Sao_Paulo'
   });
+}
+
+const STATUS_EM_ANDAMENTO = new Set(['1H', '2H', 'HT', 'LIVE', 'ET', 'BT', 'INT', 'P']);
+
+export function statusEmAndamento(snapshot) {
+  return STATUS_EM_ANDAMENTO.has(statusCurto(snapshot));
+}
+
+export function preJogoAtrasado(snapshot, agoraMs = Date.now()) {
+  const curto = statusCurto(snapshot);
+  if (curto && curto !== 'NS' && curto !== 'TBD') return false;
+  const kickoff = Date.parse(snapshot?.kickoff || '');
+  return Number.isFinite(kickoff) && agoraMs >= kickoff;
+}
+
+export function snapshotDoFeed1win(jogo, agoraMs = Date.now()) {
+  if (!jogo?.aoVivo) return null;
+  const kickoffMs = Date.parse(jogo.kickoff || '');
+  if (!Number.isFinite(kickoffMs) || agoraMs < kickoffMs) return null;
+  const minutoBruto = (agoraMs - kickoffMs) / 60000;
+  let statusShort = '1H';
+  let elapsed = minutoBruto;
+  if (minutoBruto >= 47 && minutoBruto < 47 + INTERVALO_HT_MIN) {
+    statusShort = 'HT';
+    elapsed = 45;
+  } else if (minutoBruto >= 47 + INTERVALO_HT_MIN) {
+    statusShort = '2H';
+    elapsed = 45 + (minutoBruto - (47 + INTERVALO_HT_MIN));
+  }
+  return {
+    fixtureId: null,
+    status: statusShort,
+    statusShort,
+    elapsed: Math.floor(elapsed),
+    kickoff: new Date(kickoffMs).toISOString(),
+    home: jogo.home || '',
+    away: jogo.away || '',
+    golsCasa: null,
+    golsFora: null,
+    placarConhecido: false,
+    fonte: '1win'
+  };
 }
 
 export function linhaRelogio(match, snapshot) {
@@ -567,48 +664,91 @@ export function mensagemStopLoss20({ mandante, visitante, mercado, xG_total, chu
   ].join('\n');
 }
 
+function dataDoRegistro(item) {
+  const dataRegistro = item?.data || item?.created_at || new Date().toISOString();
+  return dataRegistro;
+}
+
 function normalizarApostaNuvem(linha) {
   if (!linha) return null;
+  const dataRegistro = dataDoRegistro(linha);
+  const dia = String(dataRegistro).slice(0, 10);
   return {
     id: String(linha.id),
     nuvemId: linha.id,
     localBetId: null,
-    match: linha.partida || '',
+    match: linha.jogo || linha.partida || linha.evento || '',
     market: linha.mercado || '',
     odd: Number(linha.odd),
     stake: Number(linha.stake),
     status: String(linha.status || '').toUpperCase(),
     fixtureId: linha.fixture_id || null,
-    createdAt: linha.created_at || null
+    date: /^\d{4}-\d{2}-\d{2}$/.test(dia) ? dia : null,
+    createdAt: dataRegistro
   };
+}
+
+const COLUNAS_APOSTAS = 'id, jogo, mercado, odd, status, lucro, created_at';
+
+function colunaAusente(erro) {
+  const mensagem = String(erro?.message || erro || '');
+  return /column .+ does not exist/i.test(mensagem)
+    || /could not find the '.+' column/i.test(mensagem);
+}
+
+function erroColunaLucro(erro) {
+  return colunaAusente(erro) && /lucro/i.test(String(erro?.message || erro || ''));
+}
+
+function statusSemLucro(status) {
+  const normal = String(status || '').trim().toUpperCase();
+  if (normal === 'GREEN') return 'green';
+  if (normal === 'RED') return 'red';
+  return String(status || '').trim();
+}
+
+async function consultarApostas(cliente, aplicarFiltro) {
+  const tentar = async (colunas, ordenar) => {
+    let consulta = aplicarFiltro(cliente.from(TABELA_APOSTAS).select(colunas));
+    if (ordenar) consulta = consulta.order(ordenar, { ascending: false });
+    return consulta;
+  };
+
+  let resultado = await tentar(COLUNAS_APOSTAS, 'created_at');
+  if (resultado.error && colunaAusente(resultado.error) && /created_at/i.test(resultado.error.message)) {
+    resultado = await tentar(COLUNAS_APOSTAS, 'id');
+  }
+  if (resultado.error && colunaAusente(resultado.error)) {
+    console.log('[CARPINA] Coluna ausente na consulta; a ler todas as colunas:', resultado.error.message);
+    resultado = await tentar('*', 'id');
+    if (resultado.error && colunaAusente(resultado.error)) {
+      resultado = await tentar('*', null);
+    }
+  }
+  return resultado;
 }
 
 async function listarPendentesOver25(ehOver25) {
   const cliente = clienteApostas();
   if (!cliente) throw new Error('Supabase indisponível.');
-  const { data, error } = await cliente
-    .from(TABELA_APOSTAS)
-    .select('id, fixture_id, partida, mercado, odd, stake, lucro, status, created_at, updated_at')
-    .eq('status', 'PENDENTE');
+  const { data, error } = await consultarApostas(
+    cliente,
+    (consulta) => consulta.eq('status', 'PENDENTE')
+  );
   if (error) throw new Error(error.message);
-  return (data || []).map(normalizarApostaNuvem).filter((aposta) => aposta && ehOver25(aposta));
+  return (data || [])
+    .map(normalizarApostaNuvem)
+    .filter((aposta) => aposta && String(aposta.status || '').toUpperCase() === 'PENDENTE' && ehOver25(aposta));
 }
 
 async function garantirApostaPendente(aposta) {
   const cliente = clienteApostas();
   if (!cliente) throw new Error('Supabase indisponível.');
-  const agora = new Date().toISOString();
-  const fixture = Number(aposta.fixtureId || aposta.fixture_id);
   const { data, error } = await cliente.from(TABELA_APOSTAS).insert({
-    fixture_id: Number.isFinite(fixture) ? fixture : null,
-    partida: aposta.match,
+    jogo: aposta.match,
     mercado: aposta.market,
     odd: Number(aposta.odd) || null,
-    stake: Number(aposta.stake) || null,
-    lucro: null,
-    status: 'PENDENTE',
-    created_at: agora,
-    updated_at: agora
+    status: 'PENDENTE'
   }).select('id').single();
   if (error) throw new Error(error.message);
   return data.id;
@@ -617,21 +757,46 @@ async function garantirApostaPendente(aposta) {
 async function gravarFixture(id, fixtureId) {
   const cliente = clienteApostas();
   if (!cliente) return;
-  const { error } = await cliente.from(TABELA_APOSTAS).update({
-    fixture_id: fixtureId,
+  const idLinha = idLinhaSupabase(id);
+  const fixture = fixtureIdParaColuna(fixtureId);
+  if (idLinha == null) {
+    console.log(`[CARPINA] fixture_id não gravado: "${id}" não é a chave bigint de apostas.`);
+    return;
+  }
+  if (fixture == null) {
+    console.log(`[CARPINA] fixture_id ignorado (id sintético ou inválido): ${fixtureId}`);
+    return;
+  }
+  let resultado = await cliente.from(TABELA_APOSTAS).update({
+    fixture_id: fixture,
     updated_at: new Date().toISOString()
-  }).eq('id', String(id));
-  if (error) throw new Error(error.message);
+  }).eq('id', idLinha);
+  if (resultado.error && colunaAusente(resultado.error)) {
+    resultado = await cliente.from(TABELA_APOSTAS).update({ fixture_id: fixture }).eq('id', idLinha);
+  }
+  if (resultado.error) throw new Error(resultado.error.message);
 }
 
 async function encerrarApostaNuvem(id, { status, lucro }) {
   const cliente = clienteApostas();
   if (!cliente) return;
+  const idLinha = idLinhaSupabase(id);
+  const lucroNumero = Number(lucro);
+  const lucroValido = Number.isFinite(lucroNumero) ? Number(lucroNumero.toFixed(2)) : null;
+  if (idLinha == null) {
+    console.log(`[CARPINA] Encerramento não enviado: "${id}" não é a chave bigint de apostas. Lucro local: ${lucroValido ?? 'n/d'}.`);
+    return;
+  }
   const payload = { status, updated_at: new Date().toISOString() };
-  if (status === 'PENDENTE') payload.lucro = null;
-  else if (Number.isFinite(Number(lucro))) payload.lucro = Number(Number(lucro).toFixed(2));
-  const { error } = await cliente.from(TABELA_APOSTAS).update(payload).eq('id', String(id));
-  if (error) throw new Error(error.message);
+  if (String(status).toUpperCase() === 'PENDENTE') payload.lucro = null;
+  else if (lucroValido != null) payload.lucro = lucroValido;
+  let resultado = await cliente.from(TABELA_APOSTAS).update(payload).eq('id', idLinha);
+  if (resultado.error && (erroColunaLucro(resultado.error) || (payload.lucro !== undefined && colunaAusente(resultado.error)))) {
+    const statusEnvio = statusSemLucro(status);
+    console.log(`[CARPINA] Coluna lucro ausente em apostas. Lucro ${lucroValido ?? 'n/d'} registado só no log. Status enviado: ${statusEnvio}.`);
+    resultado = await cliente.from(TABELA_APOSTAS).update({ status: statusEnvio }).eq('id', idLinha);
+  }
+  if (resultado.error) throw new Error(resultado.error.message);
 }
 
 async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
@@ -645,8 +810,9 @@ async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
   const status = decisao?.statusMonitoramento || (MARCOS_2T.includes(marco) ? `MONITORANDO_${marco}` : 'MONITORANDO');
   const metricas = metricasDoSnapshot(snapshot);
   const agoraIso = new Date().toISOString();
+  const fixtureNumerico = fixtureIdParaColuna(watch.fixtureId);
   const linha = {
-    fixture_id: watch.fixtureId,
+    fixture_id: fixtureNumerico,
     minute: marco,
     minuto_atual: marco,
     placar: `${casa}-${fora}`,
@@ -658,22 +824,24 @@ async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
     updated_at: agoraIso
   };
   let gravou = false;
-  const { error } = await cliente.from('match_timeline').upsert(linha, { onConflict: 'fixture_id,minute' });
-  if (error && falhaDeRede(error.message)) {
-    pausarSupabase();
-    gravarEstadoLocal(watch, snapshot, marco, decisao);
-    return;
-  }
-  if (error) {
-    const inserido = await cliente.from('match_timeline').insert(linha);
-    if (inserido.error && falhaDeRede(inserido.error.message)) {
+  if (fixtureNumerico != null) {
+    const { error } = await cliente.from('match_timeline').upsert(linha, { onConflict: 'fixture_id,minute' });
+    if (error && falhaDeRede(error.message)) {
       pausarSupabase();
       gravarEstadoLocal(watch, snapshot, marco, decisao);
       return;
     }
-    if (!inserido.error) gravou = true;
-  } else {
-    gravou = true;
+    if (error) {
+      const inserido = await cliente.from('match_timeline').insert(linha);
+      if (inserido.error && falhaDeRede(inserido.error.message)) {
+        pausarSupabase();
+        gravarEstadoLocal(watch, snapshot, marco, decisao);
+        return;
+      }
+      if (!inserido.error) gravou = true;
+    } else {
+      gravou = true;
+    }
   }
   const patch = {
     minuto_atual: marco,
@@ -682,9 +850,10 @@ async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
     metricas_resumo: metricas,
     updated_at: agoraIso
   };
-  const consulta = watch.nuvemId != null
-    ? cliente.from(TABELA_APOSTAS).update(patch).eq('id', String(watch.nuvemId))
-    : cliente.from(TABELA_APOSTAS).update(patch).eq('partida', watch.match).eq('status', 'PENDENTE');
+  const idLinha = idLinhaSupabase(watch.nuvemId);
+  const consulta = idLinha != null
+    ? cliente.from(TABELA_APOSTAS).update(patch).eq('id', idLinha)
+    : cliente.from(TABELA_APOSTAS).update(patch).eq('jogo', watch.match).eq('status', 'PENDENTE');
   const atualizado = await consulta;
   if (atualizado.error && falhaDeRede(atualizado.error.message)) {
     pausarSupabase();
@@ -694,6 +863,37 @@ async function gravarMarcoNoSupabase(watch, snapshot, marco, decisao) {
   if (atualizado.error) console.log('[Monitor 2.5] apostas não atualizou:', atualizado.error.message);
   else gravou = true;
   if (gravou) console.log("📡 [Monitor 2.5] Marco " + marco + "' atualizado no Supabase.");
+}
+
+async function gravarStatusAoVivo(watch, snapshot) {
+  if (!statusEmAndamento(snapshot)) return;
+  const minuto = Number(snapshot.elapsed);
+  const casa = Number(snapshot.golsCasa);
+  const fora = Number(snapshot.golsFora);
+  const placarConhecido = snapshot.placarConhecido !== false && Number.isFinite(casa) && Number.isFinite(fora);
+  const curto = statusCurto(snapshot);
+  const assinatura = `${curto}|${Number.isFinite(minuto) ? Math.floor(minuto) : ''}|${placarConhecido ? `${casa}-${fora}` : ''}`;
+  if (watch.ultimaAssinaturaNuvem === assinatura) return;
+  const patch = {
+    minuto_atual: Number.isFinite(minuto) ? Math.floor(minuto) : null,
+    status_monitoramento: curto
+  };
+  if (placarConhecido) patch.placar = `${casa}-${fora}`;
+  const cliente = clienteApostas();
+  if (!cliente) {
+    watch.ultimaAssinaturaNuvem = assinatura;
+    return;
+  }
+  const idLinha = idLinhaSupabase(watch.nuvemId);
+  const consulta = idLinha != null
+    ? cliente.from(TABELA_APOSTAS).update(patch).eq('id', idLinha)
+    : cliente.from(TABELA_APOSTAS).update(patch).eq('jogo', watch.match).eq('status', 'PENDENTE');
+  const atualizado = await consulta;
+  if (atualizado.error && falhaDeRede(atualizado.error.message)) pausarSupabase();
+  else if (atualizado.error) console.log('[CARPINA] Status ao vivo não gravou:', atualizado.error.message);
+  watch.ultimaAssinaturaNuvem = assinatura;
+  const textoMinuto = Number.isFinite(minuto) ? `${Math.floor(minuto)}'` : 'sem cronômetro';
+  console.log(`[CARPINA] ${watch.match} em andamento: ${curto} ${textoMinuto}`);
 }
 
 function lerJson(arquivo, fallback) {
@@ -725,10 +925,40 @@ export function iniciarMonitorCarpina(opcoes) {
   const pedirParecerStopLoss = opcoes.pedirParecerStopLoss;
   const agora = opcoes.agora || (() => Date.now());
   const intervaloMs = opcoes.intervaloMs || 15000;
+  const listarAoVivo = opcoes.listarAoVivo;
+  const consultar1winAoVivo = opcoes.consultar1winAoVivo;
   const watches = new Map();
   const fixturesBloqueados = new Set();
   let timer = null;
   let cicloEmAndamento = false;
+  let cacheAoVivoCiclo = null;
+  let cache1winCiclo = null;
+
+  const lerAoVivo = async () => {
+    if (cacheAoVivoCiclo) return cacheAoVivoCiclo;
+    if (typeof listarAoVivo !== 'function') return [];
+    try {
+      const lista = await listarAoVivo();
+      cacheAoVivoCiclo = Array.isArray(lista) ? lista : [];
+    } catch (erro) {
+      cacheAoVivoCiclo = [];
+      throw erro;
+    }
+    return cacheAoVivoCiclo;
+  };
+
+  const ler1win = async () => {
+    if (cache1winCiclo) return cache1winCiclo;
+    if (typeof consultar1winAoVivo !== 'function') return [];
+    try {
+      const lista = await consultar1winAoVivo();
+      cache1winCiclo = Array.isArray(lista) ? lista : [];
+    } catch (erro) {
+      cache1winCiclo = [];
+      throw erro;
+    }
+    return cache1winCiclo;
+  };
 
   const persistir = () => {
     const saida = {};
@@ -812,6 +1042,7 @@ export function iniciarMonitorCarpina(opcoes) {
         localBetId: String(aposta.id),
         match: aposta.match,
         market: aposta.market,
+        league: aposta.league || null,
         date: aposta.date || null,
         odd: Number(aposta.odd),
         stake: Number(aposta.stake),
@@ -851,7 +1082,13 @@ export function iniciarMonitorCarpina(opcoes) {
         const ja = pendentes.find((item) => chavePartida(item) === chavePartida({ match: aposta.match, market: aposta.market }));
         if (ja) {
           ja.localBetId = String(aposta.id);
+          ja.league = ja.league || aposta.league || null;
+          ja.gameLink = ja.gameLink || aposta.gameLink || null;
           if (aposta.date) ja.date = aposta.date;
+          continue;
+        }
+        if (partidaIgnorada(aposta)) {
+          console.log(`[CARPINA] Partida ignorada (base ou liga sem scout): ${aposta.match}`);
           continue;
         }
         try {
@@ -862,6 +1099,7 @@ export function iniciarMonitorCarpina(opcoes) {
             localBetId: String(aposta.id),
             match: aposta.match,
             market: aposta.market,
+            league: aposta.league || null,
             date: aposta.date || null,
             odd: Number(aposta.odd),
             stake: Number(aposta.stake),
@@ -876,6 +1114,7 @@ export function iniciarMonitorCarpina(opcoes) {
             localBetId: String(aposta.id),
             match: aposta.match,
             market: aposta.market,
+            league: aposta.league || null,
             date: aposta.date || null,
             odd: Number(aposta.odd),
             stake: Number(aposta.stake),
@@ -885,6 +1124,13 @@ export function iniciarMonitorCarpina(opcoes) {
         }
       }
     }
+    pendentes = pendentes.filter((aposta) => {
+      if (!partidaIgnorada(aposta)) return true;
+      const watch = watches.get(aposta.id);
+      if (watch && !watch.encerrado) encerrar(watch, 'liga-ignorada');
+      console.log(`[CARPINA] Partida ignorada (base ou liga sem scout): ${aposta.match}`);
+      return false;
+    });
     const hoje = diaEmSaoPaulo(agora());
     pendentes = pendentes.filter((aposta) => {
       const watch = watches.get(aposta.id);
@@ -921,9 +1167,11 @@ export function iniciarMonitorCarpina(opcoes) {
       atual.nuvemId = aposta.nuvemId ?? atual.nuvemId ?? null;
       atual.match = aposta.match;
       atual.market = aposta.market || atual.market || '';
+      atual.league = aposta.league || atual.league || null;
       if (!(atual.notificados instanceof Set)) atual.notificados = new Set(atual.notificados || []);
       atual.stake = Number(aposta.stake) || atual.stake || 0;
       atual.odd = Number(aposta.odd) || atual.odd || 0;
+      atual.gameLink = aposta.gameLink || atual.gameLink || null;
       if (!fixtureValido(atual.fixtureId) && fixtureValido(aposta.fixtureId) && !fixturesBloqueados.has(String(aposta.fixtureId))) {
         atual.fixtureId = Number(aposta.fixtureId);
       }
@@ -931,7 +1179,7 @@ export function iniciarMonitorCarpina(opcoes) {
         try {
           const vinculo = await resolverFixture(
             { ...aposta, fixtureId: atual.fixtureId },
-            { listarDia, gravarFixture, agora }
+            { listarDia, listarAoVivo: lerAoVivo, gravarFixture, agora }
           );
           if (vinculo && !fixturesBloqueados.has(String(vinculo.fixtureId))) {
             atual.fixtureId = vinculo.fixtureId;
@@ -960,24 +1208,81 @@ export function iniciarMonitorCarpina(opcoes) {
 
   const processarWatch = async (watch) => {
     if (watch.encerrado) return;
+    const times = partidaDaAposta({ match: watch.match });
+    if (deveIgnorarPartida(watch.league, times?.home, times?.away)) {
+      encerrar(watch, 'liga-ignorada');
+      console.log(`[CARPINA] Partida ignorada (base ou liga sem scout): ${watch.match}`);
+      return;
+    }
     if (watch.fixtureId != null && fixturesBloqueados.has(String(watch.fixtureId))) {
       encerrar(watch, 'fixture-encerrado');
       return;
     }
-    if (!fixtureValido(watch.fixtureId)) {
-      console.log(linhaRelogio(watch.match, null));
-      return;
+    const agoraMs = agora();
+    let snapshot = null;
+    if (fixtureValido(watch.fixtureId)) {
+      try {
+        snapshot = await consultarFixture(watch.fixtureId);
+      } catch (erro) {
+        console.log(`[CARPINA] Erro na API-Football ao consultar o fixture ${watch.fixtureId}:`, erro.message);
+      }
     }
-    let snapshot;
-    try {
-      snapshot = await consultarFixture(watch.fixtureId);
-    } catch (erro) {
-      console.log(`[CARPINA] Erro na API-Football ao consultar o fixture ${watch.fixtureId}:`, erro.message);
-      console.log(linhaRelogio(watch.match, null));
-      return;
+    const referenciaKickoff = snapshot?.kickoff || watch.kickoff;
+    const atrasado = preJogoAtrasado({ kickoff: referenciaKickoff, statusShort: statusCurto(snapshot) }, agoraMs);
+    const buscarAgora = !fixtureValido(watch.fixtureId) || !snapshot || atrasado;
+    if (buscarAgora) {
+      try {
+        const lista = (await lerAoVivo()).filter((jogo) => !confrontoIgnorado(jogo));
+        const porId = fixtureValido(watch.fixtureId)
+          ? lista.find((jogo) => Number(jogo.fixtureId) === Number(watch.fixtureId))
+          : null;
+        const porNome = times ? localizarFixture(lista, times.home, times.away) : null;
+        const fresco = (porId && statusEmAndamento(porId) ? porId : null)
+          || (porNome && statusEmAndamento(porNome) ? porNome : null);
+        if (fresco && !fixturesBloqueados.has(String(fresco.fixtureId))) {
+          snapshot = { ...fresco, placarConhecido: true };
+          watch.fixtureId = fresco.fixtureId;
+          watch.kickoff = watch.kickoff || fresco.kickoff;
+          if (watch.nuvemId != null) {
+            try {
+              await gravarFixture(watch.nuvemId, fresco.fixtureId);
+            } catch (erro) {
+              console.log('[CARPINA] fixture_id não gravado na nuvem:', erro.message);
+            }
+          }
+        }
+      } catch (erro) {
+        console.log('[CARPINA] Erro na API-Football ao listar os jogos ao vivo:', erro.message);
+      }
+    }
+    if (buscarAgora && !statusEmAndamento(snapshot)) {
+      try {
+        const jogos = (await ler1win()).filter((jogo) => !confrontoIgnorado(jogo));
+        const idLink = String(watch.gameLink || '').match(/(\d{5,})/)?.[1];
+        const porId = idLink ? jogos.find((jogo) => String(jogo.id) === idLink) : null;
+        const porNome = times
+          ? jogos.find((jogo) => nomesCompativeis(jogo.home, times.home) && nomesCompativeis(jogo.away, times.away))
+          : null;
+        const feed = snapshotDoFeed1win(porId || porNome, agoraMs);
+        if (feed) {
+          const casa = Number(snapshot?.golsCasa);
+          const fora = Number(snapshot?.golsFora);
+          snapshot = {
+            ...(snapshot || {}),
+            ...feed,
+            fixtureId: snapshot?.fixtureId || watch.fixtureId || null,
+            golsCasa: Number.isFinite(casa) ? casa : null,
+            golsFora: Number.isFinite(fora) ? fora : null,
+            placarConhecido: false,
+            fonte: '1win'
+          };
+          watch.kickoff = feed.kickoff;
+        }
+      } catch (erro) {
+        console.log('[CARPINA] Feed ao vivo da 1win indisponível:', erro.message);
+      }
     }
     if (!snapshot) {
-      console.log(`[CARPINA] Erro na API-Football: o fixture ${watch.fixtureId} não foi devolvido.`);
       console.log(linhaRelogio(watch.match, null));
       return;
     }
@@ -1026,6 +1331,14 @@ export function iniciarMonitorCarpina(opcoes) {
       status: snapshot.status,
       em: agora()
     };
+    if (statusEmAndamento(snapshot)) {
+      try {
+        await gravarStatusAoVivo(watch, snapshot);
+      } catch (erro) {
+        console.log('[CARPINA] Status ao vivo não gravou:', erro.message);
+      }
+    }
+    if (snapshot.placarConhecido === false) return;
     if (marco == null) return;
     watch.feitos.add(marco);
     if (marcoRelogio != null) watch.feitos.add(marcoRelogio);
@@ -1112,6 +1425,8 @@ export function iniciarMonitorCarpina(opcoes) {
   const ciclo = async () => {
     if (cicloEmAndamento) return;
     cicloEmAndamento = true;
+    cacheAoVivoCiclo = null;
+    cache1winCiclo = null;
     try {
       await sincronizar();
       for (const watch of watches.values()) {
@@ -1158,13 +1473,15 @@ function calcularIndicePressao(stats) {
  * Grava o minuto ao vivo na tabela match_timeline para alimentar o gráfico
  */
 export async function registarMinutoLive(fixtureId, minuto, dadosCasa, dadosFora) {
+  const fixture = fixtureIdParaColuna(fixtureId);
+  if (fixture == null) return;
   try {
     const piCasa = calcularIndicePressao(dadosCasa);
     const piFora = calcularIndicePressao(dadosFora);
     const pressaoRelativa = piCasa - piFora;
 
     const { error } = await supabase.from('match_timeline').insert({
-      fixture_id: fixtureId,
+      fixture_id: fixture,
       minute: minuto,
       home_pressure: piCasa,
       away_pressure: piFora,
@@ -1187,7 +1504,8 @@ export async function registarMinutoLive(fixtureId, minuto, dadosCasa, dadosFora
  * Auditoria da Layback para Over 0.5 HT
  */
 export async function auditarLaybackOverHT(fixtureId, marketId, minuto, placar) {
-  if (minuto < 12 || minuto > 26 || placar !== '0-0') return;
+  const fixture = fixtureIdParaColuna(fixtureId);
+  if (fixture == null || minuto < 12 || minuto > 26 || placar !== '0-0') return;
 
   const dadosMercado = await getLaybackMarketData(marketId);
   if (!dadosMercado) return;
@@ -1197,7 +1515,7 @@ export async function auditarLaybackOverHT(fixtureId, marketId, minuto, placar) 
     console.log(`🎯 [SINAL OVER 0.5 HT] Minuto: ${minuto}' | Odd: ${oddOver} | Liq: $${dadosMercado.liquidity}`);
     
     await supabase.from('trade_signals').insert({
-      fixture_id: fixtureId,
+      fixture_id: fixture,
       market_type: 'OVER_05_HT',
       minute_triggered: minuto,
       price_triggered: oddOver,
@@ -1212,11 +1530,12 @@ const executadoDiretamente = process.argv[1]
 
 if (executadoDiretamente) {
   const require = createRequire(import.meta.url);
-  const { obterFixtureAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
+  const { obterFixtureAoVivo, listarFixturesAoVivo, listarFixturesDoDia } = require('./services/apiFootball.js');
   const arquivoBets = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'bets_database.json');
   iniciarMonitorCarpina({
     arquivoBets,
     consultarFixture: obterFixtureAoVivo,
+    listarAoVivo: listarFixturesAoVivo,
     listarDia: listarFixturesDoDia,
     enviarTelegram: async (texto) => {
       console.log(`[CARPINA] ${texto}`);

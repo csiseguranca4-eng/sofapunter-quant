@@ -1215,13 +1215,15 @@ export default function App() {
         return;
       }
       const textos = (valor) => (Array.isArray(valor) ? valor.map(textoVisivel).filter(Boolean) : []);
+      const corpo = data.analise && typeof data.analise === 'object' ? data.analise : data;
       setAnaliseIa(prev => ({
         ...(prev && typeof prev === 'object' ? prev : {}),
         [game.id]: {
-          diagnostico: textoVisivel(data.diagnostico),
-          alertaRisco: textoVisivel(data.alertaRisco || data.alerta),
-          sugestaoMultipla: textos(data.sugestaoMultipla),
-          sugestaoValor: textos(data.sugestaoValor)
+          diagnostico: textoVisivel(corpo.diagnostico),
+          alertaRisco: textoVisivel(corpo.alertaRisco || corpo.alerta),
+          sugestaoMultipla: textos(corpo.sugestaoMultipla),
+          sugestaoValor: textos(corpo.sugestaoValor),
+          modelo: textoVisivel(data.modelo)
         }
       }));
     } catch (e) {
@@ -2221,7 +2223,8 @@ export default function App() {
                       marketId={game.laybackMarketId || onewinLinks[game.id]}
                       partida={{
                         odds: Array.isArray(onewinAudits[game.id]) ? onewinAudits[game.id] : [],
-                        estatisticas: onewinQuants[game.id] && typeof onewinQuants[game.id] === 'object' ? onewinQuants[game.id] : {}
+                        estatisticas: onewinQuants[game.id] && typeof onewinQuants[game.id] === 'object' ? onewinQuants[game.id] : {},
+                        analise: analiseIa[game.id] && typeof analiseIa[game.id] === 'object' ? analiseIa[game.id] : null
                       }}
                     />
 

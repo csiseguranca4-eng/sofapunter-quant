@@ -1,4 +1,7 @@
 import { ligaOficialPorTexto, partidaVirtual } from '../ligasOficiais.js';
+import { createRequire } from 'module';
+
+const { deveIgnorarPartida } = createRequire(import.meta.url)('../services/filtroLigas.js');
 
 function hojeSaoPaulo() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -28,6 +31,7 @@ function montarJogo(jogo) {
   const pais = jogo.league?.country || '';
   const leagueId = Number(jogo.league?.id);
   if (partidaVirtual(`${liga} ${pais}`, `${home} ${away}`)) return null;
+  if (deveIgnorarPartida(`${liga} ${pais}`, home, away)) return null;
   const oficial = ligaOficialPorTexto(`${liga} ${pais}`, leagueId);
   if (!oficial) return null;
   const isBrazil = oficial.regiao === 'Brasil';
