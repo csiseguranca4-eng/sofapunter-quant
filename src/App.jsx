@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { apiUrl, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
+import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseMonitor = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 function nomesIguais(a, b) {
   const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -849,19 +845,23 @@ export default function App() {
 
   useEffect(() => {
     if (!supabaseMonitor) return undefined;
+    let montado = true;
     const receber = (payload) => {
+      if (!montado) return;
       const linha = payload?.new;
-      if (!linha) return;
-      setSheetBets((atual) => atual.map((aposta) => aplicarMonitorNaAposta(aposta, linha)));
+      if (!linha || typeof linha !== 'object') return;
+      setSheetBets((atual) => (Array.isArray(atual) ? atual : []).map((aposta) => aplicarMonitorNaAposta(aposta, linha)));
     };
-    const channel = supabaseMonitor
-      .channel('monitor-over-25')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'apostas' }, receber)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'apostas' }, receber)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'match_timeline' }, receber)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_timeline' }, receber)
-      .subscribe();
+    const channel = assinarCanal(
+      supabaseMonitor
+        .channel('monitor-over-25')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'apostas' }, receber)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'apostas' }, receber)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'match_timeline' }, receber)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_timeline' }, receber)
+    );
     return () => {
+      montado = false;
       supabaseMonitor.removeChannel(channel);
     };
   }, []);
@@ -1005,23 +1005,27 @@ export default function App() {
         return;
       }
       const aprovados = fonteAprovada.map((item, index) => {
+        if (!item || typeof item !== 'object') return null;
         const edge = Number(item?.edge ?? item?.evPercent);
+        const odd1win = Number(item.odd1win);
         return {
           ...item,
           id: item.id || `aprovado_${index}`,
-          name: item.tipo || item.name,
+          name: item.tipo || item.name || 'Mercado',
           marketType: item.mercado || item.marketType || 'Resultado',
-          odd1win: Number(item.odd1win),
-          fairOdd: Number(item.oddJusta ?? item.fairOdd),
+          odd1win: Number.isFinite(odd1win) ? odd1win : 0,
+          fairOdd: Number(item.oddJusta ?? item.fairOdd) || 0,
           evPercent: Number.isFinite(edge) ? edge : 0,
           tag: item.tag || null,
           badge: item.badge || null,
           aptoMultipla: item.aptoMultipla === true || item.tag === 'FAVORITO' || item.tag === 'BASE MULTIPLA'
         };
-      });
-      setOnewinAudits(prev => ({ ...prev, [game.id]: aprovados }));
+      }).filter(Boolean);
+      const quant = data.quant && typeof data.quant === 'object' && !Array.isArray(data.quant) ? data.quant : null;
+      const apiData = data.apiData && typeof data.apiData === 'object' && !Array.isArray(data.apiData) ? data.apiData : null;
+      setOnewinAudits(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: aprovados }));
       setCustomInputs(prev => {
-        const next = { ...prev };
+        const next = { ...(prev && typeof prev === 'object' ? prev : {}) };
         aprovados.forEach((m) => {
           const stake = Number(m.stakeSugerida);
           next[m.id] = {
@@ -1031,14 +1035,14 @@ export default function App() {
         });
         return next;
       });
-      setOnewinQuants(prev => ({ ...prev, [game.id]: data.quant || null }));
-      setOpportunities(prev => prev.map(g => (
+      setOnewinQuants(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: quant }));
+      setOpportunities(prev => (Array.isArray(prev) ? prev : []).map(g => (
         g.id === game.id
           ? {
               ...g,
               auditado: true,
               oddsCapturadas: Array.isArray(data.oddsCapturadas) ? data.oddsCapturadas : [],
-              apiData: data.apiData || null
+              apiData
             }
           : g
       )));
@@ -2087,9 +2091,13 @@ export default function App() {
                     )}
 
                     {/* Radar Quant ao Vivo e Escada Layback */}
-                    <RadarLive 
-                      fixtureId={game.apiData?.fixture?.id || game.id} 
-                      marketId={game.laybackMarketId || onewinLinks[game.id]} 
+                    <RadarLive
+                      fixtureId={game.apiData?.fixture?.id || game.id}
+                      marketId={game.laybackMarketId || onewinLinks[game.id]}
+                      partida={{
+                        odds: Array.isArray(onewinAudits[game.id]) ? onewinAudits[game.id] : [],
+                        estatisticas: onewinQuants[game.id] && typeof onewinQuants[game.id] === 'object' ? onewinQuants[game.id] : {}
+                      }}
                     />
 
                     {/* Mercados Auditados na 1win */}
@@ -2382,7 +2390,11 @@ export default function App() {
                           📡 Ver Radar 2D
                         </button>
                         {radarPlanilhaAberto[b.id] && (
-                          <RadarLive fixtureId={b.fixtureId || null} marketId={b.marketId || null} />
+                          <RadarLive
+                            fixtureId={b.fixtureId || null}
+                            marketId={b.marketId || null}
+                            partida={{ odds: [], estatisticas: b.metricasResumo && typeof b.metricasResumo === 'object' ? b.metricasResumo : {} }}
+                          />
                         )}
                       </div>
                       {b.gameLink && (
