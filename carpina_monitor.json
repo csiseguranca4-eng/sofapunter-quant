@@ -8,7 +8,8 @@
     "1557464",
     "1575215",
     "1570443",
-    "1520965"
+    "1520965",
+    "1636980"
   ],
   "watches": {
     "bet_1793915440129p6m": {
@@ -364,15 +365,16 @@
       "nuvemId": null,
       "match": "Zakynthos x Niki Volou",
       "market": "Total de Gols: Acima de 2.5",
-      "fixtureId": null,
+      "fixtureId": 1636980,
       "stake": 5,
       "odd": 1.8,
-      "kickoff": null,
+      "kickoff": "2026-11-09T10:00:00-03:00",
       "feitos": [],
       "precisaRetry48": false,
-      "encerrado": false,
+      "encerrado": true,
       "ancora": null,
-      "notificados": []
+      "notificados": [],
+      "motivo": "apos-65"
     },
     "bet_1794235716129aqj": {
       "betId": "bet_1794235716129aqj",

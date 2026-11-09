@@ -29,9 +29,9 @@
       "isTopPick": false,
       "odd": 1.8,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "CASHOUT",
+      "returnedAmount": 2,
+      "realProfit": -3,
       "date": "2026-11-09",
       "timestamp": 1794226734657,
       "gameLink": "https://1win.com/pt/betting/match/sport/zakynthos-vs-niki-volou-42430493"
@@ -1274,5 +1274,5 @@
       "timestamp": 1793311982369
     }
   ],
-  "bankroll": 397.40999999999997
+  "bankroll": 394.40999999999997
 }
