@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import livroLocal from '../bets_database.json';
 import { apiUrl, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
@@ -204,7 +205,7 @@ function normalizarBusca(valor) {
 function mercadoDaSugestao(texto, mercados) {
   const alvo = normalizarBusca(texto);
   if (!alvo) return null;
-  return (mercados || []).find((item) => {
+  return (Array.isArray(mercados) ? mercados : []).find((item) => {
     const nome = normalizarBusca(item.tipo || item.name);
     return nome && (nome === alvo || nome.includes(alvo) || alvo.includes(nome));
   }) || null;
@@ -217,7 +218,7 @@ function linhasOperacionaisQuant(quant, gameId) {
   ];
   const saida = [];
   blocos.forEach(([categoria, bloco]) => {
-    (bloco?.linhas || []).forEach((linha) => {
+    (Array.isArray(bloco?.linhas) ? bloco.linhas : []).forEach((linha) => {
       const evPercent = evPercentualLinha(linha);
       const odd1win = Number(linha?.oddCasa);
       if (!(odd1win > 1)) return;
@@ -290,10 +291,96 @@ function growthPercent(profit, base) {
   return (gain / start) * 100;
 }
 
-const PRIMARY_BANKROLL = 300;
+const PRIMARY_BANKROLL = 335;
 
 function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function textoVisivel(valor) {
+  if (typeof valor === 'string') return valor;
+  if (typeof valor === 'number' && Number.isFinite(valor)) return String(valor);
+  return '';
+}
+
+function listaDeApostas(valor) {
+  if (Array.isArray(valor)) return valor.filter((item) => item && typeof item === 'object');
+  if (Array.isArray(valor?.bets)) return valor.bets.filter((item) => item && typeof item === 'object');
+  return [];
+}
+
+function apostaDaNuvem(linha) {
+  if (!linha || typeof linha !== 'object') return null;
+  const statusBruto = String(linha.status || 'PENDING').toUpperCase();
+  const status = statusBruto === 'PENDENTE' ? 'PENDING' : statusBruto;
+  const odd = Number(linha.odd);
+  const stake = Number(linha.stake);
+  const lucro = Number(linha.lucro ?? linha.realProfit);
+  const data = String(linha.date || linha.created_at || '').slice(0, 10);
+  return {
+    id: linha.id != null ? String(linha.id) : '',
+    match: linha.partida || linha.match || '',
+    league: linha.league || linha.liga || '',
+    market: linha.mercado || linha.market || '',
+    marketType: linha.marketType || linha.mercado || linha.market || '',
+    odd: Number.isFinite(odd) ? odd : 0,
+    stake: Number.isFinite(stake) ? stake : 0,
+    status,
+    realProfit: Number.isFinite(lucro) ? lucro : 0,
+    returnedAmount: linha.returnedAmount,
+    date: data,
+    timestamp: Date.parse(linha.created_at || '') || Number(linha.timestamp) || 0,
+    fixtureId: linha.fixture_id || linha.fixtureId || null
+  };
+}
+
+function identidadeAposta(aposta) {
+  return `${normalizarBusca(aposta?.match || aposta?.partida)}|${normalizarBusca(aposta?.market || aposta?.mercado)}`;
+}
+
+function unirAposta(atual, nova) {
+  const resolvido = (status) => ['GREEN', 'RED', 'CASHOUT'].includes(String(status || '').toUpperCase());
+  const status = resolvido(atual.status) ? atual.status : (resolvido(nova.status) ? nova.status : (atual.status || nova.status));
+  const odd = Number(atual.odd) > 1 ? atual.odd : nova.odd;
+  const stake = Number(atual.stake) > 0 ? atual.stake : nova.stake;
+  return {
+    ...nova,
+    ...atual,
+    id: atual.id || nova.id,
+    match: atual.match || nova.match,
+    market: atual.market || nova.market,
+    status,
+    odd,
+    stake,
+    returnedAmount: atual.returnedAmount ?? nova.returnedAmount,
+    realProfit: atual.realProfit ?? nova.realProfit,
+    date: atual.date || nova.date
+  };
+}
+
+function mesclarApostas(listas) {
+  const mapa = new Map();
+  listas.flat().forEach((bruta) => {
+    const aposta = bruta?.match || bruta?.market ? bruta : apostaDaNuvem(bruta);
+    if (!aposta || (!aposta.match && !aposta.market)) return;
+    const id = String(aposta.id || '');
+    let chave = '';
+    if (id.startsWith('bet_')) chave = id;
+    else {
+      const alvo = identidadeAposta(aposta);
+      const encontradas = [...mapa.entries()].filter(([, item]) => identidadeAposta(item) === alvo);
+      if (encontradas.length === 1) chave = encontradas[0][0];
+    }
+    if (!chave) chave = id || `${identidadeAposta(aposta)}|${String(aposta.date || '').slice(0, 10)}|${mapa.size}`;
+    const anterior = mapa.get(chave);
+    mapa.set(chave, anterior ? unirAposta(anterior, aposta) : { ...aposta, id: aposta.id || chave });
+  });
+  return [...mapa.values()];
+}
+
+function bancaConsolidada(apostas) {
+  const lucro = (Array.isArray(apostas) ? apostas : []).reduce((total, aposta) => total + entryNetProfit(aposta), 0);
+  return roundMoney(PRIMARY_BANKROLL + lucro);
 }
 
 function signedGrowth(value) {
@@ -520,7 +607,7 @@ function GradeProbabilidades({ probabilities, home, away }) {
     <div className="flex flex-wrap gap-1.5 mb-2">
       {itens.map(([nome, valor]) => (
         <span key={nome} className="text-[10px] font-bold text-gray-100 bg-[#0d1117] border border-gray-700 rounded px-2 py-1">
-          {nome} {valor || '—'}
+          {nome} {textoVisivel(valor) || '—'}
         </span>
       ))}
     </div>
@@ -617,16 +704,17 @@ function MercadoExtra({ titulo, bloco }) {
 }
 
 function jogosH2H(quant) {
-  if (Array.isArray(quant?.h2hList) && quant.h2hList.length) {
-    return quant.h2hList.map((jogo) => ({
-      chave: `${jogo.date}-${jogo.home}-${jogo.away}`,
-      texto: `${jogo.date}: ${jogo.home} ${jogo.score} ${jogo.away}`
+  const recentes = (Array.isArray(quant?.h2hList) ? quant.h2hList : []).filter((jogo) => jogo && typeof jogo === 'object');
+  if (recentes.length) {
+    return recentes.map((jogo, indice) => ({
+      chave: `${jogo.date || indice}-${jogo.home || ''}-${jogo.away || ''}`,
+      texto: `${textoVisivel(jogo.date)}: ${textoVisivel(jogo.home)} ${textoVisivel(jogo.score)} ${textoVisivel(jogo.away)}`
     }));
   }
-  const legado = Array.isArray(quant?.h2h) ? quant.h2h : [];
+  const legado = (Array.isArray(quant?.h2h) ? quant.h2h : []).filter((jogo) => jogo && typeof jogo === 'object');
   return legado.map((jogo, indice) => ({
-    chave: `${jogo.data}-${indice}`,
-    texto: `${jogo.data}: ${jogo.casa} ${jogo.golsCasa} x ${jogo.golsFora} ${jogo.fora}`
+    chave: `${jogo.data || indice}-${indice}`,
+    texto: `${textoVisivel(jogo.data)}: ${textoVisivel(jogo.casa)} ${textoVisivel(jogo.golsCasa)} x ${textoVisivel(jogo.golsFora)} ${textoVisivel(jogo.fora)}`
   }));
 }
 
@@ -716,25 +804,56 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    const loadFromDisk = async () => {
+    let ativo = true;
+    const carregarHistorico = async () => {
+      const fontes = [listaDeApostas(livroLocal)];
       try {
-        const res = await fetch(apiUrl('/api/saved-data'));
-        const data = await res.json();
-        if (data.success) {
-          if (Array.isArray(data.bets)) setSheetBets(data.bets);
-          if (data.bankroll && !isNaN(Number(data.bankroll))) {
-            setCurrentBankroll(Number(data.bankroll));
-          }
+        const salvo = localStorage.getItem('sp_sheet_bets');
+        if (salvo) fontes.push(listaDeApostas(JSON.parse(salvo)));
+      } catch (err) {
+        console.warn('Histórico do navegador indisponível:', err?.message || err);
+      }
+      if (!ativo) return;
+      const aplicar = (apostas) => {
+        if (!ativo || !apostas.length) return;
+        setSheetBets(apostas);
+        setCurrentBankroll(bancaConsolidada(apostas));
+        const hoje = getTodayLocal();
+        const temHoje = apostas.some((aposta) => normalizeDate(aposta.date) === hoje);
+        if (!temHoje) setSelectedDate('ALL');
+      };
+      aplicar(mesclarApostas(fontes));
+      try {
+        const resp = await fetch(apiUrl('/api/saved-data'), { signal: AbortSignal.timeout(4000) });
+        const data = await resp.json();
+        if (data && (data.success || data.sucesso || Array.isArray(data.bets))) {
+          fontes.push(listaDeApostas(data));
+          aplicar(mesclarApostas(fontes));
         }
       } catch (err) {
-        console.warn('⚠️ Backend não conectado ainda, buscando do localStorage...');
-        const localBets = localStorage.getItem('sp_sheet_bets');
-        if (localBets) setSheetBets(JSON.parse(localBets));
-      } finally {
-        setIsDataLoaded(true);
+        console.warn('Histórico do backend indisponível, usando o livro local:', err?.message || err);
+      }
+      if (supabaseMonitor) {
+        const nuvem = [];
+        for (const tabela of ['apostas', 'apostas_futebol']) {
+          try {
+            const consulta = supabaseMonitor.from(tabela).select('*').limit(1000);
+            const { data, error } = await Promise.race([
+              consulta,
+              new Promise((resolve) => setTimeout(() => resolve({ data: null, error: { message: 'tempo esgotado' } }), 4000))
+            ]);
+            if (!error && Array.isArray(data) && data.length) nuvem.push(...data);
+          } catch (err) {
+            console.warn(`Histórico ${tabela} indisponível:`, err?.message || err);
+          }
+        }
+        if (nuvem.length) aplicar(mesclarApostas([...fontes, nuvem]));
       }
     };
-    loadFromDisk();
+    carregarHistorico().finally(() => {
+      if (ativo) setIsDataLoaded(true);
+    });
+    return () => { ativo = false; };
   }, []);
 
   const persistToDisk = async (newBets, newBank) => {
@@ -875,7 +994,7 @@ export default function App() {
         const dados = await resposta.json();
         const jogos = Array.isArray(dados?.jogos) ? dados.jogos : [];
         if (!jogos.length || !ativo) return;
-        setSheetBets((atual) => atual.map((aposta) => {
+        setSheetBets((atual) => (Array.isArray(atual) ? atual : []).map((aposta) => {
           const linha = jogos.find((item) => (
             nomesIguais(aposta.match, item.partida || item.match)
             || (item.id != null && String(aposta.nuvemId || aposta.id) === String(item.id))
@@ -972,12 +1091,11 @@ export default function App() {
       return;
     }
 
-    setErroAuditoria(prev => ({ ...prev, [game.id]: '' }));
-    loading1win[game.id] = true;
-    setLoading1win({ ...loading1win });
+    setErroAuditoria(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: '' }));
+    setLoading1win(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: true }));
 
     try {
-      const res = await fetch(apiUrl('/api/check-1win-match'), {
+      const resp = await fetch(apiUrl('/api/check-1win-match'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -990,18 +1108,12 @@ export default function App() {
           stakeBase: recommendedStake
         })
       });
-      const texto = await res.text();
-      let data = null;
-      try {
-        data = JSON.parse(texto);
-      } catch {
-        data = null;
-      }
-      const fonteAprovada = Array.isArray(data?.markets) ? data.markets : null;
-      if (!res.ok || !data?.success || !Array.isArray(fonteAprovada)) {
-        const aviso = data?.message || 'A auditoria não respondeu. O deep scan ficou só no console.';
-        console.warn(aviso);
-        setErroAuditoria(prev => ({ ...prev, [game.id]: aviso }));
+      const data = await resp.json().catch(() => null);
+      const sucesso = Boolean(data?.success ?? data?.sucesso);
+      const fonteAprovada = Array.isArray(data?.markets) ? data.markets : (Array.isArray(data?.odds) ? data.odds : null);
+      if (!data || !sucesso || !Array.isArray(fonteAprovada)) {
+        console.warn('Auditoria 1win não retornou dados válidos:', data);
+        setErroAuditoria(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: 'A auditoria não respondeu. O detalhe ficou no console.' }));
         return;
       }
       const aprovados = fonteAprovada.map((item, index) => {
@@ -1050,16 +1162,16 @@ export default function App() {
         ...prev,
         [game.id]: aprovados.length ? '' : 'A auditoria não devolveu odds da 1win.'
       }));
-    } catch (e) {
-      console.warn('Erro ao conectar com a rota de auditoria 1win.', e?.message || e);
-      setErroAuditoria(prev => ({ ...prev, [game.id]: 'A auditoria não respondeu. O detalhe ficou no console.' }));
+    } catch (err) {
+      console.error('Erro capturado na auditoria:', err);
+      setErroAuditoria(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: 'A auditoria não respondeu. O detalhe ficou no console.' }));
     } finally {
-      setLoading1win(prev => ({ ...prev, [game.id]: false }));
+      setLoading1win(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: false }));
     }
   };
 
   const handleAnalisarIa = async (game) => {
-    const mercados = onewinAudits[game.id] || [];
+    const mercados = Array.isArray(onewinAudits[game.id]) ? onewinAudits[game.id] : [];
     const oddsCapturadas = Array.isArray(game.oddsCapturadas) && game.oddsCapturadas.length
       ? game.oddsCapturadas
       : mercados.map((item) => ({
@@ -1097,13 +1209,21 @@ export default function App() {
         })
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.success) {
-        const aviso = data?.message || 'A I.A. não respondeu.';
-        console.warn(aviso);
-        setErroIa(prev => ({ ...prev, [game.id]: aviso }));
+      if (!data || !(data.success || data.sucesso)) {
+        console.warn('Análise não retornou dados válidos:', data);
+        setErroIa(prev => ({ ...(prev && typeof prev === 'object' ? prev : {}), [game.id]: 'A I.A. não respondeu.' }));
         return;
       }
-      setAnaliseIa(prev => ({ ...prev, [game.id]: data }));
+      const textos = (valor) => (Array.isArray(valor) ? valor.map(textoVisivel).filter(Boolean) : []);
+      setAnaliseIa(prev => ({
+        ...(prev && typeof prev === 'object' ? prev : {}),
+        [game.id]: {
+          diagnostico: textoVisivel(data.diagnostico),
+          alertaRisco: textoVisivel(data.alertaRisco || data.alerta),
+          sugestaoMultipla: textos(data.sugestaoMultipla),
+          sugestaoValor: textos(data.sugestaoValor)
+        }
+      }));
     } catch (e) {
       console.warn('Erro ao conectar com a análise da I.A.', e?.message || e);
       setErroIa(prev => ({ ...prev, [game.id]: 'A I.A. não respondeu. O detalhe ficou no console.' }));
@@ -1929,6 +2049,9 @@ export default function App() {
               displayedGames.map(game => {
                 const linkColado = String(onewinLinks[game.id] || '').trim();
                 const linkDireto = /^https?:\/\//i.test(linkColado) ? linkColado : `${base1win()}/pt/betting`;
+                const auditoria = (Array.isArray(onewinAudits[game.id]) ? onewinAudits[game.id] : []).filter((item) => item && typeof item === 'object');
+                const mercadosDoCartao = auditoria.length ? auditoria : linhasOperacionaisQuant(onewinQuants[game.id], game.id);
+                const entradasQuant = (Array.isArray(onewinQuants[game.id]?.melhoresEntradas) ? onewinQuants[game.id].melhoresEntradas : []).filter((item) => item && typeof item === 'object');
                 const textoOver25 = textoTagOver25(game, onewinQuants[game.id]);
                 const alta = altaProbabilidadeOver(game, onewinQuants[game.id]);
                 const focado = String(jogoFocado) === String(game.id);
@@ -1977,7 +2100,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => handleAnalisarIa(game)}
-                        disabled={!!loadingIa[game.id] || !(onewinAudits[game.id]?.length)}
+                        disabled={!!loadingIa[game.id] || !auditoria.length}
                         className="min-h-[42px] w-full sm:w-auto shrink-0 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-bold text-xs px-3 rounded"
                       >
                         {loadingIa[game.id] ? 'Analisando...' : 'Analisar com I.A.'}
@@ -2007,19 +2130,21 @@ export default function App() {
                           <p className="text-xs text-purple-200">Lendo o confronto...</p>
                         ) : (
                           <>
-                            {analiseIa[game.id].diagnostico && (
-                              <p className="text-sm text-white leading-snug">{analiseIa[game.id].diagnostico}</p>
+                            {textoVisivel(analiseIa[game.id]?.diagnostico) && (
+                              <p className="text-sm text-white leading-snug">{textoVisivel(analiseIa[game.id]?.diagnostico)}</p>
                             )}
-                            {analiseIa[game.id].alertaRisco && (
-                              <p className="text-xs text-amber-300 mt-2">Risco: {analiseIa[game.id].alertaRisco}</p>
+                            {textoVisivel(analiseIa[game.id]?.alertaRisco) && (
+                              <p className="text-xs text-amber-300 mt-2">Risco: {textoVisivel(analiseIa[game.id]?.alertaRisco)}</p>
                             )}
-                            {[{ titulo: 'Múltipla', itens: analiseIa[game.id].sugestaoMultipla }, { titulo: 'Valor', itens: analiseIa[game.id].sugestaoValor }].map((bloco) => (
-                              Array.isArray(bloco.itens) && bloco.itens.length > 0 && (
+                            {[{ titulo: 'Múltipla', itens: analiseIa[game.id]?.sugestaoMultipla }, { titulo: 'Valor', itens: analiseIa[game.id]?.sugestaoValor }].map((bloco) => {
+                              const itens = (Array.isArray(bloco.itens) ? bloco.itens : []).map(textoVisivel).filter(Boolean);
+                              if (!itens.length) return null;
+                              return (
                                 <div key={bloco.titulo} className="mt-3">
                                   <div className="text-[10px] font-bold text-purple-300 mb-1.5">{bloco.titulo}</div>
                                   <div className="space-y-2">
-                                    {bloco.itens.map((texto) => {
-                                      const mercado = mercadoDaSugestao(texto, onewinAudits[game.id]);
+                                    {itens.map((texto) => {
+                                      const mercado = mercadoDaSugestao(texto, auditoria);
                                       return (
                                         <div key={`${bloco.titulo}-${texto}`} className="rounded-lg border border-purple-500/30 bg-[#0d1117] px-2.5 py-2">
                                           <div className="text-xs font-bold text-white">{mercado?.tipo || mercado?.name || texto}</div>
@@ -2033,8 +2158,8 @@ export default function App() {
                                     })}
                                   </div>
                                 </div>
-                              )
-                            ))}
+                              );
+                            })}
                           </>
                         )}
                       </div>
@@ -2047,25 +2172,25 @@ export default function App() {
                         <BlocoClassificacaoMomento quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                         <BarraClassificacao quant={onewinQuants[game.id]} home={game.home} away={game.away} />
                         <div className="flex flex-wrap items-center gap-2">
-                          {onewinQuants[game.id].ritmo && (
+                          {onewinQuants[game.id].ritmo && typeof onewinQuants[game.id].ritmo === 'object' && (
                             <span className="text-[11px] font-bold text-white bg-[#0d1117] border border-gray-700 px-2.5 py-1 rounded-full">
-                              {onewinQuants[game.id].ritmo.icone} {onewinQuants[game.id].ritmo.classificacao} ({Number(onewinQuants[game.id].ritmo.pontuacao).toFixed(1)} pts)
+                              {textoVisivel(onewinQuants[game.id].ritmo.icone)} {textoVisivel(onewinQuants[game.id].ritmo.classificacao)} ({Number(onewinQuants[game.id].ritmo.pontuacao).toFixed(1)} pts)
                             </span>
                           )}
-                          {onewinQuants[game.id].tatica?.scoreConfianca != null && (
+                          {Number.isFinite(Number(onewinQuants[game.id].tatica?.scoreConfianca)) && (
                             <span className="text-[11px] font-bold text-[#00c853] bg-[#0d1117] border border-[#00c853]/40 px-2.5 py-1 rounded-full">
                               🎯 {onewinQuants[game.id].tatica.scoreConfianca}/100
                             </span>
                           )}
                         </div>
-                        {onewinQuants[game.id].tatica?.resumoVisual && (
+                        {textoVisivel(onewinQuants[game.id].tatica?.resumoVisual) && (
                           <p className="text-sm font-semibold text-white mt-2 leading-snug">
-                            {onewinQuants[game.id].tatica.resumoVisual}
+                            {textoVisivel(onewinQuants[game.id].tatica.resumoVisual)}
                           </p>
                         )}
-                        {Array.isArray(onewinQuants[game.id].melhoresEntradas) && onewinQuants[game.id].melhoresEntradas.length > 0 && (
+                        {entradasQuant.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2.5">
-                            {onewinQuants[game.id].melhoresEntradas.map((entrada) => {
+                            {entradasQuant.map((entrada) => {
                               const oddCasa = Number(entrada.oddCasa);
                               const oddJusta = Number(entrada.oddJusta);
                               const margem = String(entrada.margemEV || '').trim();
@@ -2074,7 +2199,7 @@ export default function App() {
                                   key={`${game.id}-${entrada.mercado}`}
                                   className="rounded-lg border border-[#00c853]/45 bg-[#0d1117] px-2.5 py-1.5"
                                 >
-                                  <div className="text-[11px] font-bold text-[#00c853]">{entrada.nome || entrada.mercado}</div>
+                                  <div className="text-[11px] font-bold text-[#00c853]">{textoVisivel(entrada.nome) || textoVisivel(entrada.mercado) || 'Mercado'}</div>
                                   <div className="text-[10px] text-gray-300 mt-0.5">
                                     1win: {Number.isFinite(oddCasa) ? oddCasa.toFixed(2) : '—'} | Justa: {Number.isFinite(oddJusta) ? oddJusta.toFixed(2) : '—'}
                                   </div>
@@ -2101,10 +2226,10 @@ export default function App() {
                     />
 
                     {/* Mercados Auditados na 1win */}
-                    {((onewinAudits[game.id]?.length ? onewinAudits[game.id] : linhasOperacionaisQuant(onewinQuants[game.id], game.id)).length > 0) && (
+                    {mercadosDoCartao.length > 0 && (
                       <div className="mt-3 space-y-2 border-t border-gray-800 pt-3">
                         <div className="text-[11px] text-gray-400 font-semibold">Mercados Encontrados na 1win:</div>
-                        {(onewinAudits[game.id]?.length ? onewinAudits[game.id] : linhasOperacionaisQuant(onewinQuants[game.id], game.id)).map(m => {
+                        {mercadosDoCartao.filter((m) => m && typeof m === 'object').map(m => {
                           const stakeValue = customInputs[m.id]?.stake ?? recommendedStake;
                           const oddInformada = customInputs[m.id]?.odd ?? m.odd1win ?? m.defaultOdd ?? '';
                           const oddNumero = Number(oddInformada);
@@ -2175,9 +2300,9 @@ export default function App() {
                   </div>
 
                   {/* Mercados Gerais / IA — some depois da auditoria, que passa a listar os mercados reais */}
-                  {!game.auditado && !onewinAudits[game.id]?.length && (
+                  {!game.auditado && !auditoria.length && (
                   <div className="space-y-3">
-                    {game.markets?.map(m => {
+                    {(Array.isArray(game.markets) ? game.markets : []).filter((m) => m && typeof m === 'object').map(m => {
                       const inputState = customInputs[m.id] || { stake: recommendedStake, odd: m.defaultOdd };
 
                       return (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Component } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { assinarCanal, supabase } from './lib/supabaseClient.js';
 
@@ -10,11 +10,37 @@ function objetoSeguro(valor) {
   return valor && typeof valor === 'object' && !Array.isArray(valor) ? valor : {};
 }
 
-export default function RadarLive({ fixtureId, marketId, partida }) {
+class RadarProtegido extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { falhou: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { falhou: true };
+  }
+
+  componentDidCatch(erro) {
+    console.error('Erro capturado na auditoria:', erro);
+  }
+
+  render() {
+    if (this.state.falhou) {
+      return (
+        <div className="bg-[#0d1117] border border-gray-800 p-3 rounded-lg text-xs text-gray-400 mt-3 text-center">
+          Radar indisponível neste cartão. A planilha foi preservada.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function RadarLive({ fixtureId, marketId, partida }) {
   const [timeline, setTimeline] = useState([]);
   const [ladder, setLadder] = useState(null);
-  const odds = listaSegura(partida?.odds || []);
-  const estatisticas = objetoSeguro(partida?.estatisticas || {});
+  const odds = listaSegura(partida?.odds);
+  const estatisticas = objetoSeguro(partida?.estatisticas);
   const serieBase = listaSegura(timeline);
 
   useEffect(() => {
@@ -99,14 +125,16 @@ export default function RadarLive({ fixtureId, marketId, partida }) {
         <span className="text-blue-400 font-bold uppercase">Visitante (Pressão ↓)</span>
       </div>
 
-      <ResponsiveContainer width="100%" height={140}>
-        <AreaChart data={serie}>
+      <div className="w-full h-[140px] min-w-[240px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={Array.isArray(serie) ? serie : []}>
           <XAxis dataKey="minute" stroke="#64748b" tickFormatter={(m) => `${m}'`} />
           <YAxis stroke="#64748b" domain={[-25, 25]} />
           <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }} />
           <Area type="monotone" dataKey="relative_pressure" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.35} />
         </AreaChart>
       </ResponsiveContainer>
+      </div>
 
       <div className="p-2.5 bg-slate-900 rounded-lg flex justify-between items-center text-xs font-mono border border-slate-800">
         <div>
@@ -127,5 +155,13 @@ export default function RadarLive({ fixtureId, marketId, partida }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RadarAoVivo(props) {
+  return (
+    <RadarProtegido>
+      <RadarLive {...props} />
+    </RadarProtegido>
   );
 }
