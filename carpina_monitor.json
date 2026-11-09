@@ -6,7 +6,9 @@
     "1557462",
     "1570449",
     "1557464",
-    "1575215"
+    "1575215",
+    "1570443",
+    "1520965"
   ],
   "watches": {
     "bet_1793915440129p6m": {
@@ -210,14 +212,15 @@
         55,
         57,
         59,
-        61
+        61,
+        63
       ],
       "precisaRetry48": true,
-      "encerrado": false,
+      "encerrado": true,
       "ancora": {
-        "elapsed": 62,
+        "elapsed": 63,
         "status": "2H Second Half",
-        "em": 1794173013507
+        "em": 1794173082831
       },
       "notificados": [
         "notified_1570443_20",
@@ -225,7 +228,8 @@
         "notified_1570443_35",
         "notified_1570443_40"
       ],
-      "market": "Total de Gols: Acima de 2.5"
+      "market": "Total de Gols: Acima de 2.5",
+      "motivo": "apos-65"
     },
     "bet_1794157104928dcd": {
       "betId": "bet_1794157104928dcd",
@@ -252,6 +256,133 @@
       "stake": 5,
       "odd": 1.39,
       "kickoff": "2026-11-08T19:15:00-03:00",
+      "feitos": [
+        20,
+        30,
+        35,
+        40,
+        46,
+        48
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 45,
+        "status": "1H First Half",
+        "em": 1794179043393
+      },
+      "notificados": [
+        "notified_1520965_20",
+        "notified_1520965_30",
+        "notified_1520965_35",
+        "notified_1520965_40"
+      ],
+      "motivo": "encerrada"
+    },
+    "bet_1794215741608we6": {
+      "betId": "bet_1794215741608we6",
+      "nuvemId": null,
+      "match": "Zorya U-21 x LNZ Cherkasy U-21",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5,
+      "odd": 1.42,
+      "kickoff": null,
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "motivo": "encerrada"
+    },
+    "bet_1794226131376veq": {
+      "betId": "bet_1794226131376veq",
+      "nuvemId": null,
+      "match": "Zakynthos x Niki Volou",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5,
+      "odd": 1.77,
+      "kickoff": null,
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "motivo": "encerrada"
+    },
+    "bet_1794226387134001": {
+      "betId": "bet_1794226387134001",
+      "nuvemId": null,
+      "match": "FC Cologne (w) x RB Leipzig (w)",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5.96,
+      "odd": 1.67,
+      "kickoff": null,
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "motivo": "encerrada"
+    },
+    "bet_1794226433549cft": {
+      "betId": "bet_1794226433549cft",
+      "nuvemId": null,
+      "match": "Las Palmas x CD Eldense",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5.96,
+      "odd": 1.76,
+      "kickoff": null,
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "motivo": "encerrada"
+    },
+    "bet_1794226548748usl": {
+      "betId": "bet_1794226548748usl",
+      "nuvemId": null,
+      "match": "Torreense x Uniao de Leiria",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5.96,
+      "odd": 1.71,
+      "kickoff": null,
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "motivo": "encerrada"
+    },
+    "bet_1794226734657mrv": {
+      "betId": "bet_1794226734657mrv",
+      "nuvemId": null,
+      "match": "Zakynthos x Niki Volou",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5,
+      "odd": 1.8,
+      "kickoff": null,
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": false,
+      "ancora": null,
+      "notificados": []
+    },
+    "bet_1794235716129aqj": {
+      "betId": "bet_1794235716129aqj",
+      "nuvemId": null,
+      "match": "FC Cologne (w) x RB Leipzig (w)",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5.96,
+      "odd": 1.7,
+      "kickoff": null,
       "feitos": [],
       "precisaRetry48": false,
       "encerrado": false,

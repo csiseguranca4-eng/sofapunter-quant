@@ -1,6 +1,78 @@
 {
   "bets": [
     {
+      "id": "bet_1794235716129aqj",
+      "match": "FC Cologne (w) x RB Leipzig (w)",
+      "league": "Bundesliga",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.58,
+      "evPercent": 7.6,
+      "isTopPick": false,
+      "odd": 1.7,
+      "stake": 5.96,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-09",
+      "timestamp": 1794235716129,
+      "gameLink": "https://1win.com/pt/betting/match/sport/fc-cologne-w-vs-rb-leipzig-w-42490909"
+    },
+    {
+      "id": "bet_1794226734657mrv",
+      "match": "Zakynthos x Niki Volou",
+      "league": "Super League",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.52,
+      "evPercent": 18.4,
+      "isTopPick": false,
+      "odd": 1.8,
+      "stake": 5,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-09",
+      "timestamp": 1794226734657,
+      "gameLink": "https://1win.com/pt/betting/match/sport/zakynthos-vs-niki-volou-42430493"
+    },
+    {
+      "id": "bet_1794215741608we6",
+      "match": "Zorya U-21 x LNZ Cherkasy U-21",
+      "league": "Premier League",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.39,
+      "evPercent": 2.2,
+      "isTopPick": false,
+      "odd": 1.42,
+      "stake": 5,
+      "status": "RED",
+      "returnedAmount": 0,
+      "realProfit": -5,
+      "date": "2026-11-09",
+      "timestamp": 1794215741608,
+      "gameLink": "https://1win.com/pt/betting/match/sport/zorya-u-21-vs-lnz-cherkasy-u-21-42854734"
+    },
+    {
+      "id": "bet_17941795359982me",
+      "match": "Queretaro x Puebla",
+      "league": "Liga MX",
+      "market": "Total de Gols: Abaixo de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.95,
+      "evPercent": -13.3,
+      "isTopPick": false,
+      "odd": 1.69,
+      "stake": 3,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-08",
+      "timestamp": 1794179535998,
+      "gameLink": "https://1win.com/pt/betting/match/sport/queretaro-vs-puebla-42461887"
+    },
+    {
       "id": "bet_1794170491190t6g",
       "match": "Goias x Ponte Preta",
       "league": "Futebol",
@@ -11,12 +83,22 @@
       "isTopPick": false,
       "odd": 1.39,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 6.949999999999999,
+      "realProfit": 1.95,
       "date": "2026-11-08",
       "timestamp": 1794170491190,
-      "gameLink": "https://1win.com/pt/betting/match/sport/goias-vs-ponte-preta-42528700"
+      "gameLink": "https://1win.com/pt/betting/match/sport/goias-vs-ponte-preta-42528700",
+      "fixtureId": 1520965,
+      "placarAoVivo": "0-0",
+      "minutoAtual": 48,
+      "statusMonitoramento": "MONITORANDO",
+      "metricasResumo": {
+        "xg": 0.45,
+        "chutes_alvo": 0,
+        "cantos": 5,
+        "pressao_relativa": 2
+      }
     },
     {
       "id": "bet_179416510378893z",
@@ -29,21 +111,21 @@
       "isTopPick": false,
       "odd": 1.34,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 6.7,
+      "realProfit": 1.7,
       "date": "2026-11-08",
       "timestamp": 1794165103788,
       "gameLink": "https://1win.com/pt/betting/match/sport/atletico-madrid-vs-barcelona-fc-42102094",
       "fixtureId": 1570443,
-      "placarAoVivo": "1-0",
-      "minutoAtual": 40,
-      "statusMonitoramento": "TAKE_PROFIT_PRONTO",
+      "placarAoVivo": "1-1",
+      "minutoAtual": 63,
+      "statusMonitoramento": "MONITORANDO_63",
       "metricasResumo": {
-        "xg": 1.23,
-        "chutes_alvo": 4,
-        "cantos": 4,
-        "pressao_relativa": 10
+        "xg": 2.47,
+        "chutes_alvo": 7,
+        "cantos": 5,
+        "pressao_relativa": 5
       }
     },
     {
@@ -57,21 +139,21 @@
       "isTopPick": false,
       "odd": 1.44,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 7.199999999999999,
+      "realProfit": 2.2,
       "date": "2026-11-08",
       "timestamp": 1794164880175,
       "gameLink": "https://1win.com/pt/betting/match/sport/atletico-madrid-vs-barcelona-fc-42102094",
       "fixtureId": 1570443,
-      "placarAoVivo": "1-0",
-      "minutoAtual": 40,
-      "statusMonitoramento": "TAKE_PROFIT_PRONTO",
+      "placarAoVivo": "1-1",
+      "minutoAtual": 63,
+      "statusMonitoramento": "MONITORANDO_63",
       "metricasResumo": {
-        "xg": 1.23,
-        "chutes_alvo": 4,
-        "cantos": 4,
-        "pressao_relativa": 10
+        "xg": 2.47,
+        "chutes_alvo": 7,
+        "cantos": 5,
+        "pressao_relativa": 5
       }
     },
     {
@@ -1192,5 +1274,5 @@
       "timestamp": 1793311982369
     }
   ],
-  "bankroll": 396.56
+  "bankroll": 397.40999999999997
 }

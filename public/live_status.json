@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T21:23:33.507Z",
+  "updated_at": "2026-11-08T23:04:20.946Z",
   "jogos": [
     {
       "id": null,
@@ -94,16 +94,31 @@
       "id": null,
       "partida": "Atletico Madrid x Barcelona FC",
       "fixture_id": 1570443,
-      "minuto_atual": 61,
+      "minuto_atual": 63,
       "placar": "1-1",
-      "status_monitoramento": "MONITORANDO_61",
+      "status_monitoramento": "MONITORANDO_63",
       "metricas_resumo": {
         "xg": 2.47,
         "chutes_alvo": 7,
         "cantos": 5,
         "pressao_relativa": 5
       },
-      "updated_at": "2026-11-08T21:23:33.507Z"
+      "updated_at": "2026-11-08T21:24:42.834Z"
+    },
+    {
+      "id": null,
+      "partida": "Goias x Ponte Preta",
+      "fixture_id": 1520965,
+      "minuto_atual": 48,
+      "placar": "0-0",
+      "status_monitoramento": "MONITORANDO",
+      "metricas_resumo": {
+        "xg": 0.45,
+        "chutes_alvo": 0,
+        "cantos": 5,
+        "pressao_relativa": 2
+      },
+      "updated_at": "2026-11-08T23:04:20.946Z"
     }
   ]
 }
