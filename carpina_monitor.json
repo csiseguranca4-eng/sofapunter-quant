@@ -9,9 +9,104 @@
     "1575215",
     "1570443",
     "1520965",
-    "1636980"
+    "1636980",
+    "1593167",
+    "1570013",
+    "1596991",
+    "1570011"
   ],
   "watches": {
+    "35": {
+      "betId": "bet_1794247843828uwc",
+      "nuvemId": 35,
+      "match": "MÚLTIPLA: Las Palmas x CD Eldense (Dupla Hipótese: Las Palmas ou Empate) + Sabadell x Real Sociedad II (Total de Gols: Acima de 1.5)",
+      "market": "Dupla Hipótese: Las Palmas ou Empate + Total de Gols: Acima de 1.5",
+      "fixtureId": 1570011,
+      "stake": 5,
+      "odd": 1.73,
+      "kickoff": "2026-11-09T19:30:00.000Z",
+      "feitos": [
+        20,
+        30,
+        35,
+        40,
+        46,
+        48,
+        55,
+        65
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 65,
+        "status": "2H Second Half",
+        "em": 1794257583875
+      },
+      "notificados": [
+        "notified_1570011_20",
+        "notified_1570011_30",
+        "notified_1570011_35",
+        "notified_1570011_40"
+      ],
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "2H|65|0-0",
+      "league": "Múltipla",
+      "motivo": "stop-60"
+    },
+    "36": {
+      "betId": "bet_1794247939883oyh",
+      "nuvemId": 36,
+      "match": "Sabadell x Real Sociedad II",
+      "market": "Total de Gols: Acima de 1.5",
+      "fixtureId": 1570013,
+      "stake": 5,
+      "odd": 1.35,
+      "kickoff": "2026-11-09T16:30:00-03:00",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "gameLink": "https://1win.com/pt/betting/match/sport/sabadell-vs-real-sociedad-ii-42524727",
+      "motivo": "encerrada",
+      "league": "LaLiga 2"
+    },
+    "37": {
+      "betId": "bet_17942482089527ip",
+      "nuvemId": 37,
+      "match": "Redditch Utd x Peterborough Sports",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1596991,
+      "stake": 5,
+      "odd": 1.42,
+      "kickoff": "2026-11-09T16:45:00-03:00",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "gameLink": "https://1win.com/pt/betting/match/sport/redditch-utd-vs-peterborough-sports-37814727",
+      "motivo": "encerrada",
+      "league": "Premier League"
+    },
+    "39": {
+      "betId": "bet_1794247843828uwc",
+      "nuvemId": 39,
+      "match": "MÚLTIPLA: Las Palmas x CD Eldense (Dupla Hipótese: Las Palmas ou Empate) + Sabadell x Real Sociedad II (Total de Gols: Acima de 1.5)",
+      "market": "Dupla Hipótese: Las Palmas ou Empate + Total de Gols: Acima de 1.5",
+      "fixtureId": null,
+      "stake": 5,
+      "odd": 1.73,
+      "kickoff": "2026-11-09T19:30:00.000Z",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "league": "Múltipla",
+      "gameLink": null,
+      "motivo": "apos-65"
+    },
     "bet_1793915440129p6m": {
       "betId": "bet_1793915440129p6m",
       "nuvemId": null,
@@ -381,15 +476,128 @@
       "nuvemId": null,
       "match": "FC Cologne (w) x RB Leipzig (w)",
       "market": "Total de Gols: Acima de 2.5",
-      "fixtureId": null,
+      "fixtureId": 1593167,
       "stake": 5.96,
       "odd": 1.7,
-      "kickoff": null,
-      "feitos": [],
+      "kickoff": "2026-11-09T17:00:00+00:00",
+      "feitos": [
+        40
+      ],
       "precisaRetry48": false,
-      "encerrado": false,
-      "ancora": null,
-      "notificados": []
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 40,
+        "status": "1H First Half",
+        "em": 1794246072652
+      },
+      "notificados": [
+        "notified_1593167_40"
+      ],
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "1H|40|2-1",
+      "motivo": "green"
+    },
+    "bet_17942482089527ip": {
+      "betId": "bet_17942482089527ip",
+      "nuvemId": null,
+      "match": "Redditch Utd x Peterborough Sports",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1596991,
+      "stake": 5,
+      "odd": 1.42,
+      "kickoff": "2026-11-09T19:45:00.000Z",
+      "feitos": [
+        20,
+        30,
+        35,
+        40,
+        46
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 45,
+        "status": "HT Halftime",
+        "em": 1794257126365
+      },
+      "notificados": [
+        "notified_1596991_20",
+        "notified_1596991_30",
+        "notified_1596991_35",
+        "notified_1596991_40"
+      ],
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "HT|45|0-0",
+      "motivo": "encerrada"
+    },
+    "bet_1794247939883oyh": {
+      "betId": "bet_1794247939883oyh",
+      "nuvemId": null,
+      "match": "Sabadell x Real Sociedad II",
+      "market": "Total de Gols: Acima de 1.5",
+      "fixtureId": 1570013,
+      "stake": 5,
+      "odd": 1.35,
+      "kickoff": "2026-11-09T19:30:00.000Z",
+      "feitos": [
+        20,
+        30,
+        35,
+        40,
+        46,
+        48
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 53,
+        "status": "2H Second Half",
+        "em": 1794257126574
+      },
+      "notificados": [
+        "notified_1570013_20",
+        "notified_1570013_30",
+        "notified_1570013_35",
+        "notified_1570013_40"
+      ],
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "2H|53|0-0",
+      "motivo": "encerrada"
+    },
+    "bet_1794247843828uwc": {
+      "betId": "bet_1794247843828uwc",
+      "nuvemId": null,
+      "match": "MÚLTIPLA: Las Palmas x CD Eldense (Dupla Hipótese: Las Palmas ou Empate) + Sabadell x Real Sociedad II (Total de Gols: Acima de 1.5)",
+      "market": "Dupla Hipótese: Las Palmas ou Empate + Total de Gols: Acima de 1.5",
+      "fixtureId": 1570011,
+      "stake": 5,
+      "odd": 1.73,
+      "kickoff": "2026-11-09T19:30:00.000Z",
+      "feitos": [
+        20,
+        30,
+        35,
+        40,
+        46,
+        48,
+        55
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 45,
+        "status": "HT Halftime",
+        "em": 1794257126782
+      },
+      "notificados": [
+        "notified_1570011_20",
+        "notified_1570011_30",
+        "notified_1570011_35",
+        "notified_1570011_40"
+      ],
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "HT|45|0-0",
+      "motivo": "encerrada"
     }
   }
 }

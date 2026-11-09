@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08T23:04:20.946Z",
+  "updated_at": "2026-11-09T20:42:11.797Z",
   "jogos": [
     {
       "id": null,
@@ -119,6 +119,51 @@
         "pressao_relativa": 2
       },
       "updated_at": "2026-11-08T23:04:20.946Z"
+    },
+    {
+      "id": null,
+      "partida": "MÚLTIPLA: Las Palmas x CD Eldense (Dupla Hipótese: Las Palmas ou Empate) + Sabadell x Real Sociedad II (Total de Gols: Acima de 1.5)",
+      "fixture_id": 1570011,
+      "minuto_atual": 55,
+      "placar": "0-1",
+      "status_monitoramento": "MONITORANDO_55",
+      "metricas_resumo": {
+        "xg": 0.23,
+        "chutes_alvo": 3,
+        "cantos": 2,
+        "pressao_relativa": 1
+      },
+      "updated_at": "2026-11-09T20:42:11.797Z"
+    },
+    {
+      "id": null,
+      "partida": "Sabadell x Real Sociedad II",
+      "fixture_id": 1570013,
+      "minuto_atual": 48,
+      "placar": "0-0",
+      "status_monitoramento": "MONITORANDO",
+      "metricas_resumo": {
+        "xg": 0.79,
+        "chutes_alvo": 1,
+        "cantos": 6,
+        "pressao_relativa": 7
+      },
+      "updated_at": "2026-11-09T20:39:41.536Z"
+    },
+    {
+      "id": null,
+      "partida": "Redditch Utd x Peterborough Sports",
+      "fixture_id": 1596991,
+      "minuto_atual": 46,
+      "placar": "0-0",
+      "status_monitoramento": "MONITORANDO",
+      "metricas_resumo": {
+        "xg": 0,
+        "chutes_alvo": 0,
+        "cantos": 0,
+        "pressao_relativa": 0
+      },
+      "updated_at": "2026-11-09T20:35:41.113Z"
     }
   ]
 }
