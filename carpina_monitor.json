@@ -13,7 +13,8 @@
     "1593167",
     "1570013",
     "1596991",
-    "1570011"
+    "1570011",
+    "1549860"
   ],
   "watches": {
     "35": {
@@ -106,6 +107,38 @@
       "league": "Múltipla",
       "gameLink": null,
       "motivo": "apos-65"
+    },
+    "40": {
+      "betId": "bet_1794260080302pdj",
+      "nuvemId": 40,
+      "match": "CDP Junior FC x Cúcuta Deportivo",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1549860,
+      "stake": 20,
+      "odd": 1.73,
+      "kickoff": "2026-11-10T00:00:00.000Z",
+      "feitos": [
+        30,
+        35,
+        40,
+        46
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 45,
+        "status": "HT Halftime",
+        "em": 1794272277058
+      },
+      "notificados": [
+        "notified_1549860_30",
+        "notified_1549860_35",
+        "notified_1549860_40"
+      ],
+      "league": "Primera A",
+      "gameLink": "https://1win.com/pt/betting/match/sport/cdp-junior-fc-vs-cucuta-deportivo-42321593",
+      "ultimaAssinaturaNuvem": "HT|45|1-0",
+      "motivo": "encerrada"
     },
     "bet_1793915440129p6m": {
       "betId": "bet_1793915440129p6m",
@@ -598,6 +631,39 @@
       "gameLink": null,
       "ultimaAssinaturaNuvem": "HT|45|0-0",
       "motivo": "encerrada"
+    },
+    "bet_1794260080302pdj": {
+      "betId": "bet_1794260080302pdj",
+      "nuvemId": null,
+      "match": "CDP Junior FC x Cúcuta Deportivo",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1549860,
+      "stake": 20,
+      "odd": 1.73,
+      "kickoff": "2026-11-09T21:00:00-03:00",
+      "feitos": [
+        46,
+        48,
+        55,
+        57,
+        59,
+        60,
+        61,
+        63,
+        65
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 65,
+        "status": "2H Second Half",
+        "em": 1794273851902
+      },
+      "notificados": [],
+      "league": "Primera A",
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "2H|65|2-0",
+      "motivo": "encerrar"
     }
   }
 }

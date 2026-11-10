@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-09T20:42:11.797Z",
+  "updated_at": "2026-11-10T01:24:11.904Z",
   "jogos": [
     {
       "id": null,
@@ -164,6 +164,21 @@
         "pressao_relativa": 0
       },
       "updated_at": "2026-11-09T20:35:41.113Z"
+    },
+    {
+      "id": null,
+      "partida": "CDP Junior FC x Cúcuta Deportivo",
+      "fixture_id": 1549860,
+      "minuto_atual": 65,
+      "placar": "2-0",
+      "status_monitoramento": "ENCERRADO_65",
+      "metricas_resumo": {
+        "xg": 1.34,
+        "chutes_alvo": 5,
+        "cantos": 5,
+        "pressao_relativa": 19
+      },
+      "updated_at": "2026-11-10T01:24:11.904Z"
     }
   ]
 }

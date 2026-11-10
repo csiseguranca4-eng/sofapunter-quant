@@ -11,9 +11,9 @@
       "isTopPick": false,
       "odd": 1.78,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "GREEN",
+      "returnedAmount": 8.9,
+      "realProfit": 3.9,
       "date": "2026-11-09",
       "timestamp": 1794248660618,
       "gameLink": "https://1win.com/pt/betting/match/sport/torreense-vs-uniao-de-leiria-42534777"
@@ -1284,12 +1284,22 @@
       "isTopPick": false,
       "odd": 1.42,
       "stake": 5,
-      "status": "PENDING",
-      "returnedAmount": 0,
-      "realProfit": 0,
+      "status": "CASHOUT",
+      "returnedAmount": 2.6,
+      "realProfit": -2.4,
       "date": "2026-11-09",
       "timestamp": 1794248208952,
-      "gameLink": "https://1win.com/pt/betting/match/sport/redditch-utd-vs-peterborough-sports-37814727"
+      "gameLink": "https://1win.com/pt/betting/match/sport/redditch-utd-vs-peterborough-sports-37814727",
+      "fixtureId": 1596991,
+      "placarAoVivo": "0-0",
+      "minutoAtual": 46,
+      "statusMonitoramento": "MONITORANDO",
+      "metricasResumo": {
+        "xg": 0,
+        "chutes_alvo": 0,
+        "cantos": 0,
+        "pressao_relativa": 0
+      }
     },
     {
       "id": "bet_1794247939883oyh",
@@ -1302,12 +1312,22 @@
       "isTopPick": false,
       "odd": 1.35,
       "stake": 5,
-      "status": "PENDING",
+      "status": "RED",
       "returnedAmount": 0,
-      "realProfit": 0,
+      "realProfit": -5,
       "date": "2026-11-09",
       "timestamp": 1794247939883,
-      "gameLink": "https://1win.com/pt/betting/match/sport/sabadell-vs-real-sociedad-ii-42524727"
+      "gameLink": "https://1win.com/pt/betting/match/sport/sabadell-vs-real-sociedad-ii-42524727",
+      "fixtureId": 1570011,
+      "placarAoVivo": "0-1",
+      "minutoAtual": 55,
+      "statusMonitoramento": "MONITORANDO_55",
+      "metricasResumo": {
+        "xg": 0.23,
+        "chutes_alvo": 3,
+        "cantos": 2,
+        "pressao_relativa": 1
+      }
     },
     {
       "id": "bet_1794247843828uwc",
@@ -1320,58 +1340,22 @@
       "isTopPick": false,
       "odd": 1.73,
       "stake": 5,
-      "status": "PENDING",
+      "status": "RED",
       "returnedAmount": 0,
-      "realProfit": 0,
+      "realProfit": -5,
       "date": "2026-11-09",
-      "timestamp": 1794247843828
-    },
-    {
-      "id": "31",
-      "match": "",
-      "league": "",
-      "market": "Total de Gols: Acima de 2.5",
-      "marketType": "Total de Gols: Acima de 2.5",
-      "odd": 1.59,
-      "stake": 4.5,
-      "status": "PENDING",
-      "realProfit": 0,
-      "date": "2026-11-09",
-      "timestamp": 1794246570628,
-      "fixtureId": null
-    },
-    {
-      "id": "32",
-      "match": "",
-      "league": "",
-      "market": "Total de Gols: Acima de 1.5",
-      "marketType": "Total de Gols: Acima de 1.5",
-      "odd": 1.42,
-      "stake": 4.5,
-      "status": "PENDING",
-      "realProfit": 0,
-      "date": "2026-11-09",
-      "timestamp": 1794246570854,
-      "fixtureId": null
-    },
-    {
-      "id": "35",
-      "match": "",
-      "league": "",
-      "market": "Dupla Hipótese: Las Palmas ou Empate + Total de Gols: Acima de 1.5",
-      "marketType": "Dupla Hipótese: Las Palmas ou Empate + Total de Gols: Acima de 1.5",
-      "odd": 1.73,
-      "stake": 4.5,
-      "status": "PENDING",
-      "realProfit": 0,
-      "date": "2026-11-09",
-      "timestamp": 1794247853372,
-      "fixtureId": "1570011",
-      "placarAoVivo": "0-0",
-      "minutoAtual": 8,
-      "statusMonitoramento": "1H",
-      "metricasResumo": {}
+      "timestamp": 1794247843828,
+      "fixtureId": 1570011,
+      "placarAoVivo": "0-1",
+      "minutoAtual": 55,
+      "statusMonitoramento": "MONITORANDO_55",
+      "metricasResumo": {
+        "xg": 0.23,
+        "chutes_alvo": 3,
+        "cantos": 2,
+        "pressao_relativa": 1
+      }
     }
   ],
-  "bankroll": 394.40799999999996
+  "bankroll": 385.90999999999997
 }
