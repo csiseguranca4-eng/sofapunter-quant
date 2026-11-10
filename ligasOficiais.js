@@ -30,7 +30,14 @@ const LIGAS_OFICIAIS = [
   { id: 262, nome: 'Liga MX', pais: 'México', regiao: 'Américas', grupo: 'ligamx' },
   { id: 265, nome: 'Primera División', pais: 'Chile', regiao: 'Américas', grupo: 'chile' },
   { id: 13, nome: 'Copa Libertadores', pais: 'América do Sul', regiao: 'Américas', grupo: 'libertadores' },
-  { id: 11, nome: 'Copa Sudamericana', pais: 'América do Sul', regiao: 'Américas', grupo: 'libertadores' }
+  { id: 11, nome: 'Copa Sudamericana', pais: 'América do Sul', regiao: 'Américas', grupo: 'libertadores' },
+  { id: 143, nome: 'Copa del Rey', pais: 'Espanha', regiao: 'Europa', grupo: 'copas_nacionais' },
+  { id: 45, nome: 'FA Cup', pais: 'Inglaterra', regiao: 'Europa', grupo: 'copas_nacionais' },
+  { id: 48, nome: 'EFL Cup', pais: 'Inglaterra', regiao: 'Europa', grupo: 'copas_nacionais' },
+  { id: 137, nome: 'Coppa Italia', pais: 'Itália', regiao: 'Europa', grupo: 'copas_nacionais' },
+  { id: 529, nome: 'DFB Pokal', pais: 'Alemanha', regiao: 'Europa', grupo: 'copas_nacionais' },
+  { id: 66, nome: 'Coupe de France', pais: 'França', regiao: 'Europa', grupo: 'copas_nacionais' },
+  { id: 96, nome: 'Taça de Portugal', pais: 'Portugal', regiao: 'Europa', grupo: 'copas_nacionais' }
 ];
 
 const OPCOES_LIGA = [
@@ -51,7 +58,8 @@ const OPCOES_LIGA = [
   { value: 'mls', label: '🇺🇸 EUA (MLS)' },
   { value: 'ligamx', label: '🇲🇽 México (Liga MX)' },
   { value: 'chile', label: '🇨🇱 Chile (Primera División)' },
-  { value: 'libertadores', label: '🌎 Libertadores / Sul-Americana' }
+  { value: 'libertadores', label: '🌎 Libertadores / Sul-Americana' },
+  { value: 'copas_nacionais', label: '🏆 Copas Nacionais (Copa del Rey, FA Cup, Copa do Brasil)' }
 ];
 
 const GRUPOS_EQUIVALENTES = {
@@ -143,6 +151,13 @@ function ligaOficialPorTexto(textoBruto, leagueId) {
     if (brasil) return porId(71);
     return null;
   }
+  if (tem('copa del rey')) return porId(143);
+  if (tem('fa cup')) return porId(45);
+  if (tem('efl cup', 'carabao cup', 'carabao')) return porId(48);
+  if (tem('coppa italia')) return porId(137);
+  if (tem('dfb pokal')) return porId(529);
+  if (tem('coupe de france')) return porId(66);
+  if (tem('taca de portugal', 'taca portugal')) return porId(96);
   return null;
 }
 

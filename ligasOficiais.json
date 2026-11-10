@@ -187,5 +187,54 @@
     "pais": "América do Sul",
     "regiao": "Américas",
     "grupo": "libertadores"
+  },
+  {
+    "id": 143,
+    "nome": "Copa del Rey",
+    "pais": "Espanha",
+    "regiao": "Europa",
+    "grupo": "copas_nacionais"
+  },
+  {
+    "id": 45,
+    "nome": "FA Cup",
+    "pais": "Inglaterra",
+    "regiao": "Europa",
+    "grupo": "copas_nacionais"
+  },
+  {
+    "id": 48,
+    "nome": "EFL Cup",
+    "pais": "Inglaterra",
+    "regiao": "Europa",
+    "grupo": "copas_nacionais"
+  },
+  {
+    "id": 137,
+    "nome": "Coppa Italia",
+    "pais": "Itália",
+    "regiao": "Europa",
+    "grupo": "copas_nacionais"
+  },
+  {
+    "id": 529,
+    "nome": "DFB Pokal",
+    "pais": "Alemanha",
+    "regiao": "Europa",
+    "grupo": "copas_nacionais"
+  },
+  {
+    "id": 66,
+    "nome": "Coupe de France",
+    "pais": "França",
+    "regiao": "Europa",
+    "grupo": "copas_nacionais"
+  },
+  {
+    "id": 96,
+    "nome": "Taça de Portugal",
+    "pais": "Portugal",
+    "regiao": "Europa",
+    "grupo": "copas_nacionais"
   }
 ]
