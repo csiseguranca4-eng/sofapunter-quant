@@ -96,6 +96,22 @@ const onewinHeaders = {
 // =========================================================================
 // ROTAS DE PERSISTÊNCIA FÍSICA (NUNCA MAIS APAGA AO DESLIGAR O PC)
 // =========================================================================
+app.get('/api/apostas', (req, res) => {
+  try {
+    const arquivo = path.resolve('public/live_status.json');
+    const raw = fs.readFileSync(arquivo, 'utf8');
+    const dados = JSON.parse(raw || '{"jogos":[]}');
+    const apostas = (Array.isArray(dados.jogos) ? dados.jogos : []).map((jogo) => ({
+      ...jogo,
+      pontosPressao: Array.isArray(jogo.pontosPressao) ? jogo.pontosPressao : [],
+      flag_jogo_esfriou: jogo.flag_jogo_esfriou === true
+    }));
+    res.json({ success: true, apostas });
+  } catch (_) {
+    res.json({ success: true, apostas: [] });
+  }
+});
+
 app.get('/api/saved-data', (req, res) => {
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
@@ -2174,6 +2190,27 @@ async function enviarTelegramTexto(texto) {
   }
 }
 
+function numeroFeed1win(item, chaves) {
+  const fontes = [item, item?.stats, item?.statistics, item?.liveStats, item?.scoreboard].filter((fonte) => fonte && typeof fonte === 'object');
+  for (const fonte of fontes) {
+    for (const chave of chaves) {
+      const numero = Number(fonte[chave]);
+      if (Number.isFinite(numero)) return numero;
+    }
+  }
+  return null;
+}
+
+function momentum1win(item, outcome) {
+  const listas = [item?.outcomes, item?.odds, item?.prices].filter(Array.isArray);
+  for (const lista of listas) {
+    const linha = lista.find((odd) => String(odd?.outcome || odd?.name || '').toLowerCase() === String(outcome).toLowerCase());
+    const cotacao = Number(linha?.odds || linha?.cf || linha?.price || linha?.p);
+    if (cotacao > 1) return Math.round((1 / cotacao) * 100);
+  }
+  return null;
+}
+
 async function listarJogos1winAoVivo() {
   const response = await axios.post(
     `${ONEWIN_GATEWAY}/matches/get-many`,
@@ -2202,7 +2239,13 @@ async function listarJogos1winAoVivo() {
         home: item.homeTeam?.name || '',
         away: item.awayTeam?.name || '',
         kickoff: Number.isFinite(kickoffMs) ? new Date(kickoffMs).toISOString() : null,
-        aoVivo: true
+        aoVivo: true,
+        homeAttacks: numeroFeed1win(item, ['attacksHome', 'homeAttacks', 'attacks1']),
+        awayAttacks: numeroFeed1win(item, ['attacksAway', 'awayAttacks', 'attacks2']),
+        homeDangerous: numeroFeed1win(item, ['dangerousAttacksHome', 'homeDangerousAttacks', 'dangerousHome']),
+        awayDangerous: numeroFeed1win(item, ['dangerousAttacksAway', 'awayDangerousAttacks', 'dangerousAway']),
+        homeMomentum: momentum1win(item, '1'),
+        awayMomentum: momentum1win(item, '2')
       };
     });
 }

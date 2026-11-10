@@ -499,7 +499,7 @@ function intensidadesConfronto(mandante, visitante) {
 function lerEstatistica(lista, nomes) {
   const alvos = nomes.map((nome) => nome.toLowerCase());
   const item = (lista || []).find((linha) => alvos.includes(String(linha?.type || '').toLowerCase()));
-  return numero(item?.value);
+  return numero(String(item?.value ?? '').replace('%', '').trim());
 }
 
 function blocoDoTime(statistics, teamId) {
@@ -528,8 +528,14 @@ function resumirFixtureAoVivo(jogo) {
     awayXg: lerEstatistica(estatisticasFora, ['expected_goals', 'Expected Goals']),
     homeShotsOnTarget: lerEstatistica(estatisticasCasa, ['Shots on Goal', 'Shots on Target']),
     awayShotsOnTarget: lerEstatistica(estatisticasFora, ['Shots on Goal', 'Shots on Target']),
+    homeShotsOffTarget: lerEstatistica(estatisticasCasa, ['Shots off Goal', 'Shots off Target']),
+    awayShotsOffTarget: lerEstatistica(estatisticasFora, ['Shots off Goal', 'Shots off Target']),
     homeCorners: lerEstatistica(estatisticasCasa, ['Corner Kicks', 'Corners']),
-    awayCorners: lerEstatistica(estatisticasFora, ['Corner Kicks', 'Corners'])
+    awayCorners: lerEstatistica(estatisticasFora, ['Corner Kicks', 'Corners']),
+    homePossession: lerEstatistica(estatisticasCasa, ['Ball Possession']),
+    awayPossession: lerEstatistica(estatisticasFora, ['Ball Possession']),
+    homeDangerousAttacks: lerEstatistica(estatisticasCasa, ['Dangerous Attacks', 'Dangerous attacks']),
+    awayDangerousAttacks: lerEstatistica(estatisticasFora, ['Dangerous Attacks', 'Dangerous attacks'])
   };
 }
 

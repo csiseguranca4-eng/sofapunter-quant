@@ -73,7 +73,9 @@ function falhaDeRede(mensagem) {
 function gravarEstadoLocal(watch, snapshot, marco, decisao) {
   const casa = Number(snapshot?.golsCasa) || 0;
   const fora = Number(snapshot?.golsFora) || 0;
-  const status = decisao?.statusMonitoramento || (MARCOS_2T.includes(marco) ? `MONITORANDO_${marco}` : 'MONITORANDO');
+  const status = watch.flag_jogo_esfriou
+    ? 'JOGO_ESFRIOU'
+    : (decisao?.statusMonitoramento || (MARCOS_2T.includes(marco) ? `MONITORANDO_${marco}` : 'MONITORANDO'));
   const metricas = metricasDoSnapshot(snapshot);
   let atual = { jogos: [] };
   try {
@@ -88,6 +90,8 @@ function gravarEstadoLocal(watch, snapshot, marco, decisao) {
     placar: `${casa}-${fora}`,
     status_monitoramento: status,
     metricas_resumo: metricas,
+    pontosPressao: Array.isArray(watch.pontosPressao) ? watch.pontosPressao : [],
+    flag_jogo_esfriou: watch.flag_jogo_esfriou === true,
     updated_at: new Date().toISOString()
   };
   const indice = jogos.findIndex((item) => (
@@ -306,8 +310,8 @@ export function fixtureEncerrado(status) {
 }
 
 export function acompanhamentoEncerrado(minuto, elapsed) {
-  if (Number.isFinite(minuto) && minuto >= 66) return true;
-  if (Number.isFinite(Number(elapsed)) && Number(elapsed) > 65) return true;
+  if (Number.isFinite(minuto) && minuto >= 72) return true;
+  if (Number.isFinite(Number(elapsed)) && Number(elapsed) > 71) return true;
   return false;
 }
 
@@ -381,6 +385,12 @@ export function snapshotDoFeed1win(jogo, agoraMs = Date.now()) {
     kickoff: new Date(kickoffMs).toISOString(),
     home: jogo.home || '',
     away: jogo.away || '',
+    homeAttacks1win: jogo.homeAttacks ?? null,
+    awayAttacks1win: jogo.awayAttacks ?? null,
+    homeDangerousAttacks: jogo.homeDangerous ?? null,
+    awayDangerousAttacks: jogo.awayDangerous ?? null,
+    homeMomentum: jogo.homeMomentum ?? null,
+    awayMomentum: jogo.awayMomentum ?? null,
     golsCasa: null,
     golsFora: null,
     placarConhecido: false,
@@ -410,7 +420,7 @@ export function apostaAnteriorAHoje(aposta, watch, hoje) {
 }
 
 export function marcoDevido(minuto, feitos, precisaRetry48) {
-  if (!Number.isFinite(minuto) || minuto >= 66) return null;
+  if (!Number.isFinite(minuto) || minuto >= 72) return null;
   const feitosSet = feitos instanceof Set ? feitos : new Set(feitos || []);
   if (minuto < MARCOS_HT[0]) {
     for (const marco of MARCOS_1T) {
@@ -420,12 +430,14 @@ export function marcoDevido(minuto, feitos, precisaRetry48) {
   }
   if (minuto < 48) return feitosSet.has(46) ? null : 46;
   if (minuto < 55) {
+    if (minuto >= 48 && minuto < 50 && !feitosSet.has(48)) return 48;
     if (precisaRetry48 && minuto >= 48 && minuto < 50 && !feitosSet.has(48)) return 48;
     return null;
   }
   for (const marco of MARCOS_ATIVOS) {
     if (minuto >= marco && minuto < marco + 2 && !feitosSet.has(marco)) return marco;
   }
+  if (minuto >= 70 && minuto < 72 && !feitosSet.has(70)) return 70;
   return null;
 }
 
@@ -504,7 +516,9 @@ export function decidirCarpina(snapshot, marco, mercado) {
     };
   }
 
-  if (minuto >= 65) return { acao: 'encerrar', encerrar: true, statusMonitoramento: 'ENCERRADO_65', mensagem: null };
+  if (marco === 70 || minuto >= 70) {
+    return { acao: 'encerrar-70', encerrar: true, statusMonitoramento: 'ENCERRADO_70', mensagem: null };
+  }
   return {
     acao: 'seguir',
     encerrar: false,
@@ -1193,7 +1207,7 @@ export function iniciarMonitorCarpina(opcoes) {
       const estourouMinuto = acompanhamentoEncerrado(minuto, atual.ancora?.elapsed);
       const fixtureBloqueado = atual.fixtureId != null && fixturesBloqueados.has(String(atual.fixtureId));
       if (estourouMinuto || fixtureBloqueado) {
-        if (!atual.encerrado) encerrar(atual, estourouMinuto ? 'apos-65' : 'fixture-encerrado');
+        if (!atual.encerrado) encerrar(atual, estourouMinuto ? 'apos-70' : 'fixture-encerrado');
         bloquearFixture(atual);
       }
       watches.set(aposta.id, atual);
@@ -1316,7 +1330,7 @@ export function iniciarMonitorCarpina(opcoes) {
     if (!Number.isFinite(minuto)) minuto = minutoDoAcompanhamento(watch, agora());
     if (acompanhamentoEncerrado(minuto, snapshot.elapsed)) {
       bloquearFixture(watch);
-      encerrar(watch, 'apos-65');
+      encerrar(watch, 'apos-70');
       return;
     }
     if (!(watch.feitos instanceof Set)) watch.feitos = new Set(watch.feitos || []);
@@ -1336,6 +1350,44 @@ export function iniciarMonitorCarpina(opcoes) {
         await gravarStatusAoVivo(watch, snapshot);
       } catch (erro) {
         console.log('[CARPINA] Status ao vivo não gravou:', erro.message);
+      }
+    }
+    if (statusEmAndamento(snapshot) && scoutVazio(snapshot)) {
+      try {
+        const jogos = (await ler1win()).filter((jogo) => !confrontoIgnorado(jogo));
+        const idLink = String(watch.gameLink || '').match(/(\d{5,})/)?.[1];
+        const porId = idLink ? jogos.find((jogo) => String(jogo.id) === idLink) : null;
+        const porNome = times
+          ? jogos.find((jogo) => nomesCompativeis(jogo.home, times.home) && nomesCompativeis(jogo.away, times.away))
+          : null;
+        snapshot = aplicarFallback1win(snapshot, porId || porNome);
+      } catch (erro) {
+        console.log('[CARPINA] Fallback de pressão da 1win indisponível:', erro.message);
+      }
+    }
+    if (Number.isFinite(minuto) && snapshot.placarConhecido !== false) {
+      registrarPontoPressao(watch, snapshot, minuto);
+      const minutoGrafico = Math.floor(minuto);
+      gravarEstadoLocal(watch, snapshot, minutoGrafico, null);
+      if (!watch.flag_jogo_esfriou && jogoEsfriou(watch.amostras, minuto)) {
+        watch.flag_jogo_esfriou = true;
+        const nomes = times || partidaDaAposta({ match: watch.match });
+        const textoFrio = mensagemJogoEsfriou({
+          minuto: minutoGrafico,
+          timeCasa: nomes?.home || snapshot.home || 'Mandante',
+          golsCasa: Number(snapshot.golsCasa) || 0,
+          golsFora: Number(snapshot.golsFora) || 0,
+          timeFora: nomes?.away || snapshot.away || 'Visitante',
+          mercado: rotuloMercadoMonitorado({ market: watch.market })
+        });
+        try {
+          await enviarTelegram(textoFrio);
+          console.log(`📣 [CARPINA] ${watch.match}: jogo esfriou ${minutoGrafico}'`);
+        } catch (erro) {
+          watch.flag_jogo_esfriou = false;
+          console.log('[CARPINA] Alerta de jogo esfriado não enviado:', erro.message);
+        }
+        gravarEstadoLocal(watch, snapshot, minutoGrafico, { statusMonitoramento: 'JOGO_ESFRIOU' });
       }
     }
     if (snapshot.placarConhecido === false) return;
@@ -1407,6 +1459,24 @@ export function iniciarMonitorCarpina(opcoes) {
       } catch (erro) {
         console.log('[CARPINA] Telegram não enviado:', erro.message);
       }
+    } else if (!aviso1T && MARCOS_TERMOMETRO.has(marco)) {
+      const nomes = times || partidaDaAposta({ match: watch.match });
+      const favoravel = termometroFavoravel(snapshot, watch.amostras, marco, watch.market);
+      const texto = mensagemTermometro({
+        minuto: marco,
+        timeCasa: nomes?.home || snapshot.home || 'Mandante',
+        golsCasa: Number(snapshot.golsCasa) || 0,
+        golsFora: Number(snapshot.golsFora) || 0,
+        timeFora: nomes?.away || snapshot.away || 'Visitante',
+        mercado: rotuloMercadoMonitorado({ market: watch.market }),
+        favoravel
+      });
+      try {
+        await enviarTelegram(texto);
+        console.log(`📣 [CARPINA] ${watch.match}: termômetro ${marco}'`);
+      } catch (erro) {
+        console.log('[CARPINA] Termômetro não enviado:', erro.message);
+      }
     }
     try {
       if (decisao.acao === 'green') await registrarGreen(watch);
@@ -1467,6 +1537,166 @@ function calcularIndicePressao(stats) {
   const ataquesPerigosos = stats.ataquesPerigosos || 0;
 
   return (rematesAlvo * 3.0) + (rematesFora * 1.5) + (cantos * 2.0) + (ataquesPerigosos * 0.4);
+}
+
+function numeroFinito(valor) {
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function somaFinita(esquerda, direita) {
+  if (esquerda == null && direita == null) return null;
+  return (esquerda || 0) + (direita || 0);
+}
+
+export function indicePressaoLado(snapshot, lado) {
+  const casa = lado === 'casa';
+  const rematesAlvo = numeroFinito(casa ? snapshot?.homeShotsOnTarget : snapshot?.awayShotsOnTarget);
+  const rematesFora = numeroFinito(casa ? snapshot?.homeShotsOffTarget : snapshot?.awayShotsOffTarget);
+  const cantos = numeroFinito(casa ? snapshot?.homeCorners : snapshot?.awayCorners);
+  const ataques = numeroFinito(casa ? snapshot?.homeDangerousAttacks : snapshot?.awayDangerousAttacks);
+  const posse = numeroFinito(casa ? snapshot?.homePossession : snapshot?.awayPossession);
+  const xg = numeroFinito(casa ? snapshot?.homeXg : snapshot?.awayXg);
+  const ataques1win = numeroFinito(casa ? snapshot?.homeAttacks1win : snapshot?.awayAttacks1win);
+  const momentum = numeroFinito(casa ? snapshot?.homeMomentum : snapshot?.awayMomentum);
+  const temScout = [rematesAlvo, rematesFora, cantos, ataques, posse, xg].some((valor) => valor != null);
+  if (!temScout) {
+    if (ataques1win == null && momentum == null) return null;
+    return Math.round((ataques1win || 0) * 0.4 + (momentum || 0));
+  }
+  const base = calcularIndicePressao({
+    rematesAlvo: rematesAlvo || 0,
+    rematesFora: rematesFora || 0,
+    cantos: cantos || 0,
+    ataquesPerigosos: ataques || 0
+  });
+  return Math.round(base + (posse || 0) * 0.2 + (xg || 0) * 10);
+}
+
+export function registrarPontoPressao(watch, snapshot, minuto) {
+  const minutoInteiro = Math.floor(Number(minuto));
+  if (!Number.isFinite(minutoInteiro) || minutoInteiro < 0) return Array.isArray(watch.pontosPressao) ? watch.pontosPressao : [];
+  const chutes = somaFinita(numeroFinito(snapshot?.homeShotsOnTarget), numeroFinito(snapshot?.awayShotsOnTarget));
+  const xgCasa = numeroFinito(snapshot?.homeXg);
+  const xgFora = numeroFinito(snapshot?.awayXg);
+  const xg = somaFinita(xgCasa, xgFora);
+  const cantos = somaFinita(numeroFinito(snapshot?.homeCorners), numeroFinito(snapshot?.awayCorners));
+  const casaAcum = indicePressaoLado(snapshot, 'casa');
+  const foraAcum = indicePressaoLado(snapshot, 'fora');
+  if (!Array.isArray(watch.amostras)) watch.amostras = [];
+  const anterior = [...watch.amostras].reverse().find((item) => item.minuto < minutoInteiro) || null;
+  const taxa = (atual, chave) => {
+    if (atual == null || !anterior || anterior[chave] == null) return 0;
+    return Math.max(0, Math.round(atual - anterior[chave]));
+  };
+  const amostra = {
+    minuto: minutoInteiro,
+    chutes,
+    xg,
+    cantos,
+    casaAcum,
+    foraAcum,
+    casa: taxa(casaAcum, 'casaAcum'),
+    fora: taxa(foraAcum, 'foraAcum')
+  };
+  const indice = watch.amostras.findIndex((item) => item.minuto === minutoInteiro);
+  if (indice >= 0) watch.amostras[indice] = amostra;
+  else watch.amostras.push(amostra);
+  watch.amostras.sort((a, b) => a.minuto - b.minuto);
+  if (watch.amostras.length > 100) watch.amostras = watch.amostras.slice(-100);
+  watch.pontosPressao = watch.amostras.map((item) => ({ minuto: item.minuto, casa: item.casa, fora: item.fora }));
+  return watch.pontosPressao;
+}
+
+export function jogoEsfriou(amostras, minutoAtual) {
+  const minuto = Math.floor(Number(minutoAtual));
+  if (!(minuto >= 46 && minuto <= 65)) return false;
+  const serie = (Array.isArray(amostras) ? amostras : [])
+    .filter((item) => item && minuto - item.minuto <= 12 && item.minuto <= minuto)
+    .sort((a, b) => a.minuto - b.minuto);
+  if (serie.length < 2) return false;
+  const fim = serie[serie.length - 1];
+  const inicio = serie.find((item) => fim.minuto - item.minuto >= 10) || null;
+  if (!inicio) return false;
+  const campos = [inicio.chutes, fim.chutes, inicio.xg, fim.xg, inicio.cantos, fim.cantos];
+  if (!campos.every((valor) => Number.isFinite(Number(valor)))) return false;
+  const deltaChutes = Number(fim.chutes) - Number(inicio.chutes);
+  const deltaXg = Number(fim.xg) - Number(inicio.xg);
+  const deltaCantos = Number(fim.cantos) - Number(inicio.cantos);
+  return deltaChutes <= 0 && deltaXg < 0.08 && deltaCantos <= 0;
+}
+
+export function termometroFavoravel(snapshot, amostras, minuto, mercado) {
+  if (jogoEsfriou(amostras, minuto)) return false;
+  const serie = (Array.isArray(amostras) ? amostras : [])
+    .filter((item) => item && minuto - item.minuto <= 12 && item.minuto <= minuto)
+    .sort((a, b) => a.minuto - b.minuto);
+  if (serie.length >= 2) {
+    const fim = serie[serie.length - 1];
+    const inicio = serie[0];
+    if ([inicio.chutes, fim.chutes, inicio.xg, fim.xg, inicio.cantos, fim.cantos].every((valor) => Number.isFinite(Number(valor)))) {
+      const deltaChutes = Number(fim.chutes) - Number(inicio.chutes);
+      const deltaXg = Number(fim.xg) - Number(inicio.xg);
+      const deltaCantos = Number(fim.cantos) - Number(inicio.cantos);
+      return deltaChutes > 0 || deltaXg >= 0.08 || deltaCantos > 0;
+    }
+  }
+  const gols = (Number(snapshot?.golsCasa) || 0) + (Number(snapshot?.golsFora) || 0);
+  const over15 = ehEntradaOver15({ market: mercado }) && !ehEntradaOver25({ market: mercado });
+  return over15 ? gols >= 1 : gols >= 2;
+}
+
+export function mensagemJogoEsfriou({ minuto, timeCasa, golsCasa, golsFora, timeFora, mercado }) {
+  return [
+    `⚠️ ALERTA DE SAÍDA / CASHOUT - JOGO ESFRIOU! [Minuto ${minuto}']`,
+    `⚽ Partida: ${timeCasa} ${golsCasa} x ${golsFora} ${timeFora}`,
+    `🎯 Mercado: ${mercado}`,
+    '📉 Motivo: O ritmo despencou. Equipes administrando o placar, sem finalizações recentes e xG travado.',
+    '🚨 RECOMENDAÇÃO: Realizar Cashout / Encerrar aposta agora para proteger o saldo residual da banca!'
+  ].join('\n');
+}
+
+export function mensagemTermometro({ minuto, timeCasa, golsCasa, golsFora, timeFora, mercado, favoravel }) {
+  const selo = favoravel ? '🟢 Favorável' : '🔴 Desfavorável';
+  const linhas = [
+    `📊 OVER CARPINA [${minuto}'] ${selo}`,
+    `⚽ Partida: ${timeCasa} ${golsCasa} x ${golsFora} ${timeFora}`,
+    `🎯 Mercado: ${mercado}`,
+    `🌡️ Termômetro: ${selo}`
+  ];
+  if (minuto === 65) {
+    linhas.push('🔒 Fechamento da posição aos 65 minutos. Encerre a leitura e proteja o saldo residual.');
+  }
+  if (minuto === 70) {
+    linhas.push('🔒 Monitoramento encerrado aos 70 minutos.');
+  }
+  return linhas.join('\n');
+}
+
+const MARCOS_TERMOMETRO = new Set([48, 55, 60, 65, 70]);
+
+function scoutVazio(snapshot) {
+  return [
+    snapshot?.homeShotsOnTarget,
+    snapshot?.awayShotsOnTarget,
+    snapshot?.homeXg,
+    snapshot?.awayXg,
+    snapshot?.homeCorners,
+    snapshot?.awayCorners
+  ].every((valor) => !Number.isFinite(Number(valor)));
+}
+
+function aplicarFallback1win(snapshot, jogo) {
+  if (!snapshot || !jogo) return snapshot;
+  return {
+    ...snapshot,
+    homeAttacks1win: snapshot.homeAttacks1win ?? jogo.homeAttacks ?? null,
+    awayAttacks1win: snapshot.awayAttacks1win ?? jogo.awayAttacks ?? null,
+    homeDangerousAttacks: snapshot.homeDangerousAttacks ?? jogo.homeDangerous ?? null,
+    awayDangerousAttacks: snapshot.awayDangerousAttacks ?? jogo.awayDangerous ?? null,
+    homeMomentum: snapshot.homeMomentum ?? jogo.homeMomentum ?? null,
+    awayMomentum: snapshot.awayMomentum ?? jogo.awayMomentum ?? null
+  };
 }
 
 /**

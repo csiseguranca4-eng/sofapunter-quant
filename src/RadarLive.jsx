@@ -43,6 +43,18 @@ function RadarLive({ fixtureId, marketId, partida }) {
   const estatisticas = objetoSeguro(partida?.estatisticas);
   const analise = objetoSeguro(partida?.analise);
   const serieBase = listaSegura(timeline);
+  const pontosInformados = listaSegura(partida?.pontosPressao)
+    .map((ponto) => ({
+      minute: Number(ponto?.minuto),
+      casa: Number(ponto?.casa) || 0,
+      fora: Number(ponto?.fora) || 0
+    }))
+    .filter((ponto) => Number.isFinite(ponto.minute));
+  const serieTimeline = serieBase.map((item) => ({
+    minute: Number(item?.minute),
+    casa: Number(item?.home_pressure) || 0,
+    fora: Number(item?.away_pressure) || 0
+  })).filter((ponto) => Number.isFinite(ponto.minute));
 
   useEffect(() => {
     if (!fixtureId || !supabase) return undefined;
@@ -109,7 +121,7 @@ function RadarLive({ fixtureId, marketId, partida }) {
     );
   }
 
-  const serie = serieBase.length ? serieBase : [];
+  const serie = pontosInformados.length ? pontosInformados : serieTimeline;
   const precos = listaSegura(Array.isArray(ladder?.rawPrices) ? ladder.rawPrices.map((preco, indice) => ({ indice, preco })) : []);
   const preco = (indice) => {
     const item = precos[indice];
@@ -144,9 +156,10 @@ function RadarLive({ fixtureId, marketId, partida }) {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={Array.isArray(serie) ? serie : []}>
           <XAxis dataKey="minute" stroke="#64748b" tickFormatter={(m) => `${m}'`} />
-          <YAxis stroke="#64748b" domain={[-25, 25]} />
+          <YAxis stroke="#64748b" domain={[0, 'auto']} />
           <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }} />
-          <Area type="monotone" dataKey="relative_pressure" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.35} />
+          <Area type="monotone" dataKey="casa" name="Mandante" stroke="#fb923c" fill="#fb923c" fillOpacity={0.3} />
+          <Area type="monotone" dataKey="fora" name="Visitante" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.3} />
         </AreaChart>
       </ResponsiveContainer>
       </div>

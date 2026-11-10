@@ -24,7 +24,9 @@ function aplicarMonitorNaAposta(aposta, linha) {
     placarAoVivo: linha.placar || aposta.placarAoVivo || null,
     minutoAtual: linha.minuto_atual ?? linha.minute ?? aposta.minutoAtual ?? null,
     statusMonitoramento: linha.status_monitoramento || aposta.statusMonitoramento || null,
-    metricasResumo: linha.metricas_resumo || aposta.metricasResumo || null
+    metricasResumo: linha.metricas_resumo || aposta.metricasResumo || null,
+    pontosPressao: Array.isArray(linha.pontosPressao) ? linha.pontosPressao : (Array.isArray(aposta.pontosPressao) ? aposta.pontosPressao : []),
+    flagJogoEsfriou: linha.flag_jogo_esfriou === true || aposta.flagJogoEsfriou === true
   };
 }
 
@@ -59,6 +61,9 @@ function BadgeMonitor({ aposta }) {
   }
   if (status === 'GREEN_TOTAL') {
     return <span className="bg-[#00c853] text-black text-[10px] font-bold px-2 py-0.5 rounded">✅ GREEN</span>;
+  }
+  if (status === 'JOGO_ESFRIOU' || aposta.flagJogoEsfriou) {
+    return <span className="bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">⚠️ JOGO ESFRIOU</span>;
   }
   if (status === 'PRESSAO_ALTA_1T' || String(status || '').startsWith('MONITORANDO')) {
     return <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">📡 AO VIVO (Minuto {minuto ?? '—'}')</span>;
@@ -2224,7 +2229,11 @@ export default function App() {
                       partida={{
                         odds: Array.isArray(onewinAudits[game.id]) ? onewinAudits[game.id] : [],
                         estatisticas: onewinQuants[game.id] && typeof onewinQuants[game.id] === 'object' ? onewinQuants[game.id] : {},
-                        analise: analiseIa[game.id] && typeof analiseIa[game.id] === 'object' ? analiseIa[game.id] : null
+                        analise: analiseIa[game.id] && typeof analiseIa[game.id] === 'object' ? analiseIa[game.id] : null,
+                        pontosPressao: (Array.isArray(sheetBets) ? sheetBets : []).find((aposta) => (
+                          nomesIguais(aposta.match, `${game.home} x ${game.away}`)
+                          || nomesIguais(aposta.match, `${game.home} vs ${game.away}`)
+                        ))?.pontosPressao || []
                       }}
                     />
 
@@ -2521,7 +2530,11 @@ export default function App() {
                           <RadarLive
                             fixtureId={b.fixtureId || null}
                             marketId={b.marketId || null}
-                            partida={{ odds: [], estatisticas: b.metricasResumo && typeof b.metricasResumo === 'object' ? b.metricasResumo : {} }}
+                            partida={{
+                              odds: [],
+                              estatisticas: b.metricasResumo && typeof b.metricasResumo === 'object' ? b.metricasResumo : {},
+                              pontosPressao: Array.isArray(b.pontosPressao) ? b.pontosPressao : []
+                            }}
                           />
                         )}
                       </div>
