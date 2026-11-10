@@ -20,7 +20,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 3001;
+const PORT = Number(process.env.PORT) || 3001;
+
+function comESemApi(caminho) {
+  const limpo = caminho.startsWith('/') ? caminho : `/${caminho}`;
+  const semApi = limpo.replace(/^\/api(?=\/|$)/, '') || '/';
+  const comApi = semApi.startsWith('/api/') || semApi === '/api' ? semApi : `/api${semApi}`;
+  return comApi === semApi ? [comApi] : [comApi, semApi];
+}
 
 // CAMINHO DO BANCO DE DADOS EM ARQUIVO FÍSICO
 const DB_FILE = path.resolve('./bets_database.json');
@@ -96,7 +103,7 @@ const onewinHeaders = {
 // =========================================================================
 // ROTAS DE PERSISTÊNCIA FÍSICA (NUNCA MAIS APAGA AO DESLIGAR O PC)
 // =========================================================================
-app.get('/api/apostas', (req, res) => {
+app.get(comESemApi('/api/apostas'), (req, res) => {
   try {
     const arquivo = path.resolve('public/live_status.json');
     const raw = fs.readFileSync(arquivo, 'utf8');
@@ -112,7 +119,7 @@ app.get('/api/apostas', (req, res) => {
   }
 });
 
-app.get('/api/saved-data', (req, res) => {
+app.get(comESemApi('/api/saved-data'), (req, res) => {
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const data = JSON.parse(raw || '{"bets":[],"bankroll":335}');
@@ -122,7 +129,7 @@ app.get('/api/saved-data', (req, res) => {
   }
 });
 
-app.post('/api/save-data', (req, res) => {
+app.post(comESemApi('/api/save-data'), (req, res) => {
   try {
     const { bets, bankroll } = req.body;
     fs.writeFileSync(DB_FILE, JSON.stringify({ bets: bets || [], bankroll: bankroll || 335 }, null, 2));
@@ -132,7 +139,7 @@ app.post('/api/save-data', (req, res) => {
   }
 });
 
-app.post('/api/apostas-futebol/resultado', async (req, res) => {
+app.post(comESemApi('/api/apostas-futebol/resultado'), async (req, res) => {
   try {
     const partida = String(req.body?.partida || '').trim();
     const mercado = String(req.body?.mercado || '').trim();
@@ -153,7 +160,7 @@ app.post('/api/apostas-futebol/resultado', async (req, res) => {
 // =========================================================================
 // ROTA 1: VARREDURA POR REGIÃO (EUROPA O DIA TODO | BRASIL O DIA TODO)
 // =========================================================================
-app.get('/api/daily-opportunities', async (req, res) => {
+app.get([...comESemApi('/api/daily-opportunities'), ...comESemApi('/api/fixtures')], async (req, res) => {
   try {
     const shift = (req.query.shift || 'europe').toLowerCase();
 
@@ -1760,7 +1767,7 @@ Deep scan: ${JSON.stringify(deepScan)}`;
 // =========================================================================
 // ROTA 2: AUDITORIA REAL VIA WEBSOCKET (FAVORITO + MERCADOS DE GOLS)
 // =========================================================================
-app.post('/api/check-1win-match', async (req, res) => {
+app.post(comESemApi('/api/check-1win-match'), async (req, res) => {
   try {
     const { urlOrId, homeTeam, awayTeam, league, justification, stakeBase } = req.body;
     const matchId = (urlOrId || '').toString().match(/(\d{6,12})/)?.[0];
@@ -1884,7 +1891,7 @@ function listaTextoIa(valor) {
     .slice(0, 6);
 }
 
-app.post('/api/analisar-ia', async (req, res) => {
+app.post(comESemApi('/api/analisar-ia'), async (req, res) => {
   try {
     const { homeTeam, awayTeam, league, oddsCapturadas, apiData } = req.body || {};
     console.log('POST /api/analisar-ia recebido:', homeTeam || '(sem mandante)', 'vs', awayTeam || '(sem visitante)');
@@ -1950,7 +1957,7 @@ Dados da API-Football: ${JSON.stringify(apiData || {})}`;
 // =========================================================================
 // ROTA 3: ANÁLISE PROFUNDA DE SCOUT TÁTICO, H2H, GOLS E ESCANTEIOS VIA GEMINI
 // =========================================================================
-app.post('/api/ai-scout-analyze', async (req, res) => {
+app.post(comESemApi('/api/ai-scout-analyze'), async (req, res) => {
   const { homeTeam, awayTeam, league, odds, score, metrics } = req.body;
 
   if (!homeTeam || !awayTeam) {
@@ -2009,7 +2016,7 @@ const officialImages = [
 const LEGACY_TELEGRAM_PHOTO = 'https://i.imgur.com/8QZzG8v.jpeg';
 let currentImageIndex = 0;
 
-app.post('/api/publish-telegram-tip', async (req, res) => {
+app.post(comESemApi('/api/publish-telegram-tip'), async (req, res) => {
   try {
     const body = req.body || {};
     const photoUrl = String(body.photoUrl || '').trim();
@@ -2148,7 +2155,7 @@ function buildDailyRecapText(body) {
   ].join('\n');
 }
 
-app.post('/api/telegram/send-daily-recap', async (req, res) => {
+app.post(comESemApi('/api/telegram/send-daily-recap'), async (req, res) => {
   try {
     const text = buildDailyRecapText(req.body || {});
     if (!text) {
@@ -2251,7 +2258,7 @@ async function listarJogos1winAoVivo() {
 }
 
 if (executadoDiretamente) {
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ SofaPunter Motor 1WIN ativo em http://localhost:${PORT}`);
     console.log(`☁️ Apostas ao vivo na tabela ${TABELA_APOSTAS}`);
     console.log('📡 Monitor ao vivo: Over 1.5 e Over 2.5. 1T em 20, 30, 35 e 40.');
