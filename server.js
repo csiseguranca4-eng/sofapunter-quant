@@ -17,7 +17,7 @@ const { buscarIdEquipa, obterEstatisticasEquipa, calcularMediasConfronto, obterC
 const { MODELOS_GEMINI, cabecalhosGemini, calcularIndiceRitmo, gerarPromptTaticoQuant } = require('./services/tacticalEngine.js');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true }));
 app.use(express.json());
 
 const PORT = Number(process.env.PORT) || 3001;
