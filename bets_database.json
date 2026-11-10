@@ -1,6 +1,384 @@
 {
   "bets": [
     {
+      "id": "bet_1794349486440ykv",
+      "match": "Pumas UNAM (w) x Tigres UANL (w)",
+      "league": "Liga MX",
+      "market": "Handicap 0: Tigres UANL (w)",
+      "marketType": "Handicap",
+      "fairOdd": 1.26,
+      "evPercent": 12.7,
+      "isTopPick": false,
+      "odd": 1.42,
+      "stake": 5,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-10",
+      "timestamp": 1794349486440,
+      "gameLink": "https://1win.com/pt/betting/match/sport/pumas-unam-w-vs-tigres-uanl-w-42876754"
+    },
+    {
+      "id": "bet_179434939443338s",
+      "match": "Pumas UNAM (w) x Tigres UANL (w)",
+      "league": "Liga MX",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.3,
+      "evPercent": 7.7,
+      "isTopPick": false,
+      "odd": 1.4,
+      "stake": 10,
+      "status": "PENDING",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-10",
+      "timestamp": 1794349394434,
+      "gameLink": "https://1win.com/pt/betting/match/sport/pumas-unam-w-vs-tigres-uanl-w-42876754"
+    },
+    {
+      "id": "bet_1794347639278333",
+      "match": "Roma (w) x Servette (w)",
+      "league": "UEFA Champions League",
+      "market": "Handicap 0: Roma (w)",
+      "marketType": "Handicap",
+      "fairOdd": 1.51,
+      "evPercent": 0,
+      "isTopPick": true,
+      "odd": 1.51,
+      "stake": 5,
+      "status": "GREEN",
+      "returnedAmount": 7.55,
+      "realProfit": 2.55,
+      "date": "2026-11-10",
+      "timestamp": 1794347639278,
+      "gameLink": "https://1win.com/pt/betting"
+    },
+    {
+      "id": "bet_1794340056058c9j",
+      "match": "PSG (w) x FC Bayern München (w)",
+      "league": "UEFA Champions League",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.44,
+      "evPercent": -1.4,
+      "isTopPick": false,
+      "odd": 1.42,
+      "stake": 5,
+      "status": "GREEN",
+      "returnedAmount": 7.1,
+      "realProfit": 2.1,
+      "date": "2026-11-10",
+      "timestamp": 1794340056058,
+      "gameLink": "https://1win.com/pt/betting/match/sport/psg-w-vs-fc-bayern-munchen-w-42728273"
+    },
+    {
+      "id": "bet_179433265130460u",
+      "match": "CD Pamplona x Eibar",
+      "league": "Copa del Rey",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.52,
+      "evPercent": 4.6,
+      "isTopPick": false,
+      "odd": 1.59,
+      "stake": 5,
+      "status": "GREEN",
+      "returnedAmount": 7.95,
+      "realProfit": 2.95,
+      "date": "2026-11-10",
+      "timestamp": 1794332651304,
+      "gameLink": "https://1win.com/pt/betting/match/sport/cd-pamplona-vs-eibar-42687777",
+      "fixtureId": 1644365,
+      "placarAoVivo": "0-3",
+      "minutoAtual": 55,
+      "statusMonitoramento": "JOGO_ESFRIOU",
+      "metricasResumo": {
+        "xg": 0,
+        "chutes_alvo": 0,
+        "cantos": 0,
+        "pressao_relativa": 0
+      },
+      "pontosPressao": [
+        {
+          "minuto": 1,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 4,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 7,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 20,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 32,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 40,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 49,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "flagJogoEsfriou": true
+    },
+    {
       "id": "bet_1794248660618yt0",
       "match": "Torreense x Uniao de Leiria",
       "league": "Liga Portugal",
@@ -98,7 +476,9 @@
         "chutes_alvo": 0,
         "cantos": 5,
         "pressao_relativa": 2
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_179416510378893z",
@@ -126,7 +506,9 @@
         "chutes_alvo": 7,
         "cantos": 5,
         "pressao_relativa": 5
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_17941648801746nn",
@@ -154,7 +536,9 @@
         "chutes_alvo": 7,
         "cantos": 5,
         "pressao_relativa": 5
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_1794162191998fvf",
@@ -200,7 +584,9 @@
         "chutes_alvo": 7,
         "cantos": 4,
         "pressao_relativa": 17
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_1794157104928dcd",
@@ -246,7 +632,9 @@
         "chutes_alvo": 4,
         "cantos": 1,
         "pressao_relativa": -8
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_1794149468208nol",
@@ -274,7 +662,9 @@
         "chutes_alvo": 2,
         "cantos": 8,
         "pressao_relativa": 8
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_17941460349518hy",
@@ -302,7 +692,9 @@
         "chutes_alvo": 0,
         "cantos": 0,
         "pressao_relativa": 0
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_1794136263528a9w",
@@ -329,7 +721,9 @@
         "xg": 2.75,
         "chutes_alvo": 8,
         "pressao_relativa": 0
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_17941360883134t9",
@@ -374,7 +768,9 @@
         "xg": 2.75,
         "chutes_alvo": 8,
         "pressao_relativa": 0
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_1794077626324cxu",
@@ -1299,7 +1695,9 @@
         "chutes_alvo": 0,
         "cantos": 0,
         "pressao_relativa": 0
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_1794247939883oyh",
@@ -1327,7 +1725,9 @@
         "chutes_alvo": 3,
         "cantos": 2,
         "pressao_relativa": 1
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
     },
     {
       "id": "bet_1794247843828uwc",
@@ -1354,8 +1754,814 @@
         "chutes_alvo": 3,
         "cantos": 2,
         "pressao_relativa": 1
-      }
+      },
+      "pontosPressao": [],
+      "flagJogoEsfriou": false
+    },
+    {
+      "id": "bet_1794306202222i88",
+      "match": "Real Madrid (w) x Paris FC (w)",
+      "league": "UEFA Champions League",
+      "market": "Cantos Over 8.5",
+      "marketType": "Cantos",
+      "fairOdd": 1.14,
+      "evPercent": 37.7,
+      "isTopPick": false,
+      "odd": 1.57,
+      "stake": 5,
+      "status": "RED",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-10",
+      "timestamp": 1794306202222,
+      "gameLink": "https://1win.com/pt/betting/match/sport/real-madrid-w-vs-paris-fc-w-42728242",
+      "fixtureId": 1638332,
+      "placarAoVivo": "2-0",
+      "minutoAtual": 70,
+      "statusMonitoramento": "ENCERRADO_70",
+      "metricasResumo": {
+        "xg": 2.25,
+        "chutes_alvo": 8,
+        "cantos": 5,
+        "pressao_relativa": 28
+      },
+      "pontosPressao": [
+        {
+          "minuto": 1,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "casa": 10,
+          "fora": 10
+        },
+        {
+          "minuto": 4,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "casa": 0,
+          "fora": 4
+        },
+        {
+          "minuto": 7,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "casa": 5,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "casa": 0,
+          "fora": 2
+        },
+        {
+          "minuto": 13,
+          "casa": 8,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 20,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "casa": 2,
+          "fora": 1
+        },
+        {
+          "minuto": 32,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 40,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 49,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "casa": 4,
+          "fora": 0
+        },
+        {
+          "minuto": 56,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 57,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 58,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 59,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 60,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 61,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 62,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 63,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 64,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 65,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 66,
+          "casa": 0,
+          "fora": 3
+        },
+        {
+          "minuto": 67,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 68,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 69,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 70,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "flagJogoEsfriou": false
+    },
+    {
+      "id": "bet_1794306169903pln",
+      "match": "Real Madrid (w) x Paris FC (w)",
+      "league": "UEFA Champions League",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Over/Under Gols",
+      "fairOdd": 1.5,
+      "evPercent": 0.7,
+      "isTopPick": false,
+      "odd": 1.51,
+      "stake": 5,
+      "status": "RED",
+      "returnedAmount": 0,
+      "realProfit": 0,
+      "date": "2026-11-10",
+      "timestamp": 1794306169903,
+      "gameLink": "https://1win.com/pt/betting/match/sport/real-madrid-w-vs-paris-fc-w-42728242",
+      "fixtureId": 1638332,
+      "placarAoVivo": "2-0",
+      "minutoAtual": 70,
+      "statusMonitoramento": "ENCERRADO_70",
+      "metricasResumo": {
+        "xg": 2.25,
+        "chutes_alvo": 8,
+        "cantos": 5,
+        "pressao_relativa": 28
+      },
+      "pontosPressao": [
+        {
+          "minuto": 1,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "casa": 10,
+          "fora": 10
+        },
+        {
+          "minuto": 4,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "casa": 0,
+          "fora": 4
+        },
+        {
+          "minuto": 7,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "casa": 5,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "casa": 0,
+          "fora": 2
+        },
+        {
+          "minuto": 13,
+          "casa": 8,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 20,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "casa": 2,
+          "fora": 1
+        },
+        {
+          "minuto": 32,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 40,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 49,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "casa": 4,
+          "fora": 0
+        },
+        {
+          "minuto": 56,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 57,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 58,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 59,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 60,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 61,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 62,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 63,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 64,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 65,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 66,
+          "casa": 0,
+          "fora": 3
+        },
+        {
+          "minuto": 67,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 68,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 69,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 70,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "flagJogoEsfriou": false
+    },
+    {
+      "id": "31",
+      "match": "",
+      "league": "",
+      "market": "Total de Gols: Acima de 2.5",
+      "marketType": "Total de Gols: Acima de 2.5",
+      "odd": 1.59,
+      "stake": 4.5,
+      "status": "CASHOUT",
+      "realProfit": 0,
+      "date": "2026-11-09",
+      "timestamp": 1794246570628,
+      "fixtureId": null
+    },
+    {
+      "id": "32",
+      "match": "",
+      "league": "",
+      "market": "Total de Gols: Acima de 1.5",
+      "marketType": "Total de Gols: Acima de 1.5",
+      "odd": 1.42,
+      "stake": 4.5,
+      "status": "RED",
+      "realProfit": 0,
+      "date": "2026-11-09",
+      "timestamp": 1794246570854,
+      "fixtureId": null
+    },
+    {
+      "id": "38",
+      "match": "",
+      "league": "",
+      "market": "Dupla Hipótese: Las Palmas ou Empate + Total de Gols: Acima de 1.5",
+      "marketType": "Dupla Hipótese: Las Palmas ou Empate + Total de Gols: Acima de 1.5",
+      "odd": 1.73,
+      "stake": 4.5,
+      "status": "RED",
+      "realProfit": 0,
+      "date": "2026-11-09",
+      "timestamp": 1794248663791,
+      "fixtureId": null
     }
   ],
-  "bankroll": 385.90999999999997
+  "bankroll": 374.51000000000005
 }

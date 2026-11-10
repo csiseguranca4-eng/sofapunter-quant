@@ -14,7 +14,9 @@
     "1570013",
     "1596991",
     "1570011",
-    "1549860"
+    "1549860",
+    "1644365",
+    "1638332"
   ],
   "watches": {
     "35": {
@@ -138,6 +140,47 @@
       "league": "Primera A",
       "gameLink": "https://1win.com/pt/betting/match/sport/cdp-junior-fc-vs-cucuta-deportivo-42321593",
       "ultimaAssinaturaNuvem": "HT|45|1-0",
+      "motivo": "encerrada"
+    },
+    "41": {
+      "betId": "bet_1794306169903pln",
+      "nuvemId": 41,
+      "match": "Real Madrid (w) x Paris FC (w)",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1638332,
+      "stake": 0,
+      "odd": 1.51,
+      "kickoff": "2026-11-10T14:45:00-03:00",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": null,
+      "notificados": [],
+      "league": "UEFA Champions League",
+      "gameLink": "https://1win.com/pt/betting/match/sport/real-madrid-w-vs-paris-fc-w-42728242",
+      "motivo": "encerrada"
+    },
+    "42": {
+      "betId": "bet_1794340056058c9j",
+      "nuvemId": 42,
+      "match": "PSG (w) x FC Bayern München (w)",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5,
+      "odd": 1.42,
+      "kickoff": "2026-11-10T20:00:00.000Z",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 45,
+        "status": "HT",
+        "em": 1794344092913
+      },
+      "notificados": [],
+      "league": "UEFA Champions League",
+      "gameLink": "https://1win.com/pt/betting/match/sport/psg-w-vs-fc-bayern-munchen-w-42728273",
+      "ultimaAssinaturaNuvem": "HT|45|",
       "motivo": "encerrada"
     },
     "bet_1793915440129p6m": {
@@ -664,6 +707,2009 @@
       "gameLink": null,
       "ultimaAssinaturaNuvem": "2H|65|2-0",
       "motivo": "encerrar"
+    },
+    "bet_1794306169903pln": {
+      "betId": "bet_1794306169903pln",
+      "nuvemId": null,
+      "match": "Real Madrid (w) x Paris FC (w)",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1638332,
+      "stake": 5,
+      "odd": 1.51,
+      "kickoff": "2026-11-10T17:45:00.000Z",
+      "feitos": [
+        20,
+        30,
+        35,
+        40,
+        46,
+        48,
+        55,
+        57,
+        59,
+        60,
+        61,
+        63,
+        65,
+        70
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 70,
+        "status": "2H Second Half",
+        "em": 1794338033232
+      },
+      "notificados": [
+        "notified_1638332_20",
+        "notified_1638332_30",
+        "notified_1638332_35",
+        "notified_1638332_40"
+      ],
+      "league": "UEFA Champions League",
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "2H|70|2-0",
+      "amostras": [
+        {
+          "minuto": 1,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 10,
+          "foraAcum": 10,
+          "casa": 10,
+          "fora": 10
+        },
+        {
+          "minuto": 4,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 12,
+          "foraAcum": 9,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 12,
+          "foraAcum": 9,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "chutes": 0,
+          "xg": 0.14,
+          "cantos": 0,
+          "casaAcum": 10,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 4
+        },
+        {
+          "minuto": 7,
+          "chutes": 0,
+          "xg": 0.14,
+          "cantos": 0,
+          "casaAcum": 10,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "chutes": 0,
+          "xg": 0.14,
+          "cantos": 0,
+          "casaAcum": 10,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "chutes": 0,
+          "xg": 0.14,
+          "cantos": 1,
+          "casaAcum": 15,
+          "foraAcum": 10,
+          "casa": 5,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "chutes": 0,
+          "xg": 0.14,
+          "cantos": 1,
+          "casaAcum": 14,
+          "foraAcum": 11,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 11,
+          "chutes": 0,
+          "xg": 0.14,
+          "cantos": 1,
+          "casaAcum": 14,
+          "foraAcum": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "chutes": 0,
+          "xg": 0.19,
+          "cantos": 1,
+          "casaAcum": 14,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 2
+        },
+        {
+          "minuto": 13,
+          "chutes": 1,
+          "xg": 0.42000000000000004,
+          "cantos": 2,
+          "casaAcum": 22,
+          "foraAcum": 13,
+          "casa": 8,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "chutes": 1,
+          "xg": 0.42000000000000004,
+          "cantos": 2,
+          "casaAcum": 22,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "chutes": 2,
+          "xg": 0.4,
+          "cantos": 2,
+          "casaAcum": 24,
+          "foraAcum": 13,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "chutes": 2,
+          "xg": 0.42000000000000004,
+          "cantos": 2,
+          "casaAcum": 24,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "chutes": 2,
+          "xg": 0.42000000000000004,
+          "cantos": 2,
+          "casaAcum": 24,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "chutes": 2,
+          "xg": 0.42000000000000004,
+          "cantos": 2,
+          "casaAcum": 24,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "chutes": 2,
+          "xg": 0.42000000000000004,
+          "cantos": 3,
+          "casaAcum": 27,
+          "foraAcum": 14,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 20,
+          "chutes": 2,
+          "xg": 0.42000000000000004,
+          "cantos": 3,
+          "casaAcum": 27,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "chutes": 2,
+          "xg": 0.42000000000000004,
+          "cantos": 3,
+          "casaAcum": 27,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 14,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 3,
+          "casaAcum": 30,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 4,
+          "casaAcum": 32,
+          "foraAcum": 14,
+          "casa": 2,
+          "fora": 1
+        },
+        {
+          "minuto": 32,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 4,
+          "casaAcum": 32,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "chutes": 2,
+          "xg": 0.7,
+          "cantos": 4,
+          "casaAcum": 35,
+          "foraAcum": 14,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 14,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 40,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 37,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 39,
+          "foraAcum": 13,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "chutes": 2,
+          "xg": 0.8899999999999999,
+          "cantos": 4,
+          "casaAcum": 39,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "chutes": 3,
+          "xg": 0.9199999999999999,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 13,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "chutes": 3,
+          "xg": 0.95,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "chutes": 3,
+          "xg": 0.95,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "chutes": 3,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 49,
+          "chutes": 3,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "chutes": 3,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "chutes": 3,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "chutes": 3,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "chutes": 3,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "chutes": 3,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 42,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "chutes": 4,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 46,
+          "foraAcum": 14,
+          "casa": 4,
+          "fora": 0
+        },
+        {
+          "minuto": 56,
+          "chutes": 4,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 46,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 57,
+          "chutes": 6,
+          "xg": 1.02,
+          "cantos": 4,
+          "casaAcum": 52,
+          "foraAcum": 14,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 58,
+          "chutes": 6,
+          "xg": 1.35,
+          "cantos": 4,
+          "casaAcum": 55,
+          "foraAcum": 14,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 59,
+          "chutes": 6,
+          "xg": 1.35,
+          "cantos": 4,
+          "casaAcum": 55,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 60,
+          "chutes": 6,
+          "xg": 1.6099999999999999,
+          "cantos": 4,
+          "casaAcum": 58,
+          "foraAcum": 14,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 61,
+          "chutes": 6,
+          "xg": 1.6099999999999999,
+          "cantos": 4,
+          "casaAcum": 58,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 62,
+          "chutes": 6,
+          "xg": 1.6099999999999999,
+          "cantos": 4,
+          "casaAcum": 58,
+          "foraAcum": 15,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 63,
+          "chutes": 6,
+          "xg": 1.81,
+          "cantos": 4,
+          "casaAcum": 61,
+          "foraAcum": 14,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 64,
+          "chutes": 6,
+          "xg": 1.81,
+          "cantos": 4,
+          "casaAcum": 61,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 65,
+          "chutes": 6,
+          "xg": 1.81,
+          "cantos": 4,
+          "casaAcum": 61,
+          "foraAcum": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 66,
+          "chutes": 7,
+          "xg": 1.81,
+          "cantos": 4,
+          "casaAcum": 60,
+          "foraAcum": 17,
+          "casa": 0,
+          "fora": 3
+        },
+        {
+          "minuto": 67,
+          "chutes": 7,
+          "xg": 1.81,
+          "cantos": 4,
+          "casaAcum": 60,
+          "foraAcum": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 68,
+          "chutes": 8,
+          "xg": 1.9,
+          "cantos": 4,
+          "casaAcum": 63,
+          "foraAcum": 18,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 69,
+          "chutes": 8,
+          "xg": 2.25,
+          "cantos": 5,
+          "casaAcum": 69,
+          "foraAcum": 18,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 70,
+          "chutes": 8,
+          "xg": 2.25,
+          "cantos": 5,
+          "casaAcum": 69,
+          "foraAcum": 18,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "pontosPressao": [
+        {
+          "minuto": 1,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "casa": 10,
+          "fora": 10
+        },
+        {
+          "minuto": 4,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "casa": 0,
+          "fora": 4
+        },
+        {
+          "minuto": 7,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "casa": 5,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "casa": 0,
+          "fora": 2
+        },
+        {
+          "minuto": 13,
+          "casa": 8,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 20,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "casa": 2,
+          "fora": 1
+        },
+        {
+          "minuto": 32,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 40,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 49,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "casa": 4,
+          "fora": 0
+        },
+        {
+          "minuto": 56,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 57,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 58,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 59,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 60,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 61,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 62,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 63,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 64,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 65,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 66,
+          "casa": 0,
+          "fora": 3
+        },
+        {
+          "minuto": 67,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 68,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 69,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 70,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "motivo": "encerrar-70"
+    },
+    "bet_179433265130460u": {
+      "betId": "bet_179433265130460u",
+      "nuvemId": null,
+      "match": "CD Pamplona x Eibar",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1644365,
+      "stake": 5,
+      "odd": 1.59,
+      "kickoff": "2026-11-10T18:00:00.000Z",
+      "feitos": [
+        20,
+        30,
+        35,
+        40,
+        46,
+        48,
+        55
+      ],
+      "precisaRetry48": true,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 55,
+        "status": "2H Second Half",
+        "em": 1794337928447
+      },
+      "notificados": [
+        "notified_1644365_20",
+        "notified_1644365_30",
+        "notified_1644365_35",
+        "notified_1644365_40"
+      ],
+      "league": "Copa del Rey",
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "2H|55|0-3",
+      "amostras": [
+        {
+          "minuto": 1,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 4,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 7,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 11,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 13,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 20,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 32,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 40,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 49,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "chutes": 0,
+          "xg": 0,
+          "cantos": 0,
+          "casaAcum": 0,
+          "foraAcum": 0,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "pontosPressao": [
+        {
+          "minuto": 1,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 4,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 7,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 20,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 32,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 40,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 49,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "flag_jogo_esfriou": true,
+      "motivo": "green"
+    },
+    "bet_1794340056058c9j": {
+      "betId": "bet_1794340056058c9j",
+      "nuvemId": null,
+      "match": "PSG (w) x FC Bayern München (w)",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": null,
+      "stake": 5,
+      "odd": 1.42,
+      "kickoff": "2026-11-10T20:00:00.000Z",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": true,
+      "ancora": {
+        "elapsed": 71,
+        "status": "2H",
+        "em": 1794346133751
+      },
+      "notificados": [],
+      "league": "UEFA Champions League",
+      "gameLink": null,
+      "ultimaAssinaturaNuvem": "2H|71|",
+      "motivo": "apos-70"
+    },
+    "bet_179434939443338s": {
+      "betId": "bet_179434939443338s",
+      "nuvemId": null,
+      "match": "Pumas UNAM (w) x Tigres UANL (w)",
+      "market": "Total de Gols: Acima de 2.5",
+      "fixtureId": 1649463,
+      "stake": 10,
+      "odd": 1.4,
+      "kickoff": "2026-11-10T22:00:00-03:00",
+      "feitos": [],
+      "precisaRetry48": false,
+      "encerrado": false,
+      "ancora": null,
+      "notificados": [],
+      "league": "Liga MX",
+      "gameLink": null
     }
   }
 }

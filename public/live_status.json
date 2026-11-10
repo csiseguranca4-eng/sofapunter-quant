@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-10T01:24:11.904Z",
+  "updated_at": "2026-11-10T19:13:53.237Z",
   "jogos": [
     {
       "id": null,
@@ -179,6 +179,667 @@
         "pressao_relativa": 19
       },
       "updated_at": "2026-11-10T01:24:11.904Z"
+    },
+    {
+      "id": null,
+      "partida": "Real Madrid (w) x Paris FC (w)",
+      "fixture_id": 1638332,
+      "minuto_atual": 70,
+      "placar": "2-0",
+      "status_monitoramento": "ENCERRADO_70",
+      "metricas_resumo": {
+        "xg": 2.25,
+        "chutes_alvo": 8,
+        "cantos": 5,
+        "pressao_relativa": 28
+      },
+      "pontosPressao": [
+        {
+          "minuto": 1,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "casa": 10,
+          "fora": 10
+        },
+        {
+          "minuto": 4,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "casa": 0,
+          "fora": 4
+        },
+        {
+          "minuto": 7,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "casa": 5,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "casa": 0,
+          "fora": 2
+        },
+        {
+          "minuto": 13,
+          "casa": 8,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 20,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "casa": 2,
+          "fora": 1
+        },
+        {
+          "minuto": 32,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 40,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "casa": 2,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 49,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "casa": 4,
+          "fora": 0
+        },
+        {
+          "minuto": 56,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 57,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 58,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 59,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 60,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 61,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 62,
+          "casa": 0,
+          "fora": 1
+        },
+        {
+          "minuto": 63,
+          "casa": 3,
+          "fora": 0
+        },
+        {
+          "minuto": 64,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 65,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 66,
+          "casa": 0,
+          "fora": 3
+        },
+        {
+          "minuto": 67,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 68,
+          "casa": 3,
+          "fora": 1
+        },
+        {
+          "minuto": 69,
+          "casa": 6,
+          "fora": 0
+        },
+        {
+          "minuto": 70,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "flag_jogo_esfriou": false,
+      "updated_at": "2026-11-10T19:13:53.237Z"
+    },
+    {
+      "id": null,
+      "partida": "CD Pamplona x Eibar",
+      "fixture_id": 1644365,
+      "minuto_atual": 55,
+      "placar": "0-3",
+      "status_monitoramento": "JOGO_ESFRIOU",
+      "metricas_resumo": {
+        "xg": 0,
+        "chutes_alvo": 0,
+        "cantos": 0,
+        "pressao_relativa": 0
+      },
+      "pontosPressao": [
+        {
+          "minuto": 1,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 2,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 3,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 4,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 5,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 6,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 7,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 8,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 9,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 10,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 11,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 12,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 13,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 14,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 15,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 16,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 17,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 18,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 19,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 20,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 21,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 22,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 23,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 24,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 25,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 26,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 27,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 28,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 29,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 30,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 31,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 32,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 33,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 34,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 35,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 36,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 37,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 38,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 39,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 40,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 41,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 42,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 43,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 44,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 45,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 46,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 47,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 48,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 49,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 50,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 51,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 52,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 53,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 54,
+          "casa": 0,
+          "fora": 0
+        },
+        {
+          "minuto": 55,
+          "casa": 0,
+          "fora": 0
+        }
+      ],
+      "flag_jogo_esfriou": true,
+      "updated_at": "2026-11-10T19:12:08.452Z"
     }
   ]
 }
