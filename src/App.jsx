@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import livroLocal from '../bets_database.json';
-import { apiUrl, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
+import { API_BASE, apiUrl, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
 
@@ -308,6 +308,21 @@ function textoVisivel(valor) {
   return '';
 }
 
+function dataCalendarioLocal(dStr) {
+  const texto = String(dStr ?? '').trim();
+  if (!texto) return '';
+  const barra = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (barra) return `${barra[3]}-${barra[2].padStart(2, '0')}-${barra[1].padStart(2, '0')}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+  const instante = Date.parse(texto);
+  if (Number.isFinite(instante) && (texto.includes('T') || texto.includes(':'))) {
+    const data = new Date(instante);
+    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+  }
+  const iso = texto.match(/^(\d{4}-\d{2}-\d{2})/);
+  return iso ? iso[1] : texto.slice(0, 10);
+}
+
 function listaDeApostas(valor) {
   if (Array.isArray(valor)) return valor.filter((item) => item && typeof item === 'object');
   if (Array.isArray(valor?.bets)) return valor.bets.filter((item) => item && typeof item === 'object');
@@ -321,7 +336,7 @@ function apostaDaNuvem(linha) {
   const odd = Number(linha.odd);
   const stake = Number(linha.stake);
   const lucro = Number(linha.lucro ?? linha.realProfit);
-  const data = String(linha.date || linha.created_at || '').slice(0, 10);
+  const data = dataCalendarioLocal(linha.date || linha.created_at || '');
   return {
     id: linha.id != null ? String(linha.id) : '',
     match: linha.partida || linha.match || '',
@@ -810,55 +825,63 @@ export default function App() {
 
   useEffect(() => {
     let ativo = true;
-    const carregarHistorico = async () => {
-      const fontes = [listaDeApostas(livroLocal)];
+    let remotoAplicado = false;
+    const aplicar = (apostas, remoto) => {
+      if (!ativo) return;
+      const lista = (Array.isArray(apostas) ? apostas : []).map((aposta) => ({
+        ...aposta,
+        date: dataCalendarioLocal(aposta.date || aposta.created_at)
+      }));
+      setSheetBets(lista);
+      setCurrentBankroll(bancaConsolidada(lista));
+      const hoje = getTodayLocal();
+      const temHoje = lista.some((aposta) => dataCalendarioLocal(aposta.date) === hoje);
+      if (remoto && followTodayRef.current && temHoje) setSelectedDate(hoje);
+      else if (remoto && !temHoje && lista.length) setSelectedDate('ALL');
+    };
+    const fallbackLocal = () => {
       try {
         const salvo = localStorage.getItem('sp_sheet_bets');
-        if (salvo) fontes.push(listaDeApostas(JSON.parse(salvo)));
+        if (salvo) return listaDeApostas(JSON.parse(salvo));
       } catch (err) {
         console.warn('Histórico do navegador indisponível:', err?.message || err);
       }
-      if (!ativo) return;
-      const aplicar = (apostas) => {
-        if (!ativo || !apostas.length) return;
-        setSheetBets(apostas);
-        setCurrentBankroll(bancaConsolidada(apostas));
-        const hoje = getTodayLocal();
-        const temHoje = apostas.some((aposta) => normalizeDate(aposta.date) === hoje);
-        if (!temHoje) setSelectedDate('ALL');
-      };
-      aplicar(mesclarApostas(fontes));
+      return listaDeApostas(livroLocal);
+    };
+    const espera = setTimeout(() => {
+      if (!ativo || remotoAplicado) return;
+      aplicar(fallbackLocal(), false);
+      setIsDataLoaded(true);
+    }, 8000);
+    const carregarHistorico = async () => {
       try {
-        const resp = await fetch(apiUrl('/api/saved-data'), { signal: AbortSignal.timeout(4000) });
+        const resp = await fetch(`${API_BASE}/api/saved-data`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(25000)
+        });
         const data = await resp.json();
-        if (data && (data.success || data.sucesso || Array.isArray(data.bets))) {
-          fontes.push(listaDeApostas(data));
-          aplicar(mesclarApostas(fontes));
+        if (!resp.ok || !data || !(data.success || data.sucesso || Array.isArray(data.bets))) {
+          throw new Error(data?.message || 'Resposta inválida da planilha.');
         }
+        const remotas = listaDeApostas(data);
+        remotoAplicado = true;
+        aplicar(remotas, true);
+        try {
+          localStorage.setItem('sp_sheet_bets', JSON.stringify(remotas));
+        } catch (_) { /* o navegador pode bloquear o storage */ }
       } catch (err) {
         console.warn('Histórico do backend indisponível, usando o livro local:', err?.message || err);
-      }
-      if (supabaseMonitor) {
-        const nuvem = [];
-        for (const tabela of ['apostas', 'apostas_futebol']) {
-          try {
-            const consulta = supabaseMonitor.from(tabela).select('*').limit(1000);
-            const { data, error } = await Promise.race([
-              consulta,
-              new Promise((resolve) => setTimeout(() => resolve({ data: null, error: { message: 'tempo esgotado' } }), 4000))
-            ]);
-            if (!error && Array.isArray(data) && data.length) nuvem.push(...data);
-          } catch (err) {
-            console.warn(`Histórico ${tabela} indisponível:`, err?.message || err);
-          }
-        }
-        if (nuvem.length) aplicar(mesclarApostas([...fontes, nuvem]));
+        if (!remotoAplicado) aplicar(fallbackLocal(), false);
+      } finally {
+        clearTimeout(espera);
+        if (ativo) setIsDataLoaded(true);
       }
     };
-    carregarHistorico().finally(() => {
-      if (ativo) setIsDataLoaded(true);
-    });
-    return () => { ativo = false; };
+    carregarHistorico();
+    return () => {
+      ativo = false;
+      clearTimeout(espera);
+    };
   }, []);
 
   const persistToDisk = async (newBets, newBank) => {
@@ -942,17 +965,7 @@ export default function App() {
   const [multiplaOddEdited, setMultiplaOddEdited] = useState(false);
   const [radarPlanilhaAberto, setRadarPlanilhaAberto] = useState({});
 
-  const normalizeDate = (dStr) => {
-    if (!dStr) return '';
-    if (dStr.includes('T')) return dStr.split('T')[0];
-    if (dStr.includes('/')) {
-      const parts = dStr.split('/');
-      if (parts.length === 3) {
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-    return dStr.trim();
-  };
+  const normalizeDate = dataCalendarioLocal;
 
   const getTodayLocal = () => {
     const d = new Date();
@@ -2491,7 +2504,7 @@ export default function App() {
                   Nenhuma entrada para este filtro.
                   {sheetBets.length > 0 && selectedDate !== 'ALL' && (
                     <div className="mt-2 text-xs text-[#00c853]">
-                      Você possui {sheetBets.length} entrada(s) salvas no computador. Clique em <strong>"Ver todas"</strong> acima.
+                      Há {sheetBets.length} entrada(s) no histórico, nenhuma nesta data. Clique em <strong>"Ver todas"</strong> acima.
                     </div>
                   )}
                 </div>

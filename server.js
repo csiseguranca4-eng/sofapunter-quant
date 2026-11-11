@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 import { aceitarPartidaReal, codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
 import { garantirFixtureId, iniciarMonitorCarpina } from './liveMonitor.js';
-import { TABELA_APOSTAS } from './lib/supabase.js';
+import { supabase, TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
@@ -119,14 +119,90 @@ app.get(comESemApi('/api/apostas'), (req, res) => {
   }
 });
 
-app.get(comESemApi('/api/saved-data'), (req, res) => {
+function chavePlanilha(aposta) {
+  const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return `${limpar(aposta?.match || aposta?.jogo || aposta?.partida)}|${limpar(aposta?.market || aposta?.mercado)}`;
+}
+
+function linhaParaPlanilha(linha) {
+  if (!linha || typeof linha !== 'object') return null;
+  const jogo = linha.jogo || linha.partida || linha.match || '';
+  const mercado = linha.mercado || linha.market || '';
+  if (!jogo && !mercado) return null;
+  const statusBruto = String(linha.status || 'PENDING').toUpperCase();
+  const lucro = Number(linha.lucro ?? linha.realProfit);
+  const stake = Number(linha.stake);
+  const odd = Number(linha.odd);
+  return {
+    id: linha.id != null ? String(linha.id) : '',
+    match: jogo,
+    league: linha.league || linha.liga || '',
+    market: mercado,
+    marketType: linha.marketType || mercado || 'Outro',
+    odd: Number.isFinite(odd) ? odd : 0,
+    stake: Number.isFinite(stake) ? stake : 0,
+    status: statusBruto === 'PENDENTE' ? 'PENDING' : statusBruto,
+    realProfit: Number.isFinite(lucro) ? lucro : 0,
+    returnedAmount: linha.returnedAmount,
+    date: linha.date || linha.created_at || '',
+    timestamp: Date.parse(linha.created_at || '') || Number(linha.timestamp) || 0,
+    fixtureId: linha.fixture_id || linha.fixtureId || null
+  };
+}
+
+async function lerTabelaPlanilha(nome) {
+  const tentar = async (colunas, ordem) => {
+    let consulta = supabase.from(nome).select(colunas).limit(1000);
+    if (ordem) consulta = consulta.order(ordem, { ascending: false });
+    return consulta;
+  };
+  let resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id', 'created_at');
+  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, status, created_at', 'created_at');
+  if (resultado.error) resultado = await tentar('*', 'id');
+  if (resultado.error) {
+    console.warn(`[planilha] ${nome}: ${resultado.error.message}`);
+    return [];
+  }
+  return Array.isArray(resultado.data) ? resultado.data : [];
+}
+
+async function apostasDaNuvem() {
+  const tabelas = [...new Set(['apostas', TABELA_APOSTAS])];
+  const linhas = [];
+  for (const tabela of tabelas) {
+    try {
+      linhas.push(...await lerTabelaPlanilha(tabela));
+    } catch (erro) {
+      console.warn(`[planilha] ${tabela}: ${erro?.message || erro}`);
+    }
+  }
+  return linhas.map(linhaParaPlanilha).filter(Boolean);
+}
+
+app.get(comESemApi('/api/saved-data'), async (req, res) => {
+  let arquivo = { bets: [], bankroll: 335 };
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    const data = JSON.parse(raw || '{"bets":[],"bankroll":335}');
-    res.json({ success: true, ...data });
-  } catch (e) {
-    res.json({ success: true, bets: [], bankroll: 335 });
+    arquivo = JSON.parse(raw || '{"bets":[],"bankroll":335}');
+  } catch (_) { /* o livro em disco pode ainda não existir */ }
+  const locais = Array.isArray(arquivo.bets) ? arquivo.bets : [];
+  let nuvem = [];
+  try {
+    nuvem = await Promise.race([
+      apostasDaNuvem(),
+      new Promise((resolve) => setTimeout(() => resolve([]), 8000))
+    ]);
+  } catch (erro) {
+    console.warn(`[planilha] nuvem indisponível: ${erro?.message || erro}`);
   }
+  const chaves = new Set(locais.map(chavePlanilha));
+  const extras = nuvem.filter((aposta) => {
+    const chave = chavePlanilha(aposta);
+    if (!chave || chave === '|' || chaves.has(chave)) return false;
+    chaves.add(chave);
+    return true;
+  });
+  res.json({ success: true, bets: [...extras, ...locais], bankroll: arquivo.bankroll || 335 });
 });
 
 app.post(comESemApi('/api/save-data'), (req, res) => {
