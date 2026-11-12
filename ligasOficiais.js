@@ -37,7 +37,11 @@ const LIGAS_OFICIAIS = [
   { id: 137, nome: 'Coppa Italia', pais: 'Itália', regiao: 'Europa', grupo: 'copas_nacionais' },
   { id: 529, nome: 'DFB Pokal', pais: 'Alemanha', regiao: 'Europa', grupo: 'copas_nacionais' },
   { id: 66, nome: 'Coupe de France', pais: 'França', regiao: 'Europa', grupo: 'copas_nacionais' },
-  { id: 96, nome: 'Taça de Portugal', pais: 'Portugal', regiao: 'Europa', grupo: 'copas_nacionais' }
+  { id: 96, nome: 'Taça de Portugal', pais: 'Portugal', regiao: 'Europa', grupo: 'copas_nacionais' },
+  { id: 5, nome: 'UEFA Nations League', pais: 'Europa', regiao: 'Internacional', grupo: 'selecoes' },
+  { id: 10, nome: 'Friendlies', pais: 'Internacional', regiao: 'Internacional', grupo: 'selecoes' },
+  { id: 34, nome: 'World Cup - Qualification South America', pais: 'América do Sul', regiao: 'Internacional', grupo: 'selecoes' },
+  { id: 32, nome: 'World Cup - Qualification Europe', pais: 'Europa', regiao: 'Internacional', grupo: 'selecoes' }
 ];
 
 const OPCOES_LIGA = [
@@ -59,7 +63,8 @@ const OPCOES_LIGA = [
   { value: 'ligamx', label: '🇲🇽 México (Liga MX)' },
   { value: 'chile', label: '🇨🇱 Chile (Primera División)' },
   { value: 'libertadores', label: '🌎 Libertadores / Sul-Americana' },
-  { value: 'copas_nacionais', label: '🏆 Copas Nacionais (Copa del Rey, FA Cup, Copa do Brasil)' }
+  { value: 'copas_nacionais', label: '🏆 Copas Nacionais (Copa del Rey, FA Cup, Copa do Brasil)' },
+  { value: 'selecoes', label: '🌍 Seleções (Nations League, Amistosos, Eliminatórias)' }
 ];
 
 const GRUPOS_EQUIVALENTES = {
@@ -158,6 +163,10 @@ function ligaOficialPorTexto(textoBruto, leagueId) {
   if (tem('dfb pokal')) return porId(529);
   if (tem('coupe de france')) return porId(66);
   if (tem('taca de portugal', 'taca portugal')) return porId(96);
+  if (tem('nations league', 'liga das nacoes')) return porId(5);
+  if (tem('world cup qualification south america', 'eliminatorias conmebol', 'eliminatorias sul americanas')) return porId(34);
+  if (tem('world cup qualification europe', 'eliminatorias europe', 'eliminatorias da europa')) return porId(32);
+  if (tem('friendlies', 'international friendlies', 'amistosos internacionais', 'amistosos')) return porId(10);
   return null;
 }
 

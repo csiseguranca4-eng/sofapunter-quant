@@ -236,5 +236,33 @@
     "pais": "Portugal",
     "regiao": "Europa",
     "grupo": "copas_nacionais"
+  },
+  {
+    "id": 5,
+    "nome": "UEFA Nations League",
+    "pais": "Europa",
+    "regiao": "Internacional",
+    "grupo": "selecoes"
+  },
+  {
+    "id": 10,
+    "nome": "Friendlies",
+    "pais": "Internacional",
+    "regiao": "Internacional",
+    "grupo": "selecoes"
+  },
+  {
+    "id": 34,
+    "nome": "World Cup - Qualification South America",
+    "pais": "América do Sul",
+    "regiao": "Internacional",
+    "grupo": "selecoes"
+  },
+  {
+    "id": 32,
+    "nome": "World Cup - Qualification Europe",
+    "pais": "Europa",
+    "regiao": "Internacional",
+    "grupo": "selecoes"
   }
 ]
