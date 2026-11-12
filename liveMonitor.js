@@ -111,15 +111,23 @@ const MARCOS_ATIVOS = MARCOS_2T;
 const INTERVALO_HT_MIN = 15;
 
 function textoMercado(aposta) {
-  return `${aposta?.market || ''} ${aposta?.marketType || ''} ${aposta?.tipo || ''} ${aposta?.mercado || ''}`;
+  return `${aposta?.market || ''} ${aposta?.marketType || ''} ${aposta?.tipo || ''} ${aposta?.mercado || ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function linhaDeGols(aposta, linha) {
+  const texto = textoMercado(aposta).toLowerCase();
+  const numero = String(linha).replace('.', '[.,]');
+  return new RegExp(`(?:over|acima\\s+de|acima)\\s*${numero}(?!\\d)`, 'i').test(texto);
 }
 
 export function ehEntradaOver15(aposta) {
-  return /acima de 1[.,]5|over\s*1[.,]5/i.test(textoMercado(aposta));
+  return linhaDeGols(aposta, '1.5');
 }
 
 export function ehEntradaOver25(aposta) {
-  return /acima de 2[.,]5|over\s*2[.,]5/i.test(textoMercado(aposta));
+  return linhaDeGols(aposta, '2.5');
 }
 
 export function ehEntradaMonitorada(aposta) {
@@ -618,11 +626,21 @@ function chaveNotificacao(fixtureId, minuto) {
 
 const notificacoesServidor = new Set();
 
-export function reservarAvisoUnico(fixtureId, minuto) {
-  const chave = chaveNotificacao(fixtureId, minuto);
+export function reservarAvisoUnico(fixtureId, minuto, partida = '') {
+  const idNumerico = fixtureId != null && String(fixtureId).trim() !== '' && String(fixtureId) !== 'null'
+    ? String(fixtureId)
+    : (normalizarNome(partida) || 'sem-fixture');
+  const chave = chaveNotificacao(idNumerico, minuto);
   if (notificacoesServidor.has(chave)) return false;
   notificacoesServidor.add(chave);
   return true;
+}
+
+function bloquearTelegram(watch, motivo) {
+  if (!(watch.bloqueiosTelegram instanceof Set)) watch.bloqueiosTelegram = new Set();
+  if (watch.bloqueiosTelegram.has(motivo)) return;
+  watch.bloqueiosTelegram.add(motivo);
+  console.log(`[CARPINA] Telegram bloqueado: ${watch.match || 'partida'} — ${motivo}`);
 }
 
 export function riscoStopLossPrecoce(snapshot, minuto) {
@@ -1224,11 +1242,13 @@ export function iniciarMonitorCarpina(opcoes) {
     if (watch.encerrado) return;
     const times = partidaDaAposta({ match: watch.match });
     if (deveIgnorarPartida(watch.league, times?.home, times?.away)) {
+      bloquearTelegram(watch, 'liga ou categoria bloqueada pelo filtro de base/amador');
       encerrar(watch, 'liga-ignorada');
       console.log(`[CARPINA] Partida ignorada (base ou liga sem scout): ${watch.match}`);
       return;
     }
     if (watch.fixtureId != null && fixturesBloqueados.has(String(watch.fixtureId))) {
+      bloquearTelegram(watch, `fixture ${watch.fixtureId} bloqueado (já encerrado)`);
       encerrar(watch, 'fixture-encerrado');
       return;
     }
@@ -1298,12 +1318,14 @@ export function iniciarMonitorCarpina(opcoes) {
     }
     if (!snapshot) {
       console.log(linhaRelogio(watch.match, null));
+      bloquearTelegram(watch, 'sem snapshot da API-Football nem do feed ao vivo');
       return;
     }
     console.log(linhaRelogio(watch.match, snapshot));
     const curto = statusCurto(snapshot);
     if (curto === 'NS' || curto === 'TBD' || curto === 'PST') {
       watch.kickoff = watch.kickoff || snapshot.kickoff;
+      bloquearTelegram(watch, `status ${curto}: partida ainda não começou`);
       return;
     }
     if (fixtureEncerrado(snapshot.status)) {
@@ -1320,6 +1342,8 @@ export function iniciarMonitorCarpina(opcoes) {
         } catch (erro) {
           console.log('[CARPINA] Jogo finalizado sem gravar o GREEN:', erro.message);
         }
+      } else {
+        bloquearTelegram(watch, `jogo encerrado com ${gols} golo(s), abaixo do limite do mercado`);
       }
       encerrar(watch, 'ft');
       return;
@@ -1329,6 +1353,7 @@ export function iniciarMonitorCarpina(opcoes) {
     if (curto === 'HT' && !(minuto >= 46)) minuto = 46;
     if (!Number.isFinite(minuto)) minuto = minutoDoAcompanhamento(watch, agora());
     if (acompanhamentoEncerrado(minuto, snapshot.elapsed)) {
+      bloquearTelegram(watch, `minuto ${Number.isFinite(minuto) ? Math.floor(minuto) : '—'} passou de 70; monitoramento encerrado`);
       bloquearFixture(watch);
       encerrar(watch, 'apos-70');
       return;
@@ -1390,23 +1415,40 @@ export function iniciarMonitorCarpina(opcoes) {
         gravarEstadoLocal(watch, snapshot, minutoGrafico, { statusMonitoramento: 'JOGO_ESFRIOU' });
       }
     }
-    if (snapshot.placarConhecido === false) return;
-    if (marco == null) return;
+    const placarDesconhecido = snapshot.placarConhecido === false;
+    if (marco == null) {
+      const textoMinuto = Number.isFinite(minuto) ? `${Math.floor(minuto)}'` : 'sem cronômetro';
+      bloquearTelegram(watch, `minuto ${textoMinuto} fora das janelas 20/30/35/40 ou marco já processado`);
+      return;
+    }
+    if (placarDesconhecido && !MARCOS_1T.includes(marco)) {
+      bloquearTelegram(watch, `placar desconhecido no marco ${marco}; o radar de 1T é o único aviso sem placar`);
+      return;
+    }
     watch.feitos.add(marco);
     if (marcoRelogio != null) watch.feitos.add(marcoRelogio);
-    const decisao = decidirCarpina(snapshot, marco, watch.market);
-    try {
-      await gravarMarcoNoSupabase(watch, snapshot, marco, decisao);
-    } catch (erro) {
-      console.log('[Monitor 2.5] Falha ao gravar o marco:', erro.message);
+    const decisao = placarDesconhecido
+      ? { acao: 'seguir', encerrar: false, mensagem: null, statusMonitoramento: 'MONITORANDO' }
+      : decidirCarpina(snapshot, marco, watch.market);
+    if (placarDesconhecido) {
+      console.log(`[CARPINA] ${watch.match}: placar desconhecido aos ${marco}'. Radar de 1T segue sem inventar 0x0.`);
+    } else {
+      try {
+        await gravarMarcoNoSupabase(watch, snapshot, marco, decisao);
+      } catch (erro) {
+        console.log('[Monitor 2.5] Falha ao gravar o marco:', erro.message);
+      }
     }
     if (marco === 46 && snapshot.status !== 'HT') watch.precisaRetry48 = true;
     if (!(watch.notificados instanceof Set)) watch.notificados = new Set(watch.notificados || []);
     const chaveAviso = chaveNotificacao(watch.fixtureId, marco);
     const aviso1T = MARCOS_1T.includes(marco);
     if (aviso1T) {
-      const primeiraVez = reservarAvisoUnico(watch.fixtureId, marco);
+      const primeiraVez = reservarAvisoUnico(watch.fixtureId, marco, watch.match);
       watch.notificados.add(chaveAviso);
+      if (!primeiraVez) {
+        bloquearTelegram(watch, `aviso dos ${marco}' já reservado para ${watch.fixtureId || watch.match}`);
+      }
       if (primeiraVez) {
         const times = partidaDaAposta({ match: watch.match });
         const mandante = times?.home || snapshot.home || 'Mandante';
@@ -1437,8 +1479,8 @@ export function iniciarMonitorCarpina(opcoes) {
             minuto: marco,
             mandante,
             visitante,
-            golsCasa: Number(snapshot.golsCasa) || 0,
-            golsFora: Number(snapshot.golsFora) || 0,
+            golsCasa: placarDesconhecido ? '—' : (Number(snapshot.golsCasa) || 0),
+            golsFora: placarDesconhecido ? '—' : (Number(snapshot.golsFora) || 0),
             mercado,
             snapshot,
             decisao
@@ -1477,10 +1519,12 @@ export function iniciarMonitorCarpina(opcoes) {
       } catch (erro) {
         console.log('[CARPINA] Termômetro não enviado:', erro.message);
       }
+    } else {
+      bloquearTelegram(watch, `marco ${marco} sem mensagem de radar, cashout ou termômetro`);
     }
     try {
-      if (decisao.acao === 'green') await registrarGreen(watch);
-      if (decisao.acao === 'cashout-intervalo' || decisao.acao === 'stop-60' || decisao.acao === 'stop-65') {
+      if (!placarDesconhecido && decisao.acao === 'green') await registrarGreen(watch);
+      if (!placarDesconhecido && (decisao.acao === 'cashout-intervalo' || decisao.acao === 'stop-60' || decisao.acao === 'stop-65')) {
         await registrarStopLoss(watch);
       }
     } catch (erro) {
