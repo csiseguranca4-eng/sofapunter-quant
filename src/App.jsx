@@ -4,7 +4,7 @@ import { API_BASE, apiUrl, emLocal, grupoCompativel, grupoDaLiga, OPCOES_LIGA, u
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
-import { faseAtual, lerSaldoCdb } from './metodoBanca.js';
+import { BANCA_OPERACIONAL, INICIO_METODO, faseAtual, lerSaldoCdb } from './metodoBanca.js';
 
 function nomesIguais(a, b) {
   const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -298,8 +298,6 @@ function growthPercent(profit, base) {
   return (gain / start) * 100;
 }
 
-const PRIMARY_BANKROLL = 335;
-
 function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
@@ -413,9 +411,16 @@ function mesclarApostas(listas) {
   return [...mapa.values()];
 }
 
+function apostaDoMetodo(aposta) {
+  const dia = dataCalendarioLocal(aposta?.date);
+  return dia >= INICIO_METODO;
+}
+
 function bancaConsolidada(apostas) {
-  const lucro = (Array.isArray(apostas) ? apostas : []).reduce((total, aposta) => total + entryNetProfit(aposta), 0);
-  return roundMoney(PRIMARY_BANKROLL + lucro);
+  const lucro = (Array.isArray(apostas) ? apostas : [])
+    .filter(apostaDoMetodo)
+    .reduce((total, aposta) => total + entryNetProfit(aposta), 0);
+  return roundMoney(BANCA_OPERACIONAL + lucro);
 }
 
 function signedGrowth(value) {
@@ -830,7 +835,7 @@ export default function App() {
   const [ligaPlanilha, setLigaPlanilha] = useState('all');
   const [jogoFocado, setJogoFocado] = useState('');
 
-  const [currentBankroll, setCurrentBankroll] = useState(PRIMARY_BANKROLL);
+  const [currentBankroll, setCurrentBankroll] = useState(BANCA_OPERACIONAL);
   const [sheetBets, setSheetBets] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -953,6 +958,7 @@ export default function App() {
 
   const [saldoCdb, setSaldoCdb] = useState(lerSaldoCdb);
   const [vistaPlanilha, setVistaPlanilha] = useState('entradas');
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
   const faseOperacional = useMemo(() => faseAtual(saldoCdb), [saldoCdb]);
   const recommendedStake = faseOperacional.stake;
   const gravarSaldoCdb = (valor) => {
@@ -1634,9 +1640,10 @@ export default function App() {
       return b;
     });
 
-    setCurrentBankroll(nextBank);
+    const bancoMetodo = bancaConsolidada(updated);
+    setCurrentBankroll(bancoMetodo);
     setSheetBets(updated);
-    persistToDisk(updated, nextBank);
+    persistToDisk(updated, bancoMetodo);
     if (resultadoNuvem) sincronizarResultadoNuvem(resultadoNuvem);
   };
 
@@ -1658,10 +1665,6 @@ export default function App() {
     }
 
     const netProfit = Number((returned - (Number(bet.stake) || 0)).toFixed(2));
-    const cleanBank = revertBetFinance(bet, currentBankroll);
-    const nextBank = cleanBank + netProfit;
-
-    setCurrentBankroll(nextBank);
 
     const updated = sheetBets.map(b => {
       if (b.id !== id) return b;
@@ -1672,9 +1675,11 @@ export default function App() {
         realProfit: netProfit
       };
     });
+    const bancoMetodo = bancaConsolidada(updated);
 
+    setCurrentBankroll(bancoMetodo);
     setSheetBets(updated);
-    persistToDisk(updated, nextBank);
+    persistToDisk(updated, bancoMetodo);
     const gravada = updated.find((b) => b.id === id);
     if (gravada) sincronizarResultadoNuvem(gravada);
   };
@@ -1683,12 +1688,12 @@ export default function App() {
     const bet = sheetBets.find(b => b.id === id);
     if (!bet) return;
 
-    const cleanBank = revertBetFinance(bet, currentBankroll);
     const updated = sheetBets.filter(b => b.id !== id);
+    const bancoMetodo = bancaConsolidada(updated);
 
-    setCurrentBankroll(cleanBank);
+    setCurrentBankroll(bancoMetodo);
     setSheetBets(updated);
-    persistToDisk(updated, cleanBank);
+    persistToDisk(updated, bancoMetodo);
   };
 
   const dayStats = useMemo(() => {
@@ -1739,7 +1744,7 @@ export default function App() {
     };
   }, [sheetBets, selectedDate]);
 
-  const linhasFinanceiras = useMemo(() => sheetBets.map((aposta) => ({
+  const linhasFinanceiras = useMemo(() => sheetBets.filter(apostaDoMetodo).map((aposta) => ({
     date: normalizeDate(aposta.date),
     status: String(aposta.status || '').toUpperCase(),
     lucro: entryNetProfit(aposta),
@@ -1773,6 +1778,7 @@ export default function App() {
   const monthLedger = useMemo(() => {
     const profits = new Map();
     sheetBets.forEach((bet) => {
+      if (!apostaDoMetodo(bet)) return;
       if (bet.status !== 'GREEN' && bet.status !== 'RED' && bet.status !== 'CASHOUT') return;
       const key = normalizeDate(bet.date).slice(0, 7);
       if (!/^\d{4}-\d{2}$/.test(key)) return;
@@ -1783,7 +1789,7 @@ export default function App() {
     }
 
     const months = {};
-    let running = PRIMARY_BANKROLL;
+    let running = BANCA_OPERACIONAL;
     [...profits.keys()].sort().forEach((key) => {
       const profit = roundMoney(profits.get(key) || 0);
       const initial = roundMoney(running);
@@ -1797,13 +1803,13 @@ export default function App() {
       running = finalBank;
     });
 
-    const totalProfit = roundMoney(running - PRIMARY_BANKROLL);
+    const totalProfit = roundMoney(running - BANCA_OPERACIONAL);
     return {
       months,
       totalProfit,
-      primary: PRIMARY_BANKROLL,
+      primary: BANCA_OPERACIONAL,
       current: roundMoney(running),
-      historicalGrowth: growthPercent(totalProfit, PRIMARY_BANKROLL)
+      historicalGrowth: growthPercent(totalProfit, BANCA_OPERACIONAL)
     };
   }, [sheetBets, currentMonthKey]);
 
@@ -1813,14 +1819,14 @@ export default function App() {
     ? {
         netProfit: monthLedger.totalProfit,
         growth: monthLedger.historicalGrowth,
-        subtitle: `Banca Inicial: $ ${monthLedger.primary.toFixed(2)} ➔ Atual: $ ${monthLedger.current.toFixed(2)}`
+        subtitle: `Banca Inicial: R$ ${monthLedger.primary.toFixed(2).replace('.', ',')} ➔ Atual: R$ ${monthLedger.current.toFixed(2).replace('.', ',')}`
       }
     : {
         netProfit: selectedMonth?.profit || 0,
         growth: selectedMonth?.growth || 0,
         subtitle: profitSelectValue === 'CURRENT'
-          ? `Banca Inicial do Mês: $ ${(selectedMonth?.initial ?? PRIMARY_BANKROLL).toFixed(2)}`
-          : `Banca Base: $ ${(selectedMonth?.initial ?? PRIMARY_BANKROLL).toFixed(2)} ➔ Final: $ ${(selectedMonth?.final ?? PRIMARY_BANKROLL).toFixed(2)}`
+          ? `Banca Inicial do Mês: R$ ${(selectedMonth?.initial ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')}`
+          : `Banca Base: R$ ${(selectedMonth?.initial ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')} ➔ Final: R$ ${(selectedMonth?.final ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')}`
       };
 
   const periodTitle = profitSelectValue === 'CURRENT' ? 'Lucro Mensal' : 'Lucro';
@@ -2109,7 +2115,7 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Banca Atual</div>
-            <div className="text-xl font-bold text-white mt-1">$ {currentBankroll.toFixed(2)}</div>
+            <div className="text-xl font-bold text-white mt-1">R$ {currentBankroll.toFixed(2).replace('.', ',')}</div>
             <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Banca operacional: R$ {faseOperacional.banca.toFixed(2).replace('.', ',')} · Stake 1,5%: R$ {recommendedStake.toFixed(2).replace('.', ',')}</div>
           </div>
 
@@ -2607,15 +2613,25 @@ export default function App() {
               />
             ) : (
             <>
-            <CalendarioMes
-              linhas={linhasFinanceiras}
-              hoje={getTodayLocal()}
-              dataSelecionada={selectedDate}
-              onSelectDate={(iso) => {
-                followTodayRef.current = iso === getTodayLocal();
-                setSelectedDate(iso);
-              }}
-            />
+            <button
+              type="button"
+              onClick={() => setCalendarioAberto((aberto) => !aberto)}
+              aria-expanded={calendarioAberto}
+              className="mb-4 min-h-[42px] w-full sm:w-auto px-3 rounded-lg border border-gray-800 bg-[#161b22] text-xs font-semibold text-gray-300 hover:text-white"
+            >
+              {calendarioAberto ? '📅 Ocultar Calendário do Mês' : '📅 Ver Calendário do Mês'}
+            </button>
+            {calendarioAberto && (
+              <CalendarioMes
+                linhas={linhasFinanceiras}
+                hoje={getTodayLocal()}
+                dataSelecionada={selectedDate}
+                onSelectDate={(iso) => {
+                  followTodayRef.current = iso === getTodayLocal();
+                  setSelectedDate(iso);
+                }}
+              />
+            )}
 
             <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4 mb-4">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -2695,16 +2711,14 @@ export default function App() {
                           xG {b.metricasResumo?.xg ?? '—'} · chutes no alvo {b.metricasResumo?.chutes_alvo ?? '—'} · cantos {b.metricasResumo?.cantos ?? '—'}
                           {textoTatico(b) ? ` · ${textoTatico(b)}` : ''}
                         </div>
-                        {String(b.status || '').toUpperCase() !== 'PENDING' && (
-                          <button
-                            type="button"
-                            onClick={() => setRadarPlanilhaAberto((atual) => ({ ...atual, [b.id]: !atual[b.id] }))}
-                            className="text-[11px] font-bold text-sky-300 hover:text-white"
-                          >
-                            📡 Ver Radar 2D
-                          </button>
-                        )}
-                        {(String(b.status || '').toUpperCase() === 'PENDING' || radarPlanilhaAberto[b.id]) && (
+                        <button
+                          type="button"
+                          onClick={() => setRadarPlanilhaAberto((atual) => ({ ...atual, [b.id]: !atual[b.id] }))}
+                          className="text-[11px] font-bold text-sky-300 hover:text-white"
+                        >
+                          {radarPlanilhaAberto[b.id] ? '📡 Ocultar Radar 2D' : '📡 Ver Radar 2D'}
+                        </button>
+                        {radarPlanilhaAberto[b.id] && (
                           <div className="w-full min-w-0">
                             <RadarLive
                               fixtureId={b.fixtureId || null}

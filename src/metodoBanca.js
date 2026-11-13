@@ -1,4 +1,5 @@
 export const BANCA_OPERACIONAL = 500;
+export const INICIO_METODO = '2026-11-13';
 export const STOP_LOSS_DIARIO = -15;
 export const LIMITE_ENTRADAS_MIN = 3;
 export const LIMITE_ENTRADAS_MAX = 4;
@@ -13,6 +14,11 @@ export const FASES_CDB = [
 
 export function lerSaldoCdb() {
   try {
+    if (localStorage.getItem('sp_cdb_corte') !== INICIO_METODO) {
+      localStorage.setItem('sp_cdb_saldo', '0');
+      localStorage.setItem('sp_cdb_corte', INICIO_METODO);
+      return 0;
+    }
     const salvo = Number(localStorage.getItem('sp_cdb_saldo'));
     if (Number.isFinite(salvo) && salvo >= 0) return Math.round(salvo * 100) / 100;
   } catch {
