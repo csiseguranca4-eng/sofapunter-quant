@@ -1816,3 +1816,200 @@ if (executadoDiretamente) {
     }
   });
 }
+
+/**
+ * Sniper xG: varredura isolada da sobra da API-Football.
+ * Não grava na tabela apostas e não altera o monitor principal.
+ */
+const alertasSniperEnviados = new Set();
+const cooldownEstatisticaSniper = new Map();
+const TETO_SNIPER_DIA = 3750;
+const COOLDOWN_ESTATISTICA_MS = 120000;
+const MAX_ESTATISTICAS_POR_CICLO = 6;
+const consumoSniper = { dia: '', total: 0 };
+let avisoTetoSniper = false;
+let sniperEmCurso = false;
+let tokenTelegramSniper = '';
+
+function diaSniper() {
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const ler = (tipo) => partes.find((parte) => parte.type === tipo)?.value || '';
+  return `${ler('year')}-${ler('month')}-${ler('day')}`;
+}
+
+function chaveApiFootballSniper() {
+  if (process.env.API_FOOTBALL_KEY) return process.env.API_FOOTBALL_KEY;
+  try {
+    createRequire(import.meta.url)('./services/apiFootball.js');
+  } catch (_) { /* a chave pode já estar no ambiente */ }
+  return process.env.API_FOOTBALL_KEY || '';
+}
+
+function tokenDoTelegramSniper() {
+  if (tokenTelegramSniper) return tokenTelegramSniper;
+  try {
+    const texto = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'server.js'), 'utf8');
+    const achado = texto.match(/TELEGRAM_BOT_TOKEN\s*=\s*'([^']+)'/);
+    tokenTelegramSniper = achado ? achado[1] : '';
+  } catch (_) {
+    tokenTelegramSniper = '';
+  }
+  return tokenTelegramSniper;
+}
+
+function placarAbertoSniper(casa, fora) {
+  return (casa === 0 && fora === 0)
+    || (casa === 1 && fora === 0)
+    || (casa === 0 && fora === 1)
+    || (casa === 1 && fora === 1);
+}
+
+function tempoSniper(status, minuto) {
+  const curto = String(status || '').toUpperCase();
+  if (curto === '1H' && minuto >= 20 && minuto <= 38) return '1T';
+  if (curto === '2H' && minuto >= 55 && minuto <= 75) return '2T';
+  return null;
+}
+
+function mercadoSniper(tempo, gols, xg) {
+  if (tempo === '1T' && gols === 0 && xg >= 1.15) return 'Over 0.5 HT';
+  if (tempo === '1T' && gols === 1 && xg >= 1.80) return 'Over 1.5 HT / FT';
+  if (tempo === '2T' && gols <= 1 && xg >= 2.10) return 'Over 1.5 FT';
+  if (tempo === '2T' && gols === 2 && xg >= 2.85) return 'Over 2.5 FT';
+  return null;
+}
+
+function lerNumeroSniper(lista, nomes) {
+  const alvos = new Set(nomes.map((nome) => nome.toLowerCase()));
+  const item = (Array.isArray(lista) ? lista : []).find((linha) => alvos.has(String(linha?.type || '').toLowerCase()));
+  const valor = Number(String(item?.value ?? '').replace('%', '').replace(',', '.').trim());
+  return Number.isFinite(valor) ? valor : null;
+}
+
+async function pedirApiSniper(caminho) {
+  const dia = diaSniper();
+  if (consumoSniper.dia !== dia) {
+    consumoSniper.dia = dia;
+    consumoSniper.total = 0;
+    avisoTetoSniper = false;
+  }
+  if (consumoSniper.total >= TETO_SNIPER_DIA) {
+    if (!avisoTetoSniper) {
+      avisoTetoSniper = true;
+      console.warn('[SNIPER] Pausa até amanhã: a varredura chegou a 50% da cota diária.');
+    }
+    return null;
+  }
+  const chave = chaveApiFootballSniper();
+  if (!chave) throw new Error('API-Football sem chave.');
+  consumoSniper.total += 1;
+  const resposta = await fetch(`https://v3.football.api-sports.io${caminho}`, {
+    headers: { 'x-apisports-key': chave },
+    signal: AbortSignal.timeout(15000)
+  });
+  const corpo = await resposta.json().catch(() => null);
+  if (!resposta.ok) throw new Error(`API-Football ${resposta.status}`);
+  const erros = corpo?.errors;
+  const temErro = Array.isArray(erros) ? erros.length > 0 : erros && typeof erros === 'object' && Object.keys(erros).length > 0;
+  if (temErro) throw new Error('API-Football recusou a consulta.');
+  return corpo;
+}
+
+async function enviarTelegramSniper(texto) {
+  const token = tokenDoTelegramSniper();
+  if (!token) throw new Error('Telegram sem token.');
+  const resposta = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: '@FutStatsLatamOficial',
+      text: String(texto || '').slice(0, 4096)
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const corpo = await resposta.json().catch(() => null);
+  if (!resposta.ok || corpo?.ok === false) {
+    throw new Error(corpo?.description || `Telegram ${resposta.status}`);
+  }
+}
+
+function textoSniper(jogo, xg, chutes, mercado) {
+  return [
+    '🔥 SNIPER xG AO VIVO',
+    '',
+    `🏆 Liga: ${jogo.liga}`,
+    `⚽ Times: ${jogo.casa} x ${jogo.fora}`,
+    `📊 Placar: ${jogo.golsCasa} x ${jogo.golsFora} | Minuto: ${jogo.minuto}'`,
+    `🎯 xG Total: ${xg.toFixed(2)}`,
+    `🥅 Chutes no alvo: ${chutes}`,
+    `💡 Mercado sugerido: ${mercado}`,
+    '',
+    'Stake R$ 7,50 | Máx. 3-4 entradas/dia'
+  ].join('\n');
+}
+
+async function cicloSniperXG() {
+  if (sniperEmCurso) return;
+  sniperEmCurso = true;
+  try {
+    const aoVivo = await pedirApiSniper('/fixtures?live=all');
+    const jogos = Array.isArray(aoVivo?.response) ? aoVivo.response : [];
+    const agora = Date.now();
+    const quentes = [];
+    for (const jogo of jogos) {
+      const id = Number(jogo?.fixture?.id);
+      const minuto = Number(jogo?.fixture?.status?.elapsed);
+      const golsCasa = Number(jogo?.goals?.home);
+      const golsFora = Number(jogo?.goals?.away);
+      const tempo = tempoSniper(jogo?.fixture?.status?.short, minuto);
+      if (!Number.isFinite(id) || !tempo || !placarAbertoSniper(golsCasa, golsFora)) continue;
+      const casa = jogo?.teams?.home?.name || '';
+      const fora = jogo?.teams?.away?.name || '';
+      const liga = jogo?.league?.name || '';
+      if (deveIgnorarPartida(liga, casa, fora)) continue;
+      if (alertasSniperEnviados.has(`${id}_${tempo}`)) continue;
+      const ultimo = cooldownEstatisticaSniper.get(id) || 0;
+      if (agora - ultimo < COOLDOWN_ESTATISTICA_MS) continue;
+      quentes.push({ id, minuto, golsCasa, golsFora, tempo, casa, fora, liga, gols: golsCasa + golsFora });
+    }
+    for (const jogo of quentes.slice(0, MAX_ESTATISTICAS_POR_CICLO)) {
+      try {
+        cooldownEstatisticaSniper.set(jogo.id, Date.now());
+        const corpo = await pedirApiSniper(`/fixtures/statistics?fixture=${jogo.id}`);
+        if (!corpo) break;
+        const times = Array.isArray(corpo.response) ? corpo.response : [];
+        const blocos = times.map((time) => (Array.isArray(time?.statistics) ? time.statistics : []));
+        const xgPartes = blocos.map((bloco) => lerNumeroSniper(bloco, ['expected_goals', 'Expected Goals']));
+        if (!xgPartes.some((valor) => valor != null)) continue;
+        const xg = xgPartes.reduce((total, valor) => total + (valor || 0), 0);
+        const chutes = blocos.reduce((total, bloco) => total + (lerNumeroSniper(bloco, ['Shots on Goal', 'Shots on Target']) || 0), 0);
+        const mercado = chutes >= 4 ? mercadoSniper(jogo.tempo, jogo.gols, xg) : null;
+        if (!mercado) continue;
+        const chave = `${jogo.id}_${jogo.tempo}`;
+        if (alertasSniperEnviados.has(chave)) continue;
+        alertasSniperEnviados.add(chave);
+        await enviarTelegramSniper(textoSniper(jogo, xg, chutes, mercado));
+        console.log(`[SNIPER] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}' ${mercado}`);
+      } catch (erro) {
+        alertasSniperEnviados.delete(`${jogo.id}_${jogo.tempo}`);
+        console.warn(`[SNIPER] ${jogo.casa} x ${jogo.fora}: ${erro?.message || erro}`);
+      }
+    }
+  } catch (erro) {
+    console.warn(`[SNIPER] ciclo ignorado: ${erro?.message || erro}`);
+  } finally {
+    sniperEmCurso = false;
+  }
+}
+
+const timerSniperXG = setInterval(() => {
+  cicloSniperXG().catch((erro) => {
+    console.warn(`[SNIPER] ciclo ignorado: ${erro?.message || erro}`);
+  });
+}, 60000);
+if (typeof timerSniperXG.unref === 'function') timerSniperXG.unref();
