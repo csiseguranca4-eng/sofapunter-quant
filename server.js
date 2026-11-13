@@ -120,8 +120,41 @@ app.get(comESemApi('/api/apostas'), (req, res) => {
 });
 
 function chavePlanilha(aposta) {
-  const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const limpar = (valor) => String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+vs\.?\s+/g, ' x ')
+    .replace(/\s+/g, ' ')
+    .trim();
   return `${limpar(aposta?.match || aposta?.jogo || aposta?.partida)}|${limpar(aposta?.market || aposta?.mercado)}`;
+}
+
+function diaSaoPaulo(valor) {
+  const texto = String(valor || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+  const instante = Date.parse(texto);
+  if (!Number.isFinite(instante)) return '';
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(instante));
+  const ler = (tipo) => partes.find((parte) => parte.type === tipo)?.value || '';
+  return `${ler('year')}-${ler('month')}-${ler('day')}`;
+}
+
+function nomeConfronto(valor) {
+  return String(valor || '').replace(/\s+vs\.?\s+/gi, ' x ').replace(/\s+/g, ' ').trim();
+}
+
+function fixtureNumerico(valor) {
+  if (typeof valor === 'number' && Number.isSafeInteger(valor) && valor > 0) return valor;
+  const texto = String(valor ?? '').trim();
+  if (!/^\d+$/.test(texto)) return null;
+  const numero = Number(texto);
+  return Number.isSafeInteger(numero) && numero > 0 ? numero : null;
 }
 
 function linhaParaPlanilha(linha) {
@@ -144,10 +177,70 @@ function linhaParaPlanilha(linha) {
     status: statusBruto === 'PENDENTE' ? 'PENDING' : statusBruto,
     realProfit: Number.isFinite(lucro) ? lucro : 0,
     returnedAmount: linha.returnedAmount,
-    date: linha.date || linha.created_at || '',
+    date: diaSaoPaulo(linha.created_at || linha.date || '') || String(linha.date || '').slice(0, 10),
     timestamp: Date.parse(linha.created_at || '') || Number(linha.timestamp) || 0,
-    fixtureId: linha.fixture_id || linha.fixtureId || null
+    fixtureId: linha.fixture_id || linha.fixtureId || null,
+    gameLink: linha.gameLink || ''
   };
+}
+
+function ordenarPlanilha(a, b) {
+  const tempo = (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0);
+  if (tempo) return tempo;
+  return (Number(b.id) || 0) - (Number(a.id) || 0);
+}
+
+async function inserirLinhaAposta(campos) {
+  const payload = { ...campos };
+  let ultimo = 'Não foi possível gravar na tabela apostas.';
+  for (let tentativa = 0; tentativa < 5; tentativa += 1) {
+    const resultado = await supabase.from(TABELA_APOSTAS).insert(payload).select('id').single();
+    if (!resultado.error) return resultado.data;
+    ultimo = resultado.error.message || ultimo;
+    const citada = String(ultimo).match(/'([^']+)'/);
+    const coluna = citada ? citada[1] : '';
+    if (!coluna || !Object.prototype.hasOwnProperty.call(payload, coluna)) break;
+    delete payload[coluna];
+  }
+  throw new Error(ultimo);
+}
+
+async function registrarApostaPlanilha(corpo) {
+  const jogo = nomeConfronto(corpo?.jogo || corpo?.match || corpo?.partida);
+  const mercado = String(corpo?.mercado || corpo?.market || '').trim();
+  if (!jogo || !mercado) throw new Error('Informe a partida e o mercado.');
+  const odd = Number(corpo?.odd);
+  const stake = Number(corpo?.stake);
+  const chave = chavePlanilha({ match: jogo, market: mercado });
+  const existentes = await lerTabelaPlanilha(TABELA_APOSTAS);
+  const aberta = existentes
+    .map(linhaParaPlanilha)
+    .filter(Boolean)
+    .find((item) => chavePlanilha(item) === chave && ['PENDING', 'PENDENTE'].includes(String(item.status || '').toUpperCase()));
+  if (aberta) return { ...aberta, criado: false };
+
+  const campos = {
+    jogo,
+    mercado,
+    odd: Number.isFinite(odd) && odd > 1 ? odd : null,
+    status: 'PENDENTE'
+  };
+  if (Number.isFinite(stake) && stake > 0) campos.stake = stake;
+  const fixture = fixtureNumerico(corpo?.fixtureId || corpo?.fixture_id);
+  if (fixture) campos.fixture_id = fixture;
+  const gravada = await inserirLinhaAposta(campos);
+  const aposta = linhaParaPlanilha({
+    id: gravada?.id,
+    jogo,
+    mercado,
+    odd: campos.odd,
+    stake: campos.stake,
+    status: 'PENDENTE',
+    created_at: new Date().toISOString(),
+    fixture_id: fixture,
+    league: corpo?.league || corpo?.liga || ''
+  });
+  return { ...aposta, criado: true };
 }
 
 async function lerTabelaPlanilha(nome) {
@@ -195,14 +288,51 @@ app.get(comESemApi('/api/saved-data'), async (req, res) => {
   } catch (erro) {
     console.warn(`[planilha] nuvem indisponível: ${erro?.message || erro}`);
   }
-  const chaves = new Set(locais.map(chavePlanilha));
-  const extras = nuvem.filter((aposta) => {
-    const chave = chavePlanilha(aposta);
-    if (!chave || chave === '|' || chaves.has(chave)) return false;
-    chaves.add(chave);
-    return true;
+  const statusPlanilha = (aposta) => {
+    const bruto = String(aposta?.status || '').toUpperCase();
+    return bruto === 'PENDENTE' ? 'PENDING' : bruto;
+  };
+  const porChave = new Map();
+  locais.forEach((aposta) => {
+    const chave = `${chavePlanilha(aposta)}|${statusPlanilha(aposta)}`;
+    if (!chave.startsWith('|')) porChave.set(chave, aposta);
   });
-  res.json({ success: true, bets: [...extras, ...locais], bankroll: arquivo.bankroll || 335 });
+  const vistas = new Set();
+  const daTabela = nuvem.map((aposta) => {
+    const chave = `${chavePlanilha(aposta)}|${statusPlanilha(aposta)}`;
+    vistas.add(chave);
+    const local = porChave.get(chave);
+    if (!local) return aposta;
+    const stake = Number(aposta.stake) > 0 ? aposta.stake : Number(local.stake) || 0;
+    const odd = Number(aposta.odd) > 1 ? aposta.odd : Number(local.odd) || 0;
+    const lucroNuvem = Number(aposta.realProfit) || 0;
+    const lucroLocal = Number(local.realProfit);
+    return {
+      ...aposta,
+      stake,
+      odd,
+      realProfit: lucroNuvem !== 0 ? lucroNuvem : (Number.isFinite(lucroLocal) ? lucroLocal : 0),
+      league: aposta.league || local.league || '',
+      marketType: local.marketType || aposta.marketType,
+      gameLink: local.gameLink || aposta.gameLink || '',
+      fixtureId: aposta.fixtureId || local.fixtureId || null,
+      returnedAmount: aposta.returnedAmount ?? local.returnedAmount
+    };
+  });
+  const soNoArquivo = nuvem.length
+    ? locais.filter((aposta) => !vistas.has(`${chavePlanilha(aposta)}|${statusPlanilha(aposta)}`))
+    : locais;
+  const bets = [...daTabela, ...soNoArquivo].sort(ordenarPlanilha);
+  res.json({ success: true, bets, bankroll: arquivo.bankroll || 335 });
+});
+
+app.post(comESemApi('/api/apostas/registrar'), async (req, res) => {
+  try {
+    const aposta = await registrarApostaPlanilha(req.body || {});
+    res.json({ success: true, aposta });
+  } catch (erro) {
+    res.status(500).json({ success: false, message: erro.message });
+  }
 });
 
 app.post(comESemApi('/api/save-data'), (req, res) => {
@@ -2182,9 +2312,23 @@ app.post(comESemApi('/api/publish-telegram-tip'), async (req, res) => {
     }
 
     console.log(`📣 [TELEGRAM] Tip publicado em ${TELEGRAM_CHANNEL}: ${match}`);
+    let aposta = null;
+    try {
+      aposta = await registrarApostaPlanilha({
+        jogo: match,
+        mercado: market,
+        odd,
+        stake,
+        fixtureId: body.fixtureId || body.fixture_id,
+        league
+      });
+    } catch (erro) {
+      console.warn(`[planilha] tip publicado, mas a tabela apostas não gravou: ${erro.message}`);
+    }
     res.json({
       success: true,
-      messageId: telegramResponse.data.result?.message_id || null
+      messageId: telegramResponse.data.result?.message_id || null,
+      aposta
     });
   } catch (error) {
     const description = error.response?.data?.description || error.message;

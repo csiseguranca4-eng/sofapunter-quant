@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import livroLocal from '../bets_database.json';
-import { API_BASE, apiUrl, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
+import { API_BASE, apiUrl, emLocal, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
+import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
+import { faseAtual, lerSaldoCdb } from './metodoBanca.js';
 
 function nomesIguais(a, b) {
   const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -15,7 +17,7 @@ function nomesIguais(a, b) {
 function aplicarMonitorNaAposta(aposta, linha) {
   if (!linha) return aposta;
   const mesmoId = linha.id != null && String(aposta.nuvemId || aposta.id) === String(linha.id);
-  const mesmoJogo = nomesIguais(aposta.match, linha.partida || linha.match);
+  const mesmoJogo = nomesIguais(aposta.match, linha.jogo || linha.partida || linha.match);
   const mesmoFixture = linha.fixture_id != null && aposta.fixtureId != null && String(aposta.fixtureId) === String(linha.fixture_id);
   if (!mesmoId && !mesmoJogo && !mesmoFixture) return aposta;
   return {
@@ -85,13 +87,13 @@ function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqu
     <div className="mt-2 space-y-2 min-w-0">
       <div className="grid grid-cols-2 gap-2">
         <div className="relative min-w-0">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-semibold">$</span>
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-semibold">R$</span>
           <input
             type="number"
             step="0.01"
             value={stake}
             onChange={(e) => onStake(e.target.value)}
-            className={`w-full min-h-[42px] border border-gray-700 text-white font-medium text-xs rounded pl-7 pr-2 outline-none ${inputClass}`}
+            className={`w-full min-h-[42px] border border-gray-700 text-white font-medium text-xs rounded pl-8 pr-2 outline-none ${inputClass}`}
           />
         </div>
         <button
@@ -308,6 +310,21 @@ function textoVisivel(valor) {
   return '';
 }
 
+const FUSO_PLANILHA = 'America/Sao_Paulo';
+
+function diaNoFuso(instante) {
+  const data = new Date(instante);
+  if (Number.isNaN(data.getTime())) return '';
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: FUSO_PLANILHA,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(data);
+  const ler = (tipo) => partes.find((parte) => parte.type === tipo)?.value || '';
+  return `${ler('year')}-${ler('month')}-${ler('day')}`;
+}
+
 function dataCalendarioLocal(dStr) {
   const texto = String(dStr ?? '').trim();
   if (!texto) return '';
@@ -315,10 +332,7 @@ function dataCalendarioLocal(dStr) {
   if (barra) return `${barra[3]}-${barra[2].padStart(2, '0')}-${barra[1].padStart(2, '0')}`;
   if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
   const instante = Date.parse(texto);
-  if (Number.isFinite(instante) && (texto.includes('T') || texto.includes(':'))) {
-    const data = new Date(instante);
-    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
-  }
+  if (Number.isFinite(instante) && (texto.includes('T') || texto.includes(':'))) return diaNoFuso(instante);
   const iso = texto.match(/^(\d{4}-\d{2}-\d{2})/);
   return iso ? iso[1] : texto.slice(0, 10);
 }
@@ -339,7 +353,7 @@ function apostaDaNuvem(linha) {
   const data = dataCalendarioLocal(linha.date || linha.created_at || '');
   return {
     id: linha.id != null ? String(linha.id) : '',
-    match: linha.partida || linha.match || '',
+    match: linha.jogo || linha.partida || linha.match || '',
     league: linha.league || linha.liga || '',
     market: linha.mercado || linha.market || '',
     marketType: linha.marketType || linha.mercado || linha.market || '',
@@ -355,7 +369,8 @@ function apostaDaNuvem(linha) {
 }
 
 function identidadeAposta(aposta) {
-  return `${normalizarBusca(aposta?.match || aposta?.partida)}|${normalizarBusca(aposta?.market || aposta?.mercado)}`;
+  const confronto = normalizarBusca(aposta?.match || aposta?.jogo || aposta?.partida).replace(/\s+vs\.?\s+/g, ' x ');
+  return `${confronto}|${normalizarBusca(aposta?.market || aposta?.mercado)}`;
 }
 
 function unirAposta(atual, nova) {
@@ -832,6 +847,7 @@ export default function App() {
         ...aposta,
         date: dataCalendarioLocal(aposta.date || aposta.created_at)
       }));
+      lista.sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
       setSheetBets(lista);
       setCurrentBankroll(bancaConsolidada(lista));
       const hoje = getTodayLocal();
@@ -884,6 +900,43 @@ export default function App() {
     };
   }, []);
 
+  const gravarApostaNaNuvem = async (aposta) => {
+    const destinos = [`${API_BASE}/api/apostas/registrar`];
+    if (emLocal() && !import.meta.env.VITE_API_URL) destinos.push(apiUrl('/api/apostas/registrar'));
+    const corpo = JSON.stringify({
+      jogo: aposta.match,
+      mercado: aposta.market,
+      odd: aposta.odd,
+      stake: aposta.stake,
+      fixtureId: aposta.fixtureId || null,
+      league: aposta.league || ''
+    });
+    for (const destino of destinos) {
+      try {
+        const resp = await fetch(destino, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: corpo
+        });
+        const data = await resp.json().catch(() => null);
+        if (resp.ok && data?.success && data.aposta) {
+          return {
+            ...aposta,
+            ...data.aposta,
+            id: data.aposta.id != null ? String(data.aposta.id) : aposta.id,
+            league: aposta.league || data.aposta.league || '',
+            marketType: aposta.marketType || data.aposta.marketType,
+            gameLink: aposta.gameLink || data.aposta.gameLink || '',
+            date: dataCalendarioLocal(data.aposta.date || data.aposta.created_at || aposta.date)
+          };
+        }
+      } catch (erro) {
+        console.warn('Planilha na nuvem:', erro?.message || erro);
+      }
+    }
+    return null;
+  };
+
   const persistToDisk = async (newBets, newBank) => {
     try {
       localStorage.setItem('sp_sheet_bets', JSON.stringify(newBets));
@@ -898,9 +951,19 @@ export default function App() {
     }
   };
 
-  const recommendedStake = useMemo(() => {
-    return Number((currentBankroll * 0.015).toFixed(2));
-  }, [currentBankroll]);
+  const [saldoCdb, setSaldoCdb] = useState(lerSaldoCdb);
+  const [vistaPlanilha, setVistaPlanilha] = useState('entradas');
+  const faseOperacional = useMemo(() => faseAtual(saldoCdb), [saldoCdb]);
+  const recommendedStake = faseOperacional.stake;
+  const gravarSaldoCdb = (valor) => {
+    const saldo = roundMoney(Math.max(0, Number(valor) || 0));
+    try {
+      localStorage.setItem('sp_cdb_saldo', String(saldo));
+    } catch {
+      /* o navegador pode bloquear o storage */
+    }
+    setSaldoCdb(saldo);
+  };
 
   const [customInputs, setCustomInputs] = useState(() => {
     try {
@@ -967,10 +1030,7 @@ export default function App() {
 
   const normalizeDate = dataCalendarioLocal;
 
-  const getTodayLocal = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
+  const getTodayLocal = () => diaNoFuso(Date.now());
 
   const [selectedDate, setSelectedDate] = useState(() => getTodayLocal());
   const [profitPeriod, setProfitPeriod] = useState(() => {
@@ -987,7 +1047,22 @@ export default function App() {
       if (!montado) return;
       const linha = payload?.new;
       if (!linha || typeof linha !== 'object') return;
-      setSheetBets((atual) => (Array.isArray(atual) ? atual : []).map((aposta) => aplicarMonitorNaAposta(aposta, linha)));
+      const inclusao = String(payload?.eventType || payload?.event || '').toUpperCase() === 'INSERT'
+        && (linha.jogo || linha.mercado || linha.match || linha.market);
+      if (!inclusao) {
+        setSheetBets((atual) => (Array.isArray(atual) ? atual : []).map((aposta) => aplicarMonitorNaAposta(aposta, linha)));
+        return;
+      }
+      const nova = apostaDaNuvem(linha);
+      if (!nova?.match && !nova?.market) return;
+      setSheetBets((atual) => {
+        const lista = Array.isArray(atual) ? atual : [];
+        const chave = identidadeAposta(nova);
+        if (lista.some((item) => String(item.id) === String(nova.id) || identidadeAposta(item) === chave)) {
+          return lista.map((aposta) => aplicarMonitorNaAposta(aposta, linha));
+        }
+        return [nova, ...lista];
+      });
     };
     const channel = assinarCanal(
       supabaseMonitor
@@ -1038,6 +1113,38 @@ export default function App() {
     }, 30000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!isDataLoaded || activeTab !== 'sheet') return undefined;
+    let ativo = true;
+    const buscarNovas = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/saved-data`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(20000)
+        });
+        const data = await resp.json();
+        if (!ativo || !resp.ok || !Array.isArray(data?.bets)) return;
+        const remotas = listaDeApostas(data).map((aposta) => ({
+          ...aposta,
+          date: dataCalendarioLocal(aposta.date || aposta.created_at)
+        }));
+        setSheetBets((atual) => {
+          const lista = Array.isArray(atual) ? atual : [];
+          const ids = new Set(lista.map((item) => String(item.id)));
+          const chaves = new Set(lista.map(identidadeAposta));
+          const novas = remotas.filter((item) => item && !ids.has(String(item.id)) && !chaves.has(identidadeAposta(item)));
+          if (!novas.length) return lista;
+          return [...novas, ...lista].sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
+        });
+      } catch (_) { /* a próxima leitura tenta de novo */ }
+    };
+    const timer = setInterval(buscarNovas, 20000);
+    return () => {
+      ativo = false;
+      clearInterval(timer);
+    };
+  }, [isDataLoaded, activeTab]);
 
   useEffect(() => {
     if (!isDataLoaded) return;
@@ -1266,7 +1373,7 @@ export default function App() {
     }));
   };
 
-  const handleAddToSheet = (game, market, originOdd = null, gameLink = '') => {
+  const handleAddToSheet = async (game, market, originOdd = null, gameLink = '') => {
     const currentInput = customInputs[market.id] || { stake: recommendedStake, odd: market.defaultOdd || market.odd1win };
     const finalOdd = Number(originOdd) > 1
       ? Number(originOdd)
@@ -1305,10 +1412,16 @@ export default function App() {
       ...(game.apiData?.fixture?.id ? { fixtureId: game.apiData.fixture.id } : {})
     };
 
-    const updated = [newBet, ...sheetBets];
+    const gravada = await gravarApostaNaNuvem(newBet);
+    const salva = gravada
+      ? { ...newBet, ...gravada, gameLink: newBet.gameLink, league: newBet.league || gravada.league, marketType: newBet.marketType }
+      : newBet;
+    const updated = [salva, ...sheetBets.filter((item) => identidadeAposta(item) !== identidadeAposta(salva))];
     setSheetBets(updated);
     persistToDisk(updated, currentBankroll);
-    alert(`Aposta "${formattedName}" enviada e salva no computador!`);
+    alert(gravada
+      ? `Aposta "${formattedName}" enviada para a Planilha Diária.`
+      : `Aposta "${formattedName}" ficou nesta planilha, mas a tabela apostas ainda não confirmou a gravação.`);
   };
 
   const selectionProbability = (fairOdd, odd) => {
@@ -1362,7 +1475,7 @@ export default function App() {
     setMultiplaOddText(multiplaOddProduct.toFixed(2));
   }, [bilheteMultipla, multiplaOddEdited, multiplaOddProduct]);
 
-  const handleSaveMultipla = () => {
+  const handleSaveMultipla = async () => {
     if (bilheteMultipla.length < 2) return;
     const odd = Number(String(multiplaOddText).replace(',', '.'));
     const stake = Number(String(multiplaStakeText).replace(',', '.'));
@@ -1392,11 +1505,13 @@ export default function App() {
       date: getTodayLocal(),
       timestamp: Date.now()
     };
-    const updated = [newBet, ...sheetBets];
+    const gravada = await gravarApostaNaNuvem(newBet);
+    const salva = gravada ? { ...newBet, ...gravada, league: newBet.league, marketType: newBet.marketType } : newBet;
+    const updated = [salva, ...sheetBets.filter((item) => identidadeAposta(item) !== identidadeAposta(salva))];
     setSheetBets(updated);
     persistToDisk(updated, currentBankroll);
     clearMultipla();
-    alert('Múltipla gravada na planilha.');
+    alert('Múltipla gravada na Planilha Diária.');
   };
 
   const handlePublishTelegram = async (game, market, source = null) => {
@@ -1418,12 +1533,27 @@ export default function App() {
           market: formatMarketName(market.name, { home: game.home, away: game.away }),
           odd: source?.odd ?? (Number(currentInput.odd) || market.defaultOdd || market.odd1win),
           stake: source?.stake ?? (currentInput.stake ?? recommendedStake),
+          fixtureId: game.apiData?.fixture?.id || null,
           photoUrl: 'https://i.imgur.com/8QZzG8v.jpeg',
           ...(directLink ? { directLink } : {})
         })
       });
       const data = await res.json();
       if (data.success) {
+        if (data.aposta?.match || data.aposta?.market) {
+          const nova = {
+            ...data.aposta,
+            id: data.aposta.id != null ? String(data.aposta.id) : `bet_${Date.now()}`,
+            date: dataCalendarioLocal(data.aposta.date || data.aposta.created_at || getTodayLocal()),
+            league: data.aposta.league || game.league || '',
+            status: 'PENDING'
+          };
+          setSheetBets((atual) => {
+            const lista = Array.isArray(atual) ? atual : [];
+            if (lista.some((item) => identidadeAposta(item) === identidadeAposta(nova))) return lista;
+            return [nova, ...lista];
+          });
+        }
         setPublishedTip(prev => ({ ...prev, [tipKey]: true }));
         setTimeout(() => {
           setPublishedTip(prev => ({ ...prev, [tipKey]: false }));
@@ -1608,6 +1738,17 @@ export default function App() {
       roi 
     };
   }, [sheetBets, selectedDate]);
+
+  const linhasFinanceiras = useMemo(() => sheetBets.map((aposta) => ({
+    date: normalizeDate(aposta.date),
+    status: String(aposta.status || '').toUpperCase(),
+    lucro: entryNetProfit(aposta),
+    stake: Number(aposta.stake) || 0
+  })), [sheetBets]);
+  const lucroLivro = useMemo(
+    () => roundMoney(linhasFinanceiras.reduce((total, linha) => total + linha.lucro, 0)),
+    [linhasFinanceiras]
+  );
 
   const currentMonthKey = getTodayLocal().slice(0, 7);
 
@@ -1969,7 +2110,7 @@ export default function App() {
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Banca Atual</div>
             <div className="text-xl font-bold text-white mt-1">$ {currentBankroll.toFixed(2)}</div>
-            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Stake 1.5%: $ {recommendedStake.toFixed(2)}</div>
+            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Banca operacional: R$ {faseOperacional.banca.toFixed(2).replace('.', ',')} · Stake 1,5%: R$ {recommendedStake.toFixed(2).replace('.', ',')}</div>
           </div>
 
           <div className="bg-[#161b22] border border-[#00c853]/30 rounded-xl p-3.5 bg-gradient-to-br from-[#161b22] to-[#122319]">
@@ -2235,21 +2376,6 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* Radar Quant ao Vivo e Escada Layback */}
-                    <RadarLive
-                      fixtureId={game.apiData?.fixture?.id || game.id}
-                      marketId={game.laybackMarketId || onewinLinks[game.id]}
-                      partida={{
-                        odds: Array.isArray(onewinAudits[game.id]) ? onewinAudits[game.id] : [],
-                        estatisticas: onewinQuants[game.id] && typeof onewinQuants[game.id] === 'object' ? onewinQuants[game.id] : {},
-                        analise: analiseIa[game.id] && typeof analiseIa[game.id] === 'object' ? analiseIa[game.id] : null,
-                        pontosPressao: (Array.isArray(sheetBets) ? sheetBets : []).find((aposta) => (
-                          nomesIguais(aposta.match, `${game.home} x ${game.away}`)
-                          || nomesIguais(aposta.match, `${game.home} vs ${game.away}`)
-                        ))?.pontosPressao || []
-                      }}
-                    />
-
                     {/* Mercados Auditados na 1win */}
                     {mercadosDoCartao.length > 0 && (
                       <div className="mt-3 space-y-2 border-t border-gray-800 pt-3">
@@ -2454,6 +2580,43 @@ export default function App() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setVistaPlanilha('entradas')}
+                className={`min-h-[42px] rounded-lg text-sm font-bold ${vistaPlanilha === 'entradas' ? 'bg-[#00c853] text-black' : 'bg-[#161b22] text-gray-300 border border-gray-800'}`}
+              >
+                Entradas
+              </button>
+              <button
+                type="button"
+                onClick={() => setVistaPlanilha('metodo')}
+                className={`min-h-[42px] rounded-lg text-sm font-bold ${vistaPlanilha === 'metodo' ? 'bg-[#00c853] text-black' : 'bg-[#161b22] text-gray-300 border border-gray-800'}`}
+              >
+                Método & CDB
+              </button>
+            </div>
+
+            {vistaPlanilha === 'metodo' ? (
+              <PainelMetodo
+                linhas={linhasFinanceiras}
+                hoje={getTodayLocal()}
+                saldoCdb={saldoCdb}
+                onSaldo={gravarSaldoCdb}
+                lucroLivro={lucroLivro}
+              />
+            ) : (
+            <>
+            <CalendarioMes
+              linhas={linhasFinanceiras}
+              hoje={getTodayLocal()}
+              dataSelecionada={selectedDate}
+              onSelectDate={(iso) => {
+                followTodayRef.current = iso === getTodayLocal();
+                setSelectedDate(iso);
+              }}
+            />
+
             <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4 mb-4">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div>
@@ -2532,23 +2695,27 @@ export default function App() {
                           xG {b.metricasResumo?.xg ?? '—'} · chutes no alvo {b.metricasResumo?.chutes_alvo ?? '—'} · cantos {b.metricasResumo?.cantos ?? '—'}
                           {textoTatico(b) ? ` · ${textoTatico(b)}` : ''}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setRadarPlanilhaAberto((atual) => ({ ...atual, [b.id]: !atual[b.id] }))}
-                          className="text-[11px] font-bold text-sky-300 hover:text-white"
-                        >
-                          📡 Ver Radar 2D
-                        </button>
-                        {radarPlanilhaAberto[b.id] && (
-                          <RadarLive
-                            fixtureId={b.fixtureId || null}
-                            marketId={b.marketId || null}
-                            partida={{
-                              odds: [],
-                              estatisticas: b.metricasResumo && typeof b.metricasResumo === 'object' ? b.metricasResumo : {},
-                              pontosPressao: Array.isArray(b.pontosPressao) ? b.pontosPressao : []
-                            }}
-                          />
+                        {String(b.status || '').toUpperCase() !== 'PENDING' && (
+                          <button
+                            type="button"
+                            onClick={() => setRadarPlanilhaAberto((atual) => ({ ...atual, [b.id]: !atual[b.id] }))}
+                            className="text-[11px] font-bold text-sky-300 hover:text-white"
+                          >
+                            📡 Ver Radar 2D
+                          </button>
+                        )}
+                        {(String(b.status || '').toUpperCase() === 'PENDING' || radarPlanilhaAberto[b.id]) && (
+                          <div className="w-full min-w-0">
+                            <RadarLive
+                              fixtureId={b.fixtureId || null}
+                              marketId={b.marketId || null}
+                              partida={{
+                                odds: [],
+                                estatisticas: b.metricasResumo && typeof b.metricasResumo === 'object' ? b.metricasResumo : {},
+                                pontosPressao: Array.isArray(b.pontosPressao) ? b.pontosPressao : []
+                              }}
+                            />
+                          </div>
                         )}
                       </div>
                       {b.gameLink && (
@@ -2561,25 +2728,8 @@ export default function App() {
                         )
                       )}
                       <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap items-center gap-2">
-                        <span>Participação: $ {Number(b.stake).toFixed(2)}</span>
-                        {b.status === 'GREEN' && (
-                          <span className="bg-[#00c853] text-black font-bold px-2 py-0.5 rounded">
-                            + $ {Number(b.realProfit).toFixed(2)}
-                          </span>
-                        )}
-                        {b.status === 'RED' && (
-                          <span className="bg-red-600 text-white font-bold px-2 py-0.5 rounded">
-                            - $ {Number(b.stake).toFixed(2)}
-                          </span>
-                        )}
-                        {b.status === 'CASHOUT' && (
-                          <span className="font-bold text-yellow-400">
-                            Devolvido: $ {Number(b.returnedAmount).toFixed(2)} | Real: {Number(b.realProfit) < 0 ? '-' : '+'} $ {Math.abs(Number(b.realProfit)).toFixed(2)}
-                          </span>
-                        )}
-                        {b.status !== 'GREEN' && b.status !== 'RED' && b.status !== 'CASHOUT' && (
-                          <span className="font-semibold text-gray-500">Pendente</span>
-                        )}
+                        <span>Participação: R$ {Number(b.stake).toFixed(2).replace('.', ',')}</span>
+                        <ResultadoAposta lucro={entryNetProfit(b)} stake={b.stake} status={b.status} />
                       </div>
                     </div>
 
@@ -2628,6 +2778,8 @@ export default function App() {
                 ))
               )}
             </div>
+            </>
+            )}
           </div>
         )}
 
@@ -2833,7 +2985,7 @@ export default function App() {
                 />
               </label>
               <label className="text-[10px] text-gray-400 w-full sm:w-28">
-                Stake ($)
+                Stake (R$)
                 <input
                   type="number"
                   step="0.01"
