@@ -1697,10 +1697,11 @@ export default function App() {
   };
 
   const dayStats = useMemo(() => {
+    const doMetodo = sheetBets.filter(apostaDoMetodo);
     const target = selectedDate === 'ALL' ? 'ALL' : normalizeDate(selectedDate);
     const filtered = target === 'ALL'
-      ? sheetBets
-      : sheetBets.filter(b => normalizeDate(b.date) === target);
+      ? doMetodo
+      : doMetodo.filter(b => normalizeDate(b.date) === target);
 
     let totalInvested = 0;
     let netProfit = 0;
@@ -2124,7 +2125,7 @@ export default function App() {
               {selectedDate === 'ALL' ? 'Total Apostado' : 'Apostado no Dia'}
             </div>
             <div className="text-xl font-bold text-white mt-1">$ {dayStats.totalInvested.toFixed(2)}</div>
-            <div className="text-[10px] text-gray-400 mt-0.5">{dayStats.bets.length} entradas ({dayStats.pendings} ativas)</div>
+            <div className="text-[10px] text-gray-400 mt-0.5">{dayStats.bets.length} entradas ({dayStats.greens}G | {dayStats.cashouts}C | {dayStats.reds}R)</div>
           </div>
 
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
@@ -2132,7 +2133,7 @@ export default function App() {
               {selectedDate === 'ALL' ? 'Lucro Total' : 'Resultado do Dia'}
             </div>
             <div className={`text-xl font-bold mt-1 ${dayStats.netProfit >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
-              {dayStats.netProfit >= 0 ? '+' : ''}$ {dayStats.netProfit.toFixed(2)}
+              {dayStats.netProfit > 0 ? '+' : dayStats.netProfit < 0 ? '-' : ''}$ {Math.abs(dayStats.netProfit).toFixed(2)}
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5">
               Acertos: <strong className="text-[#00c853]">{dayStats.greens}G</strong> | <strong className="text-yellow-400">{dayStats.cashouts}C</strong> | <strong className="text-red-500">{dayStats.reds}R</strong>
@@ -2179,7 +2180,7 @@ export default function App() {
             onClick={() => setActiveTab('sheet')}
             className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'sheet' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
-            Planilha Diária ({sheetBets.length})
+            Planilha Diária ({linhasFinanceiras.length})
           </button>
           <button
             type="button"
@@ -2559,7 +2560,7 @@ export default function App() {
                         : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     }`}
                   >
-                    Ver todas ({sheetBets.length})
+                    Ver todas ({linhasFinanceiras.length})
                   </button>
                   <button
                     onClick={() => {
@@ -2681,9 +2682,9 @@ export default function App() {
               {apostasDaPlanilha.length === 0 ? (
                 <div className="bg-[#161b22] border border-gray-800 rounded-xl p-8 text-center text-gray-400">
                   Nenhuma entrada para este filtro.
-                  {sheetBets.length > 0 && selectedDate !== 'ALL' && (
+                  {linhasFinanceiras.length > 0 && selectedDate !== 'ALL' && (
                     <div className="mt-2 text-xs text-[#00c853]">
-                      Há {sheetBets.length} entrada(s) no histórico, nenhuma nesta data. Clique em <strong>"Ver todas"</strong> acima.
+                      Há {linhasFinanceiras.length} entrada(s) a partir de 13/11/2026, nenhuma nesta data. Clique em <strong>"Ver todas"</strong> acima.
                     </div>
                   )}
                 </div>
