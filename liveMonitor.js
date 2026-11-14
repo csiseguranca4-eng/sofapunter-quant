@@ -2163,7 +2163,9 @@ async function cicloSniperXG() {
         const pressao = resumoPressao(corpo.response, jogo);
         if (!pressao) continue;
         const aberto = jogo.tempo && placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
-        if (aberto && pressao.xgTotal >= 1.5 && pressao.chutesTotal >= 5) {
+        const minimoXg = jogo.tempo === '1T' ? 1.05 : 1.5;
+        const minimoChutes = jogo.tempo === '1T' ? 4 : 5;
+        if (aberto && pressao.xgTotal >= minimoXg && pressao.chutesTotal >= minimoChutes) {
           await dispararAlerta(
             `${jogo.id}_${jogo.tempo}`,
             alertasSniperEnviados,
