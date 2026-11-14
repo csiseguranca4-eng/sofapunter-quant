@@ -51,16 +51,60 @@ function mediaPonderada(primeiro, segundo) {
 }
 
 function erroTransitorio(error) {
-  return /429|500|502|503|504|timeout|fetch failed|ECONN|ETIMEDOUT/i.test(String(error?.message || error));
+  return /500|502|503|504|timeout|fetch failed|ECONN|ETIMEDOUT/i.test(String(error?.message || error));
 }
 
-async function pedir(caminho, tentativa = 0) {
+const CACHE_ESTATICO_MS = 12 * 60 * 60 * 1000;
+const TTL_AO_VIVO_MS = 30000;
+const cacheEstatico = new Map();
+const cacheAoVivo = { em: 0, corpo: null, voo: null };
+const saldoApi = { remaining: null, limit: null, pausaAte: 0 };
+
+function proximoResetUtc() {
+  const agora = new Date();
+  return Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate() + 1);
+}
+
+function registrarSaldo(resposta) {
+  const remaining = Number(resposta.headers.get('x-ratelimit-requests-remaining'));
+  const limit = Number(resposta.headers.get('x-ratelimit-requests-limit'));
+  if (Number.isFinite(remaining)) saldoApi.remaining = remaining;
+  if (Number.isFinite(limit)) saldoApi.limit = limit;
+  if (Number.isFinite(remaining) && remaining < 400) saldoApi.pausaAte = proximoResetUtc();
+  else if (Number.isFinite(remaining) && remaining >= 400) saldoApi.pausaAte = 0;
+}
+
+function logSaldo(endpoint) {
+  const restante = saldoApi.remaining == null ? '—' : saldoApi.remaining;
+  const limite = saldoApi.limit == null ? '—' : saldoApi.limit;
+  console.log(`[API] ${endpoint} | Saldo real: ${restante}/${limite}`);
+}
+
+function cotaTravada() {
+  return saldoApi.pausaAte > Date.now();
+}
+
+async function pedir(caminho, opcoes = {}, tentativa = 0) {
+  const critico = opcoes.critico === true;
+  const cacheMs = Number(opcoes.cacheMs) || 0;
+  if (cacheMs > 0) {
+    const salvo = cacheEstatico.get(caminho);
+    if (salvo && Date.now() - salvo.em < cacheMs) return salvo.corpo;
+  }
+  if (!critico && cotaTravada()) {
+    throw new Error('API-Football pausada até o reset UTC: saldo abaixo de 400.');
+  }
   try {
     const resposta = await fetch(`${BASE_URL}${caminho}`, {
       headers: cabecalhos(),
       signal: AbortSignal.timeout(15000)
     });
+    registrarSaldo(resposta);
+    logSaldo(caminho);
     const corpo = await resposta.json().catch(() => null);
+    if (resposta.status === 429) {
+      throw new Error('API-Football 429');
+    }
     if (!resposta.ok) {
       const detalhe = corpo?.message || resposta.statusText || 'falha HTTP';
       throw new Error(`API-Football ${resposta.status}: ${detalhe}`);
@@ -70,14 +114,36 @@ async function pedir(caminho, tentativa = 0) {
     if (temErro) {
       throw new Error(`API-Football: ${typeof erros === 'string' ? erros : JSON.stringify(erros)}`);
     }
+    if (cacheMs > 0) cacheEstatico.set(caminho, { em: Date.now(), corpo });
     return corpo;
   } catch (error) {
-    if (tentativa < 1 && erroTransitorio(error)) {
+    if (tentativa < 1 && erroTransitorio(error) && !/429/.test(String(error?.message || error))) {
       await new Promise((resolver) => setTimeout(resolver, 400));
-      return pedir(caminho, tentativa + 1);
+      return pedir(caminho, opcoes, tentativa + 1);
     }
     throw error;
   }
+}
+
+function aoVivoEmCache() {
+  return Boolean(cacheAoVivo.corpo) && Date.now() - cacheAoVivo.em < TTL_AO_VIVO_MS;
+}
+
+async function listarCorpoAoVivo() {
+  if (aoVivoEmCache()) return cacheAoVivo.corpo;
+  if (cacheAoVivo.voo) return cacheAoVivo.voo;
+  cacheAoVivo.voo = pedir('/fixtures?live=all')
+    .then((corpo) => {
+      cacheAoVivo.em = Date.now();
+      cacheAoVivo.corpo = corpo;
+      cacheAoVivo.voo = null;
+      return corpo;
+    })
+    .catch((erro) => {
+      cacheAoVivo.voo = null;
+      throw erro;
+    });
+  return cacheAoVivo.voo;
 }
 
 async function buscarIdEquipa(nomeEquipa) {
@@ -89,7 +155,7 @@ async function buscarIdEquipa(nomeEquipa) {
     .trim();
   if (!timeLimpo) throw new Error('Informe o nome da equipa.');
 
-  const dados = await pedir(`/teams?search=${encodeURIComponent(timeLimpo)}`);
+  const dados = await pedir(`/teams?search=${encodeURIComponent(timeLimpo)}`, { cacheMs: CACHE_ESTATICO_MS });
   const id = dados?.response?.[0]?.team?.id;
   if (!Number.isFinite(Number(id))) {
     throw new Error(`Nenhuma equipa encontrada para "${timeLimpo}".`);
@@ -105,7 +171,7 @@ async function obterEstatisticasEquipa(teamId, leagueId, season) {
     throw new Error('Informe teamId, leagueId e season numéricos.');
   }
 
-  const dados = await pedir(`/teams/statistics?team=${team}&league=${league}&season=${ano}`);
+  const dados = await pedir(`/teams/statistics?team=${team}&league=${league}&season=${ano}`, { cacheMs: CACHE_ESTATICO_MS });
   const stats = dados?.response;
   if (!stats || typeof stats !== 'object') {
     throw new Error(`Estatísticas indisponíveis para a equipa ${team}.`);
@@ -212,7 +278,7 @@ function achatarStandings(valor) {
 async function carregarTabela(league, ano) {
   const chave = `${league}:${ano}`;
   if (!tabelaEmVoo.has(chave)) {
-    const tarefa = pedir(`/standings?league=${league}&season=${ano}`)
+    const tarefa = pedir(`/standings?league=${league}&season=${ano}`, { cacheMs: CACHE_ESTATICO_MS })
       .finally(() => tabelaEmVoo.delete(chave));
     tabelaEmVoo.set(chave, tarefa);
   }
@@ -250,7 +316,7 @@ async function obterH2H(mandanteId, visitanteId, limite = 5) {
   const last = Number(limite) > 0 ? Number(limite) : 5;
   if (!Number.isFinite(casa) || !Number.isFinite(fora)) return [];
 
-  const dados = await pedir(`/fixtures/headtohead?h2h=${casa}-${fora}&last=${last}`);
+  const dados = await pedir(`/fixtures/headtohead?h2h=${casa}-${fora}&last=${last}`, { cacheMs: CACHE_ESTATICO_MS });
   const lista = Array.isArray(dados?.response) ? dados.response : [];
   return lista.map(resumirFixture).filter(Boolean);
 }
@@ -279,7 +345,7 @@ async function obterUltimosJogos(teamId, limite = 10) {
   const last = Number(limite) > 0 ? Number(limite) : 10;
   if (!Number.isFinite(team)) return { jogos: [], over25: null, btts: null, forma: '', sequenciaMarcando: 0, sequenciaSofrendo: 0 };
 
-  const dados = await pedir(`/fixtures?team=${team}&last=${last}`);
+  const dados = await pedir(`/fixtures?team=${team}&last=${last}`, { cacheMs: CACHE_ESTATICO_MS });
   const crus = Array.isArray(dados?.response) ? dados.response : [];
   const jogos = crus.map((jogo) => resumirJogoRecente(jogo, team)).filter(Boolean);
   return {
@@ -298,13 +364,13 @@ function valorCorner(statistics) {
 }
 
 async function mediasCantosRecentes(teamId, leagueId, season) {
-  const dados = await pedir(`/fixtures?team=${teamId}&league=${leagueId}&season=${season}&last=8&status=FT`);
+  const dados = await pedir(`/fixtures?team=${teamId}&league=${leagueId}&season=${season}&last=8&status=FT`, { cacheMs: CACHE_ESTATICO_MS });
   const jogos = Array.isArray(dados?.response) ? dados.response : [];
   if (jogos.length < 3) return null;
 
   const amostras = (await Promise.all(jogos.map(async (jogo) => {
     try {
-      const corpo = await pedir(`/fixtures/statistics?fixture=${jogo.fixture.id}`);
+      const corpo = await pedir(`/fixtures/statistics?fixture=${jogo.fixture.id}`, { cacheMs: CACHE_ESTATICO_MS });
       const times = Array.isArray(corpo?.response) ? corpo.response : [];
       const proprio = times.find((item) => Number(item?.team?.id) === Number(teamId));
       const adversario = times.find((item) => Number(item?.team?.id) !== Number(teamId));
@@ -360,7 +426,7 @@ function temporadaTemDados(stats) {
 
 async function ligasDoTime(teamId) {
   try {
-    const dados = await pedir(`/leagues?team=${teamId}&current=true`);
+    const dados = await pedir(`/leagues?team=${teamId}&current=true`, { cacheMs: CACHE_ESTATICO_MS });
     const lista = Array.isArray(dados?.response) ? dados.response : [];
     const emAndamento = lista.filter((item) => (item.seasons || []).some((temporada) => temporada.current));
     if (emAndamento.length) return emAndamento;
@@ -371,7 +437,7 @@ async function ligasDoTime(teamId) {
 
   for (const ano of TEMPORADA_PRIORITARIA) {
     try {
-      const dados = await pedir(`/leagues?team=${teamId}&season=${ano}`);
+      const dados = await pedir(`/leagues?team=${teamId}&season=${ano}`, { cacheMs: CACHE_ESTATICO_MS });
       const lista = Array.isArray(dados?.response) ? dados.response : [];
       if (lista.length) return lista;
     } catch (error) {
@@ -548,13 +614,13 @@ function filtrarFixture(jogo) {
 async function obterFixtureAoVivo(fixtureId) {
   const id = Number(fixtureId);
   if (!Number.isFinite(id)) return null;
-  const dados = await pedir(`/fixtures?id=${id}`);
+  const dados = await pedir(`/fixtures?id=${id}`, { critico: true });
   const jogo = Array.isArray(dados?.response) ? dados.response[0] : null;
   return filtrarFixture(resumirFixtureAoVivo(jogo));
 }
 
 async function listarFixturesAoVivo() {
-  const dados = await pedir('/fixtures?live=all');
+  const dados = await listarCorpoAoVivo();
   const lista = Array.isArray(dados?.response) ? dados.response : [];
   return lista.map(resumirFixtureAoVivo).map(filtrarFixture).filter(Boolean);
 }
@@ -577,7 +643,10 @@ module.exports = {
   obterUltimosJogos,
   obterFixtureAoVivo,
   listarFixturesAoVivo,
-  listarFixturesDoDia
+  listarFixturesDoDia,
+  pedir,
+  listarCorpoAoVivo,
+  aoVivoEmCache
 };
 
 if (require.main === module) {

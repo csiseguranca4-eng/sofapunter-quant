@@ -358,7 +358,8 @@ export function fixtureEncerrado(status) {
   const texto = String(status || '').toUpperCase();
   if (!texto) return false;
   if (texto.includes('MATCH FINISHED')) return true;
-  return /(^|[^A-Z])(FT|AET|PEN)([^A-Z]|$)/.test(texto);
+  if (/CANCEL|ABANDON/.test(texto)) return true;
+  return /(^|[^A-Z])(FT|AET|PEN|CANC|ABD)([^A-Z]|$)/.test(texto);
 }
 
 export function acompanhamentoEncerrado(minuto, elapsed) {
@@ -1323,42 +1324,41 @@ export function iniciarMonitorCarpina(opcoes) {
       return;
     }
     let snapshot = null;
-    if (fixtureValido(watch.fixtureId)) {
+    try {
+      const lista = (await lerAoVivo()).filter((jogo) => !confrontoIgnorado(jogo));
+      const porId = fixtureValido(watch.fixtureId)
+        ? lista.find((jogo) => Number(jogo.fixtureId) === Number(watch.fixtureId))
+        : null;
+      const porNome = !porId && times ? localizarFixture(lista, times.home, times.away) : null;
+      const fresco = porId || (porNome && statusEmAndamento(porNome) ? porNome : null);
+      if (fresco && !fixturesBloqueados.has(String(fresco.fixtureId))) {
+        snapshot = { ...fresco, placarConhecido: true };
+        watch.fixtureId = fresco.fixtureId;
+        watch.kickoff = watch.kickoff || fresco.kickoff;
+        if (watch.nuvemId != null && porNome && !porId) {
+          try {
+            await gravarFixture(watch.nuvemId, fresco.fixtureId);
+          } catch (erro) {
+            console.log('[CARPINA] fixture_id não gravado na nuvem:', erro.message);
+          }
+        }
+      }
+    } catch (erro) {
+      console.log('[CARPINA] Erro na API-Football ao listar os jogos ao vivo:', erro.message);
+    }
+    const agoraConsulta = Date.now();
+    const podeConsultarId = !snapshot
+      && fixtureValido(watch.fixtureId)
+      && agoraConsulta - (Number(watch.consultaIdEm) || 0) >= 120000;
+    if (podeConsultarId) {
+      watch.consultaIdEm = agoraConsulta;
       try {
         snapshot = await consultarFixture(watch.fixtureId);
       } catch (erro) {
         console.log(`[CARPINA] Erro na API-Football ao consultar o fixture ${watch.fixtureId}:`, erro.message);
       }
     }
-    const referenciaKickoff = snapshot?.kickoff || watch.kickoff;
-    const atrasado = preJogoAtrasado({ kickoff: referenciaKickoff, statusShort: statusCurto(snapshot) }, agoraMs);
-    const buscarAgora = !fixtureValido(watch.fixtureId) || !snapshot || atrasado;
-    if (buscarAgora) {
-      try {
-        const lista = (await lerAoVivo()).filter((jogo) => !confrontoIgnorado(jogo));
-        const porId = fixtureValido(watch.fixtureId)
-          ? lista.find((jogo) => Number(jogo.fixtureId) === Number(watch.fixtureId))
-          : null;
-        const porNome = times ? localizarFixture(lista, times.home, times.away) : null;
-        const fresco = (porId && statusEmAndamento(porId) ? porId : null)
-          || (porNome && statusEmAndamento(porNome) ? porNome : null);
-        if (fresco && !fixturesBloqueados.has(String(fresco.fixtureId))) {
-          snapshot = { ...fresco, placarConhecido: true };
-          watch.fixtureId = fresco.fixtureId;
-          watch.kickoff = watch.kickoff || fresco.kickoff;
-          if (watch.nuvemId != null) {
-            try {
-              await gravarFixture(watch.nuvemId, fresco.fixtureId);
-            } catch (erro) {
-              console.log('[CARPINA] fixture_id não gravado na nuvem:', erro.message);
-            }
-          }
-        }
-      } catch (erro) {
-        console.log('[CARPINA] Erro na API-Football ao listar os jogos ao vivo:', erro.message);
-      }
-    }
-    if (buscarAgora && !statusEmAndamento(snapshot)) {
+    if (!statusEmAndamento(snapshot) && !fixtureEncerrado(snapshot?.status)) {
       try {
         const jogos = (await ler1win()).filter((jogo) => !confrontoIgnorado(jogo));
         const idLink = String(watch.gameLink || '').match(/(\d{5,})/)?.[1];
@@ -1921,14 +1921,6 @@ function diaSniper() {
   return `${ler('year')}-${ler('month')}-${ler('day')}`;
 }
 
-function chaveApiFootballSniper() {
-  if (process.env.API_FOOTBALL_KEY) return process.env.API_FOOTBALL_KEY;
-  try {
-    createRequire(import.meta.url)('./services/apiFootball.js');
-  } catch (_) { /* a chave pode já estar no ambiente */ }
-  return process.env.API_FOOTBALL_KEY || '';
-}
-
 function tokenDoTelegramSniper() {
   if (tokenTelegramSniper) return tokenTelegramSniper;
   try {
@@ -2000,7 +1992,11 @@ function lerNumeroSniper(lista, nomes) {
   return Number.isFinite(valor) ? valor : null;
 }
 
-async function pedirApiSniper(caminho) {
+function clienteApiSniper() {
+  return createRequire(import.meta.url)('./services/apiFootball.js');
+}
+
+function reservarCotaSniper() {
   const dia = diaSniper();
   if (consumoSniper.dia !== dia) {
     consumoSniper.dia = dia;
@@ -2012,20 +2008,15 @@ async function pedirApiSniper(caminho) {
       avisoTetoSniper = true;
       console.warn('[SNIPER] Pausa até amanhã: a varredura chegou a 50% da cota diária.');
     }
-    return null;
+    return false;
   }
-  const chave = chaveApiFootballSniper();
-  if (!chave) throw new Error('API-Football sem chave.');
+  return true;
+}
+
+async function pedirApiSniper(caminho) {
+  if (!reservarCotaSniper()) return null;
+  const corpo = await clienteApiSniper().pedir(caminho);
   consumoSniper.total += 1;
-  const resposta = await fetch(`https://v3.football.api-sports.io${caminho}`, {
-    headers: { 'x-apisports-key': chave },
-    signal: AbortSignal.timeout(15000)
-  });
-  const corpo = await resposta.json().catch(() => null);
-  if (!resposta.ok) throw new Error(`API-Football ${resposta.status}`);
-  const erros = corpo?.errors;
-  const temErro = Array.isArray(erros) ? erros.length > 0 : erros && typeof erros === 'object' && Object.keys(erros).length > 0;
-  if (temErro) throw new Error('API-Football recusou a consulta.');
   return corpo;
 }
 
@@ -2128,7 +2119,11 @@ async function cicloSniperXG() {
   sniperEmCurso = true;
   let qtdFiltrados = 0;
   try {
-    const aoVivo = await pedirApiSniper('/fixtures?live=all');
+    const api = clienteApiSniper();
+    const daRede = !api.aoVivoEmCache();
+    if (daRede && !reservarCotaSniper()) return;
+    const aoVivo = await api.listarCorpoAoVivo();
+    if (daRede) consumoSniper.total += 1;
     if (!aoVivo) return;
     const jogos = (Array.isArray(aoVivo.response) ? aoVivo.response : []).map(jogoAoVivo).filter(Boolean);
     const agora = Date.now();
