@@ -13,6 +13,7 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { supabase as supabaseApostas } from './lib/supabase.js';
 import { createClient } from '@supabase/supabase-js';
+import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 const getLaybackMarketData = async () => null;
 const { deveIgnorarPartida } = createRequire(import.meta.url)('./services/filtroLigas.js');
 
@@ -2038,7 +2039,68 @@ async function enviarTelegramSniper(texto) {
   }
 }
 
+const IDS_SELECOES = new Set(
+  LIGAS_OFICIAIS.filter((liga) => liga.grupo === 'selecoes').map((liga) => liga.id)
+);
+
+const PAISES_TIER1 = new Set([
+  'england', 'spain', 'germany', 'italy', 'france', 'netherlands', 'portugal', 'belgium',
+  'scotland', 'turkey', 'switzerland', 'austria', 'denmark', 'sweden', 'norway', 'finland',
+  'iceland', 'poland', 'greece', 'czech republic', 'romania', 'croatia', 'hungary',
+  'slovakia', 'slovenia', 'serbia', 'ukraine', 'bulgaria', 'ireland', 'northern ireland',
+  'wales', 'uefa'
+]);
+
+function rotuloRadar(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function ligaYouthUefa(liga) {
+  const nome = rotuloRadar(liga);
+  return nome.includes('uefa') && nome.includes('youth league');
+}
+
+function ligaContinentalEuropeia(liga) {
+  const nome = rotuloRadar(liga);
+  if (nome.includes('champions league')) return true;
+  if (nome.includes('europa league')) return true;
+  if (nome.includes('conference league')) return true;
+  if (nome.includes('nations league')) return true;
+  if (/\beuro\b/.test(nome) || nome.includes('european championship')) return true;
+  if (nome.includes('uefa') && nome.includes('super cup')) return true;
+  if (ligaYouthUefa(liga)) return true;
+  return false;
+}
+
+function femininoEuropeuOuMundial(liga, pais) {
+  const nome = rotuloRadar(liga);
+  if (!nome.includes('women') && !nome.includes('feminino')) return false;
+  const paisNorm = rotuloRadar(pais);
+  return paisNorm === 'world' || PAISES_TIER1.has(paisNorm);
+}
+
+function ehTier1(jogo) {
+  if (IDS_SELECOES.has(Number(jogo?.idLiga))) return true;
+  if (ligaContinentalEuropeia(jogo?.liga)) return true;
+  if (PAISES_TIER1.has(rotuloRadar(jogo?.pais))) return true;
+  return femininoEuropeuOuMundial(jogo?.liga, jogo?.pais);
+}
+
+function zebraForaDaEuropa(jogo) {
+  const curto = String(jogo?.status || '').toUpperCase();
+  return (curto === '1H' || curto === 'LIVE') && Number(jogo?.minuto) <= 42;
+}
+
 function textoRadar(titulo, jogo, detalhes, leitura) {
+  const contexto = ehTier1(jogo)
+    ? '🇪🇺🌍 TIER 1 (EUROPA / CHAMPIONS / FEMININO / SELEÇÕES): Ritmo alto e boa liquidez na LayBack. Priorizar Over Gols / Lay conforme sinal.'
+    : '🌎 FORA DA EUROPA (FILTRO SNIPER): Zebra achou gol isolado no 1ºT. Validar pressão do favorito no SofaScore antes de entrar.';
   return [
     titulo,
     '',
@@ -2048,7 +2110,12 @@ function textoRadar(titulo, jogo, detalhes, leitura) {
     ...detalhes,
     '',
     `Leitura LayBack/Polymarket: ${leitura}`,
-    `Stake padrão: ${STAKE_RADAR}`
+    '',
+    '🧭 CONTEXTO & PLANO DE AÇÃO',
+    contexto,
+    '',
+    `Stake padrão: ${STAKE_RADAR}`,
+    "🛡️ Gestão: Stake US$ 4,00 | Stop Win Dia: +US$ 2,10 (3%) | Corte: 70' se não andar"
   ].join('\n');
 }
 
@@ -2085,7 +2152,7 @@ function jogoAoVivo(bruto) {
   const casa = bruto?.teams?.home?.name || '';
   const fora = bruto?.teams?.away?.name || '';
   const liga = bruto?.league?.name || '';
-  if (deveIgnorarPartida(liga, casa, fora)) return null;
+  if (!ligaYouthUefa(liga) && deveIgnorarPartida(liga, casa, fora)) return null;
   return {
     id,
     minuto,
@@ -2096,6 +2163,8 @@ function jogoAoVivo(bruto) {
     casa,
     fora,
     liga,
+    idLiga: Number(bruto?.league?.id) || null,
+    pais: bruto?.league?.country || '',
     idCasa: bruto?.teams?.home?.id,
     idFora: bruto?.teams?.away?.id,
     tempo: tempoSniper(bruto?.fixture?.status?.short, minuto)
@@ -2163,9 +2232,10 @@ async function cicloSniperXG() {
         const pressao = resumoPressao(corpo.response, jogo);
         if (!pressao) continue;
         const aberto = jogo.tempo && placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
+        const tier1 = ehTier1(jogo);
         const minimoXg = jogo.tempo === '1T' ? 1.05 : 1.5;
         const minimoChutes = jogo.tempo === '1T' ? 4 : 5;
-        if (aberto && pressao.xgTotal >= minimoXg && pressao.chutesTotal >= minimoChutes) {
+        if (tier1 && aberto && pressao.xgTotal >= minimoXg && pressao.chutesTotal >= minimoChutes) {
           await dispararAlerta(
             `${jogo.id}_${jogo.tempo}`,
             alertasSniperEnviados,
@@ -2179,7 +2249,8 @@ async function cicloSniperXG() {
         const lado = ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora);
         const favorito = lado ? pressao.lado[lado] : null;
         const naJanelaZebra = minutoNoIntervalo(jogo.status, jogo.minuto, 10, 65, ['1H', 'HT', '2H', 'LIVE']);
-        if (naJanelaZebra && favorito && favorito.vermelhos === 0 && (favorito.xg >= 0.7 || favorito.chutes >= 3)) {
+        const zebraLiberada = tier1 || zebraForaDaEuropa(jogo);
+        if (zebraLiberada && naJanelaZebra && favorito && favorito.vermelhos === 0 && (favorito.xg >= 0.7 || favorito.chutes >= 3)) {
           const odd = lado === 'casa' ? oddsPreJogoMap.get(jogo.id).oddHome : oddsPreJogoMap.get(jogo.id).oddAway;
           const nome = lado === 'casa' ? jogo.casa : jogo.fora;
           await dispararAlerta(
@@ -2194,7 +2265,7 @@ async function cicloSniperXG() {
             `[ZEBRA] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
           );
         }
-        if (minutoNoIntervalo(jogo.status, jogo.minuto, 73, 78, ['2H']) && jogo.golsCasa === jogo.golsFora && pressao.xgTotal >= 2.25 && pressao.chutesTotal >= 8) {
+        if (tier1 && minutoNoIntervalo(jogo.status, jogo.minuto, 73, 78, ['2H']) && jogo.golsCasa === jogo.golsFora && pressao.xgTotal >= 2.25 && pressao.chutesTotal >= 8) {
           await dispararAlerta(
             jogo.id,
             alertasAbafaEnviados,
