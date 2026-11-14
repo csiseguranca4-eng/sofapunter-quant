@@ -2236,13 +2236,27 @@ async function cicloSniperXG() {
         const minimoXg = jogo.tempo === '1T' ? 1.05 : 1.5;
         const minimoChutes = jogo.tempo === '1T' ? 4 : 5;
         if (tier1 && aberto && pressao.xgTotal >= minimoXg && pressao.chutesTotal >= minimoChutes) {
+          const totalGols = jogo.golsCasa + jogo.golsFora;
+          const xgExcedente = pressao.xgTotal - totalGols;
+          const isXgDeOuro = jogo.tempo === '1T'
+            ? pressao.xgTotal >= 1.35 && pressao.chutesTotal >= 5
+            : (xgExcedente >= 0.45 || pressao.xgTotal >= 2.20) && pressao.chutesTotal >= 6;
+          const detalhesSniper = [
+            `🎯 xG total: ${pressao.xgTotal.toFixed(2)}`,
+            `🥅 Chutes no alvo: ${pressao.chutesTotal}`
+          ];
+          if (isXgDeOuro) {
+            detalhesSniper.push(`💎 xG Excedente (acima do placar): +${xgExcedente.toFixed(2)}`);
+          }
           await dispararAlerta(
             `${jogo.id}_${jogo.tempo}`,
             alertasSniperEnviados,
-            textoRadar('🔥 SNIPER xG', jogo, [
-              `🎯 xG total: ${pressao.xgTotal.toFixed(2)}`,
-              `🥅 Chutes no alvo: ${pressao.chutesTotal}`
-            ], leituraSniper(jogo.tempo, jogo.gols)),
+            textoRadar(
+              isXgDeOuro ? '🏆🔥 SNIPER xG DE OURO — ALTÍSSIMA PROBABILIDADE' : '🔥 SNIPER xG',
+              jogo,
+              detalhesSniper,
+              leituraSniper(jogo.tempo, jogo.gols)
+            ),
             `[SNIPER] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
           );
         }
