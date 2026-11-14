@@ -1839,10 +1839,15 @@ if (executadoDiretamente) {
  * Não grava na tabela apostas e não altera o monitor principal.
  */
 const alertasSniperEnviados = new Set();
+const alertasZebraEnviados = new Set();
+const alertasAbafaEnviados = new Set();
+const oddsPreJogoMap = new Map();
 const cooldownEstatisticaSniper = new Map();
 const TETO_SNIPER_DIA = 3750;
 const COOLDOWN_ESTATISTICA_MS = 120000;
 const MAX_ESTATISTICAS_POR_CICLO = 6;
+const MAX_ODDS_POR_CICLO = 3;
+const STAKE_RADAR = 'US$ 3,00';
 const consumoSniper = { dia: '', total: 0 };
 let avisoTetoSniper = false;
 let sniperEmCurso = false;
@@ -1893,12 +1898,42 @@ function tempoSniper(status, minuto) {
   return null;
 }
 
-function mercadoSniper(tempo, gols, xg) {
-  if (tempo === '1T' && gols === 0 && xg >= 1.15) return 'Over 0.5 HT';
-  if (tempo === '1T' && gols === 1 && xg >= 1.80) return 'Over 1.5 HT / FT';
-  if (tempo === '2T' && gols <= 1 && xg >= 2.10) return 'Over 1.5 FT';
-  if (tempo === '2T' && gols === 2 && xg >= 2.85) return 'Over 2.5 FT';
+function leituraSniper(tempo, gols) {
+  if (tempo === '1T' && gols === 0) return 'Over 0.5 HT na LayBack/Polymarket';
+  if (tempo === '1T') return 'Over 1.5 HT / FT na LayBack/Polymarket';
+  if (gols <= 1) return 'Over 1.5 FT na LayBack/Polymarket';
+  return 'Over 2.5 FT na LayBack/Polymarket';
+}
+
+function minutoNoIntervalo(status, minuto, inicio, fim, tempos) {
+  const curto = String(status || '').toUpperCase();
+  return tempos.includes(curto) && minuto >= inicio && minuto <= fim;
+}
+
+function ladoFavoritoPerdendo(odds, golsCasa, golsFora) {
+  if (!odds) return null;
+  if (odds.oddHome <= 1.55 && golsFora === golsCasa + 1) return 'casa';
+  if (odds.oddAway <= 1.55 && golsCasa === golsFora + 1) return 'fora';
   return null;
+}
+
+function oddsPreJogoDe(corpo) {
+  const livros = Array.isArray(corpo?.response?.[0]?.bookmakers) ? corpo.response[0].bookmakers : [];
+  for (const livro of livros) {
+    const apostas = Array.isArray(livro?.bets) ? livro.bets : [];
+    const mercado = apostas.find((aposta) => /match winner|vencedor do jogo|^1x2$/i.test(String(aposta?.name || '')));
+    if (!mercado) continue;
+    const valores = Array.isArray(mercado.values) ? mercado.values : [];
+    const ler = (...nomes) => {
+      const item = valores.find((valor) => nomes.includes(String(valor?.value || '').toLowerCase()));
+      const numero = Number(item?.odd);
+      return numero > 1 ? numero : null;
+    };
+    const oddHome = ler('home', '1');
+    const oddAway = ler('away', '2');
+    if (oddHome && oddAway) return { oddHome, oddAway };
+  }
+  return { oddHome: null, oddAway: null };
 }
 
 function lerNumeroSniper(lista, nomes) {
@@ -1955,19 +1990,80 @@ async function enviarTelegramSniper(texto) {
   }
 }
 
-function textoSniper(jogo, xg, chutes, mercado) {
+function textoRadar(titulo, jogo, detalhes, leitura) {
   return [
-    '🔥 SNIPER xG AO VIVO',
+    titulo,
     '',
     `🏆 Liga: ${jogo.liga}`,
     `⚽ Times: ${jogo.casa} x ${jogo.fora}`,
     `📊 Placar: ${jogo.golsCasa} x ${jogo.golsFora} | Minuto: ${jogo.minuto}'`,
-    `🎯 xG Total: ${xg.toFixed(2)}`,
-    `🥅 Chutes no alvo: ${chutes}`,
-    `💡 Mercado sugerido: ${mercado}`,
+    ...detalhes,
     '',
-    'Stake R$ 7,50 | Máx. 3-4 entradas/dia'
+    `Leitura LayBack/Polymarket: ${leitura}`,
+    `Stake padrão: ${STAKE_RADAR}`
   ].join('\n');
+}
+
+function blocoDoTime(times, teamId) {
+  const bloco = (Array.isArray(times) ? times : []).find((item) => Number(item?.team?.id) === Number(teamId));
+  return Array.isArray(bloco?.statistics) ? bloco.statistics : [];
+}
+
+function resumoPressao(times, jogo) {
+  const casa = blocoDoTime(times, jogo.idCasa);
+  const fora = blocoDoTime(times, jogo.idFora);
+  const xgCasa = lerNumeroSniper(casa, ['expected_goals', 'Expected Goals']);
+  const xgFora = lerNumeroSniper(fora, ['expected_goals', 'Expected Goals']);
+  if (xgCasa == null && xgFora == null) return null;
+  const chutesCasa = lerNumeroSniper(casa, ['Shots on Goal', 'Shots on Target']) || 0;
+  const chutesFora = lerNumeroSniper(fora, ['Shots on Goal', 'Shots on Target']) || 0;
+  const vermelhos = (lado) => lerNumeroSniper(lado === 'casa' ? casa : fora, ['Red Cards']) || 0;
+  return {
+    xgTotal: (xgCasa || 0) + (xgFora || 0),
+    chutesTotal: chutesCasa + chutesFora,
+    lado: {
+      casa: { xg: xgCasa || 0, chutes: chutesCasa, vermelhos: vermelhos('casa') },
+      fora: { xg: xgFora || 0, chutes: chutesFora, vermelhos: vermelhos('fora') }
+    }
+  };
+}
+
+function jogoAoVivo(bruto) {
+  const id = Number(bruto?.fixture?.id);
+  const minuto = Number(bruto?.fixture?.status?.elapsed);
+  const golsCasa = Number(bruto?.goals?.home);
+  const golsFora = Number(bruto?.goals?.away);
+  if (!Number.isFinite(id) || !Number.isFinite(minuto) || !Number.isFinite(golsCasa) || !Number.isFinite(golsFora)) return null;
+  const casa = bruto?.teams?.home?.name || '';
+  const fora = bruto?.teams?.away?.name || '';
+  const liga = bruto?.league?.name || '';
+  if (deveIgnorarPartida(liga, casa, fora)) return null;
+  return {
+    id,
+    minuto,
+    status: bruto?.fixture?.status?.short,
+    golsCasa,
+    golsFora,
+    gols: golsCasa + golsFora,
+    casa,
+    fora,
+    liga,
+    idCasa: bruto?.teams?.home?.id,
+    idFora: bruto?.teams?.away?.id,
+    tempo: tempoSniper(bruto?.fixture?.status?.short, minuto)
+  };
+}
+
+async function dispararAlerta(chave, conjunto, texto, log) {
+  if (conjunto.has(chave)) return;
+  conjunto.add(chave);
+  try {
+    await enviarTelegramSniper(texto);
+    console.log(log);
+  } catch (erro) {
+    conjunto.delete(chave);
+    throw erro;
+  }
 }
 
 async function cicloSniperXG() {
@@ -1976,46 +2072,86 @@ async function cicloSniperXG() {
   let qtdFiltrados = 0;
   try {
     const aoVivo = await pedirApiSniper('/fixtures?live=all');
-    const jogos = Array.isArray(aoVivo?.response) ? aoVivo.response : [];
+    if (!aoVivo) return;
+    const jogos = (Array.isArray(aoVivo.response) ? aoVivo.response : []).map(jogoAoVivo).filter(Boolean);
     const agora = Date.now();
-    const quentes = [];
+    const precisaOdds = [];
+    const candidatos = [];
     for (const jogo of jogos) {
-      const id = Number(jogo?.fixture?.id);
-      const minuto = Number(jogo?.fixture?.status?.elapsed);
-      const golsCasa = Number(jogo?.goals?.home);
-      const golsFora = Number(jogo?.goals?.away);
-      const tempo = tempoSniper(jogo?.fixture?.status?.short, minuto);
-      if (!Number.isFinite(id) || !tempo || !placarAbertoSniper(golsCasa, golsFora)) continue;
-      qtdFiltrados += 1;
-      const casa = jogo?.teams?.home?.name || '';
-      const fora = jogo?.teams?.away?.name || '';
-      const liga = jogo?.league?.name || '';
-      if (deveIgnorarPartida(liga, casa, fora)) continue;
-      if (alertasSniperEnviados.has(`${id}_${tempo}`)) continue;
-      const ultimo = cooldownEstatisticaSniper.get(id) || 0;
-      if (agora - ultimo < COOLDOWN_ESTATISTICA_MS) continue;
-      quentes.push({ id, minuto, golsCasa, golsFora, tempo, casa, fora, liga, gols: golsCasa + golsFora });
+      const aberto = jogo.tempo && placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
+      if (aberto) qtdFiltrados += 1;
+      const zebra = minutoNoIntervalo(jogo.status, jogo.minuto, 10, 65, ['1H', 'HT', '2H', 'LIVE'])
+        && Math.abs(jogo.golsCasa - jogo.golsFora) === 1;
+      const abafa = minutoNoIntervalo(jogo.status, jogo.minuto, 73, 78, ['2H']) && jogo.golsCasa === jogo.golsFora;
+      if (zebra && !oddsPreJogoMap.has(jogo.id) && !alertasZebraEnviados.has(jogo.id)) precisaOdds.push(jogo);
+      const querSniper = aberto && !alertasSniperEnviados.has(`${jogo.id}_${jogo.tempo}`);
+      const querZebra = zebra && oddsPreJogoMap.has(jogo.id) && ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora) && !alertasZebraEnviados.has(jogo.id);
+      const querAbafa = abafa && !alertasAbafaEnviados.has(jogo.id);
+      if (!querSniper && !querZebra && !querAbafa) continue;
+      if (agora - (cooldownEstatisticaSniper.get(jogo.id) || 0) < COOLDOWN_ESTATISTICA_MS) continue;
+      candidatos.push(jogo);
     }
-    for (const jogo of quentes.slice(0, MAX_ESTATISTICAS_POR_CICLO)) {
+
+    for (const jogo of precisaOdds.slice(0, MAX_ODDS_POR_CICLO)) {
+      const corpo = await pedirApiSniper(`/odds?fixture=${jogo.id}`);
+      if (!corpo) break;
+      oddsPreJogoMap.set(jogo.id, oddsPreJogoDe(corpo));
+      const lado = ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora);
+      const livre = agora - (cooldownEstatisticaSniper.get(jogo.id) || 0) >= COOLDOWN_ESTATISTICA_MS;
+      if (lado && !alertasZebraEnviados.has(jogo.id) && livre && !candidatos.some((item) => item.id === jogo.id)) {
+        candidatos.push(jogo);
+      }
+    }
+
+    for (const jogo of candidatos.slice(0, MAX_ESTATISTICAS_POR_CICLO)) {
       try {
         cooldownEstatisticaSniper.set(jogo.id, Date.now());
         const corpo = await pedirApiSniper(`/fixtures/statistics?fixture=${jogo.id}`);
         if (!corpo) break;
-        const times = Array.isArray(corpo.response) ? corpo.response : [];
-        const blocos = times.map((time) => (Array.isArray(time?.statistics) ? time.statistics : []));
-        const xgPartes = blocos.map((bloco) => lerNumeroSniper(bloco, ['expected_goals', 'Expected Goals']));
-        if (!xgPartes.some((valor) => valor != null)) continue;
-        const xg = xgPartes.reduce((total, valor) => total + (valor || 0), 0);
-        const chutes = blocos.reduce((total, bloco) => total + (lerNumeroSniper(bloco, ['Shots on Goal', 'Shots on Target']) || 0), 0);
-        const mercado = chutes >= 4 ? mercadoSniper(jogo.tempo, jogo.gols, xg) : null;
-        if (!mercado) continue;
-        const chave = `${jogo.id}_${jogo.tempo}`;
-        if (alertasSniperEnviados.has(chave)) continue;
-        alertasSniperEnviados.add(chave);
-        await enviarTelegramSniper(textoSniper(jogo, xg, chutes, mercado));
-        console.log(`[SNIPER] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}' ${mercado}`);
+        const pressao = resumoPressao(corpo.response, jogo);
+        if (!pressao) continue;
+        const aberto = jogo.tempo && placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
+        if (aberto && pressao.xgTotal >= 1.5 && pressao.chutesTotal >= 5) {
+          await dispararAlerta(
+            `${jogo.id}_${jogo.tempo}`,
+            alertasSniperEnviados,
+            textoRadar('🔥 SNIPER xG', jogo, [
+              `🎯 xG total: ${pressao.xgTotal.toFixed(2)}`,
+              `🥅 Chutes no alvo: ${pressao.chutesTotal}`
+            ], leituraSniper(jogo.tempo, jogo.gols)),
+            `[SNIPER] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
+          );
+        }
+        const lado = ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora);
+        const favorito = lado ? pressao.lado[lado] : null;
+        const naJanelaZebra = minutoNoIntervalo(jogo.status, jogo.minuto, 10, 65, ['1H', 'HT', '2H', 'LIVE']);
+        if (naJanelaZebra && favorito && favorito.vermelhos === 0 && (favorito.xg >= 0.7 || favorito.chutes >= 3)) {
+          const odd = lado === 'casa' ? oddsPreJogoMap.get(jogo.id).oddHome : oddsPreJogoMap.get(jogo.id).oddAway;
+          const nome = lado === 'casa' ? jogo.casa : jogo.fora;
+          await dispararAlerta(
+            jogo.id,
+            alertasZebraEnviados,
+            textoRadar('🚨 ZEBRA NA FRENTE', jogo, [
+              `⭐ Super favorito: ${nome} (odd pré-jogo ${odd.toFixed(2)}) perdendo por 1 gol`,
+              `🎯 xG do favorito: ${favorito.xg.toFixed(2)}`,
+              `🥅 Chutes no alvo do favorito: ${favorito.chutes}`,
+              '🟥 Cartão vermelho do favorito: não'
+            ], 'favorito sem vermelho e com pressão para buscar o empate'),
+            `[ZEBRA] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
+          );
+        }
+        if (minutoNoIntervalo(jogo.status, jogo.minuto, 73, 78, ['2H']) && jogo.golsCasa === jogo.golsFora && pressao.xgTotal >= 2.25 && pressao.chutesTotal >= 8) {
+          await dispararAlerta(
+            jogo.id,
+            alertasAbafaEnviados,
+            textoRadar('⚡ ABAFA FINAL', jogo, [
+              `🎯 xG somado: ${pressao.xgTotal.toFixed(2)}`,
+              `🥅 Chutes no alvo: ${pressao.chutesTotal}`
+            ], 'pressão máxima por gol nos minutos finais'),
+            `[ABAFA] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
+          );
+        }
       } catch (erro) {
-        alertasSniperEnviados.delete(`${jogo.id}_${jogo.tempo}`);
         console.warn(`[SNIPER] ${jogo.casa} x ${jogo.fora}: ${erro?.message || erro}`);
       }
     }

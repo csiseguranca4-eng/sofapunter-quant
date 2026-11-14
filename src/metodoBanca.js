@@ -1,15 +1,17 @@
-export const BANCA_OPERACIONAL = 500;
-export const INICIO_METODO = '2026-11-13';
+export const BANCA_OPERACIONAL = 69.16;
+export const STAKE_PADRAO = 3;
+export const INICIO_METODO = '2026-11-14';
+export const CORTE_REGISTRO_MS = Date.parse('2026-11-14T15:00:00.000Z');
 export const STOP_LOSS_DIARIO = -15;
 export const LIMITE_ENTRADAS_MIN = 3;
 export const LIMITE_ENTRADAS_MAX = 4;
 
 export const FASES_CDB = [
-  { fase: 1, banca: 500, stake: 7.5, meta: 250 },
-  { fase: 2, banca: 750, stake: 11.25, meta: 500 },
-  { fase: 3, banca: 1000, stake: 15, meta: 1000 },
-  { fase: 4, banca: 1500, stake: 22.5, meta: 1500 },
-  { fase: 5, banca: 2000, stake: 30, meta: null }
+  { fase: 1, banca: 69.16, stake: 3, meta: 34.58 },
+  { fase: 2, banca: 103.74, stake: 4.5, meta: 69.16 },
+  { fase: 3, banca: 138.32, stake: 6, meta: 138.32 },
+  { fase: 4, banca: 207.48, stake: 9, meta: 207.48 },
+  { fase: 5, banca: 276.64, stake: 12, meta: null }
 ];
 
 export function lerSaldoCdb() {
@@ -47,9 +49,9 @@ export function faseAtual(saldoCdb) {
 export function reais(valor, comSinal = false) {
   const numero = Number(valor) || 0;
   const absoluto = Math.abs(numero).toFixed(2).replace('.', ',');
-  if (!comSinal) return `${numero < 0 ? '-' : ''}R$ ${absoluto}`;
+  if (!comSinal) return `${numero < 0 ? '-' : ''}US$ ${absoluto}`;
   const sinal = numero > 0 ? '+' : numero < 0 ? '-' : '';
-  return `${sinal}R$ ${absoluto}`;
+  return `${sinal}US$ ${absoluto}`;
 }
 
 export function textoResultadoStake(lucro, stake) {

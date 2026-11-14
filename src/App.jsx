@@ -4,7 +4,7 @@ import { API_BASE, apiUrl, emLocal, grupoCompativel, grupoDaLiga, OPCOES_LIGA, u
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
-import { BANCA_OPERACIONAL, INICIO_METODO, faseAtual, lerSaldoCdb } from './metodoBanca.js';
+import { BANCA_OPERACIONAL, CORTE_REGISTRO_MS, INICIO_METODO, STAKE_PADRAO, lerSaldoCdb } from './metodoBanca.js';
 
 function nomesIguais(a, b) {
   const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -87,13 +87,13 @@ function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqu
     <div className="mt-2 space-y-2 min-w-0">
       <div className="grid grid-cols-2 gap-2">
         <div className="relative min-w-0">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-semibold">R$</span>
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-semibold">US$</span>
           <input
             type="number"
             step="0.01"
             value={stake}
             onChange={(e) => onStake(e.target.value)}
-            className={`w-full min-h-[42px] border border-gray-700 text-white font-medium text-xs rounded pl-8 pr-2 outline-none ${inputClass}`}
+            className={`w-full min-h-[42px] border border-gray-700 text-white font-medium text-xs rounded pl-10 pr-2 outline-none ${inputClass}`}
           />
         </div>
         <button
@@ -275,7 +275,7 @@ function formatRecapDate(value) {
 
 function signedMoney(value) {
   const n = Number(value) || 0;
-  return `${n >= 0 ? '+' : '-'}$ ${Math.abs(n).toFixed(2)}`;
+  return `${n >= 0 ? '+' : '-'}US$ ${Math.abs(n).toFixed(2)}`;
 }
 
 function signedUnits(value) {
@@ -413,7 +413,9 @@ function mesclarApostas(listas) {
 
 function apostaDoMetodo(aposta) {
   const dia = dataCalendarioLocal(aposta?.date);
-  return dia >= INICIO_METODO;
+  if (!dia || dia < INICIO_METODO) return false;
+  const marco = Number(aposta?.timestamp);
+  return !Number.isFinite(marco) || marco <= 0 || marco >= CORTE_REGISTRO_MS;
 }
 
 function bancaConsolidada(apostas) {
@@ -959,8 +961,7 @@ export default function App() {
   const [saldoCdb, setSaldoCdb] = useState(lerSaldoCdb);
   const [vistaPlanilha, setVistaPlanilha] = useState('entradas');
   const [calendarioAberto, setCalendarioAberto] = useState(false);
-  const faseOperacional = useMemo(() => faseAtual(saldoCdb), [saldoCdb]);
-  const recommendedStake = faseOperacional.stake;
+  const recommendedStake = STAKE_PADRAO;
   const gravarSaldoCdb = (valor) => {
     const saldo = roundMoney(Math.max(0, Number(valor) || 0));
     try {
@@ -974,7 +975,16 @@ export default function App() {
   const [customInputs, setCustomInputs] = useState(() => {
     try {
       const saved = localStorage.getItem('sp_custom_inputs');
-      return saved ? JSON.parse(saved) : {};
+      const atual = saved ? JSON.parse(saved) : {};
+      if (localStorage.getItem('sp_operacao') === INICIO_METODO) return atual;
+      const limpas = {};
+      Object.entries(atual).forEach(([id, valor]) => {
+        limpas[id] = { ...(valor && typeof valor === 'object' ? valor : {}), stake: STAKE_PADRAO };
+      });
+      localStorage.setItem('sp_custom_inputs', JSON.stringify(limpas));
+      localStorage.setItem('sp_operacao', INICIO_METODO);
+      localStorage.removeItem('sp_sheet_bets');
+      return limpas;
     } catch {
       return {};
     }
@@ -1652,7 +1662,7 @@ export default function App() {
     if (!bet) return;
 
     const inputVal = prompt(
-      `Jogo: ${bet.match}\nStake apostada: $ ${Number(bet.stake).toFixed(2)}\n\nQuanto a casa devolveu no Saque/Cashout? (Ex: 2.31):`,
+      `Jogo: ${bet.match}\nStake apostada: US$ ${Number(bet.stake).toFixed(2)}\n\nQuanto a casa devolveu no Saque/Cashout? (Ex: 2.31):`,
       bet.returnedAmount > 0 ? bet.returnedAmount.toString() : ''
     );
 
@@ -1820,14 +1830,14 @@ export default function App() {
     ? {
         netProfit: monthLedger.totalProfit,
         growth: monthLedger.historicalGrowth,
-        subtitle: `Banca Inicial: R$ ${monthLedger.primary.toFixed(2).replace('.', ',')} ➔ Atual: R$ ${monthLedger.current.toFixed(2).replace('.', ',')}`
+        subtitle: `Banca Inicial: US$ ${monthLedger.primary.toFixed(2).replace('.', ',')} ➔ Atual: US$ ${monthLedger.current.toFixed(2).replace('.', ',')}`
       }
     : {
         netProfit: selectedMonth?.profit || 0,
         growth: selectedMonth?.growth || 0,
         subtitle: profitSelectValue === 'CURRENT'
-          ? `Banca Inicial do Mês: R$ ${(selectedMonth?.initial ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')}`
-          : `Banca Base: R$ ${(selectedMonth?.initial ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')} ➔ Final: R$ ${(selectedMonth?.final ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')}`
+          ? `Banca Inicial do Mês: US$ ${(selectedMonth?.initial ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')}`
+          : `Banca Base: US$ ${(selectedMonth?.initial ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')} ➔ Final: US$ ${(selectedMonth?.final ?? BANCA_OPERACIONAL).toFixed(2).replace('.', ',')}`
       };
 
   const periodTitle = profitSelectValue === 'CURRENT' ? 'Lucro Mensal' : 'Lucro';
@@ -1840,7 +1850,7 @@ export default function App() {
   const recapDate = selectedDate === 'ALL' ? getTodayLocal() : normalizeDate(selectedDate);
 
   const dailyRecap = useMemo(() => {
-    const rows = sheetBets.filter(b => normalizeDate(b.date) === recapDate);
+    const rows = sheetBets.filter((b) => apostaDoMetodo(b) && normalizeDate(b.date) === recapDate);
     let greens = 0;
     let reds = 0;
     let cashouts = 0;
@@ -1933,7 +1943,7 @@ export default function App() {
   const marketPerformance = useMemo(() => {
     const map = {};
 
-    sheetBets.forEach(b => {
+    sheetBets.filter(apostaDoMetodo).forEach(b => {
       const type = b.marketType || 'Outro';
       if (!map[type]) {
         map[type] = {
@@ -1989,7 +1999,7 @@ export default function App() {
       lucro: 0
     }]));
 
-    sheetBets.forEach((aposta) => {
+    sheetBets.filter(apostaDoMetodo).forEach((aposta) => {
       const tipo = String(aposta?.marketType || '');
       const jogo = String(aposta?.match || '');
       if (tipo === 'Múltipla' || jogo.startsWith('MÚLTIPLA')) return;
@@ -2116,15 +2126,15 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Banca Atual</div>
-            <div className="text-xl font-bold text-white mt-1">R$ {currentBankroll.toFixed(2).replace('.', ',')}</div>
-            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Banca operacional: R$ {faseOperacional.banca.toFixed(2).replace('.', ',')} · Stake 1,5%: R$ {recommendedStake.toFixed(2).replace('.', ',')}</div>
+            <div className="text-xl font-bold text-white mt-1">US$ {currentBankroll.toFixed(2).replace('.', ',')}</div>
+            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Banca inicial: US$ {BANCA_OPERACIONAL.toFixed(2).replace('.', ',')} · Stake padrão: US$ {recommendedStake.toFixed(2).replace('.', ',')}</div>
           </div>
 
           <div className="bg-[#161b22] border border-[#00c853]/30 rounded-xl p-3.5 bg-gradient-to-br from-[#161b22] to-[#122319]">
             <div className="text-[11px] text-[#00c853] font-bold uppercase tracking-wider">
               {selectedDate === 'ALL' ? 'Total Apostado' : 'Apostado no Dia'}
             </div>
-            <div className="text-xl font-bold text-white mt-1">$ {dayStats.totalInvested.toFixed(2)}</div>
+            <div className="text-xl font-bold text-white mt-1">US$ {dayStats.totalInvested.toFixed(2)}</div>
             <div className="text-[10px] text-gray-400 mt-0.5">{dayStats.bets.length} entradas ({dayStats.greens}G | {dayStats.cashouts}C | {dayStats.reds}R)</div>
           </div>
 
@@ -2133,7 +2143,7 @@ export default function App() {
               {selectedDate === 'ALL' ? 'Lucro Total' : 'Resultado do Dia'}
             </div>
             <div className={`text-xl font-bold mt-1 ${dayStats.netProfit >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
-              {dayStats.netProfit > 0 ? '+' : dayStats.netProfit < 0 ? '-' : ''}$ {Math.abs(dayStats.netProfit).toFixed(2)}
+              {dayStats.netProfit > 0 ? '+' : dayStats.netProfit < 0 ? '-' : ''}US$ {Math.abs(dayStats.netProfit).toFixed(2)}
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5">
               Acertos: <strong className="text-[#00c853]">{dayStats.greens}G</strong> | <strong className="text-yellow-400">{dayStats.cashouts}C</strong> | <strong className="text-red-500">{dayStats.reds}R</strong>
@@ -2156,7 +2166,7 @@ export default function App() {
             </select>
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">{periodTitle}</div>
             <div className={`text-xl font-bold mt-1 ${profitCard.netProfit >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
-              {profitCard.netProfit >= 0 ? '+' : ''}$ {profitCard.netProfit.toFixed(2)}
+              {profitCard.netProfit >= 0 ? '+' : ''}US$ {profitCard.netProfit.toFixed(2)}
             </div>
             <div className={`text-[10px] mt-0.5 font-semibold ${profitCard.growth >= 0 ? 'text-[#00c853]' : 'text-red-400'}`}>
               {growthLabel}: {signedGrowth(profitCard.growth)}
@@ -2430,7 +2440,7 @@ export default function App() {
                                 <span className={(Number(m.fairOdd) > 1 && oddNumero > 1 ? ((oddNumero / Number(m.fairOdd)) - 1) : Number(m.evPercent)) > 0 ? 'text-[#00c853] font-bold' : 'text-red-400 font-bold'}>
                                   +EV: {(Number(m.fairOdd) > 1 && oddNumero > 1 ? ((oddNumero / Number(m.fairOdd)) - 1) * 100 : Number(m.evPercent) || 0).toFixed(1)}%
                                 </span>
-                                {retornoProjetado != null && <span className="text-[#00c853] font-bold">Retorno: +$ {retornoProjetado.toFixed(2)}</span>}
+                                {retornoProjetado != null && <span className="text-[#00c853] font-bold">Retorno: +US$ {retornoProjetado.toFixed(2)}</span>}
                               </div>
                             </div>
                             <AcoesMercado
@@ -2684,7 +2694,7 @@ export default function App() {
                   Nenhuma entrada para este filtro.
                   {linhasFinanceiras.length > 0 && selectedDate !== 'ALL' && (
                     <div className="mt-2 text-xs text-[#00c853]">
-                      Há {linhasFinanceiras.length} entrada(s) a partir de 13/11/2026, nenhuma nesta data. Clique em <strong>"Ver todas"</strong> acima.
+                      Há {linhasFinanceiras.length} entrada(s) a partir de 14/11/2026, nenhuma nesta data. Clique em <strong>"Ver todas"</strong> acima.
                     </div>
                   )}
                 </div>
@@ -2743,7 +2753,7 @@ export default function App() {
                         )
                       )}
                       <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap items-center gap-2">
-                        <span>Participação: R$ {Number(b.stake).toFixed(2).replace('.', ',')}</span>
+                        <span>Participação: US$ {Number(b.stake).toFixed(2).replace('.', ',')}</span>
                         <ResultadoAposta lucro={entryNetProfit(b)} stake={b.stake} status={b.status} />
                       </div>
                     </div>
@@ -2869,9 +2879,9 @@ export default function App() {
                               {m.winRate}%
                             </span>
                           </td>
-                          <td className="py-3 text-right text-gray-300">$ {m.invested.toFixed(2)}</td>
+                          <td className="py-3 text-right text-gray-300">US$ {m.invested.toFixed(2)}</td>
                           <td className={`py-3 text-right font-bold ${m.profit >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
-                            {m.profit >= 0 ? '+' : ''}$ {m.profit.toFixed(2)}
+                            {m.profit >= 0 ? '+' : ''}US$ {m.profit.toFixed(2)}
                           </td>
                           <td className={`py-3 text-right font-bold ${m.roi >= 0 ? 'text-[#00c853]' : 'text-red-500'}`}>
                             {m.roi >= 0 ? '+' : ''}{m.roi}%
@@ -3000,7 +3010,7 @@ export default function App() {
                 />
               </label>
               <label className="text-[10px] text-gray-400 w-full sm:w-28">
-                Stake (R$)
+                Stake (US$)
                 <input
                   type="number"
                   step="0.01"

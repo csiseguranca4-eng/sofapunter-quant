@@ -68,7 +68,7 @@ export function CalendarioMes({ linhas, hoje, dataSelecionada, onSelectDate }) {
                 <>
                   <div className="text-[9px] leading-tight mt-1">{info.entradas} ent.</div>
                   <div className="text-[9px] leading-tight font-semibold">{reais(info.lucro, true)}</div>
-                  {stop ? <div className="text-[8px] font-bold text-red-200 leading-tight">Stop -R$ 15</div> : null}
+                  {stop ? <div className="text-[8px] font-bold text-red-200 leading-tight">Stop -US$ 15</div> : null}
                 </>
               ) : null}
             </button>
