@@ -364,6 +364,13 @@ export function statusEmAndamento(snapshot) {
   return STATUS_EM_ANDAMENTO.has(statusCurto(snapshot));
 }
 
+function timestampInicioApi(snapshot) {
+  const bruto = Number(snapshot?.timestamp ?? snapshot?.fixture?.timestamp);
+  if (Number.isFinite(bruto) && bruto > 0) return bruto > 1e12 ? bruto : bruto * 1000;
+  const iso = Date.parse(snapshot?.kickoff || '');
+  return Number.isFinite(iso) ? iso : null;
+}
+
 export function preJogoAtrasado(snapshot, agoraMs = Date.now()) {
   const curto = statusCurto(snapshot);
   if (curto && curto !== 'NS' && curto !== 'TBD') return false;
@@ -1253,6 +1260,11 @@ export function iniciarMonitorCarpina(opcoes) {
       return;
     }
     const agoraMs = agora();
+    const inicioCacheMs = Number(watch.inicioTimestampMs);
+    if (fixtureValido(watch.fixtureId) && Number.isFinite(inicioCacheMs) && agoraMs < inicioCacheMs - (5 * 60 * 1000)) {
+      console.log(linhaRelogio(watch.match, { statusShort: 'NS', kickoff: new Date(inicioCacheMs).toISOString() }));
+      return;
+    }
     let snapshot = null;
     if (fixtureValido(watch.fixtureId)) {
       try {
@@ -1325,9 +1337,14 @@ export function iniciarMonitorCarpina(opcoes) {
     const curto = statusCurto(snapshot);
     if (curto === 'NS' || curto === 'TBD' || curto === 'PST') {
       watch.kickoff = watch.kickoff || snapshot.kickoff;
+      if (curto === 'NS') {
+        const inicio = timestampInicioApi(snapshot);
+        if (Number.isFinite(inicio)) watch.inicioTimestampMs = inicio;
+      }
       bloquearTelegram(watch, `status ${curto}: partida ainda não começou`);
       return;
     }
+    watch.inicioTimestampMs = null;
     if (fixtureEncerrado(snapshot.status)) {
       bloquearFixture(watch);
       const gols = (Number(snapshot.golsCasa) || 0) + (Number(snapshot.golsFora) || 0);
@@ -1956,6 +1973,7 @@ function textoSniper(jogo, xg, chutes, mercado) {
 async function cicloSniperXG() {
   if (sniperEmCurso) return;
   sniperEmCurso = true;
+  let qtdFiltrados = 0;
   try {
     const aoVivo = await pedirApiSniper('/fixtures?live=all');
     const jogos = Array.isArray(aoVivo?.response) ? aoVivo.response : [];
@@ -1968,6 +1986,7 @@ async function cicloSniperXG() {
       const golsFora = Number(jogo?.goals?.away);
       const tempo = tempoSniper(jogo?.fixture?.status?.short, minuto);
       if (!Number.isFinite(id) || !tempo || !placarAbertoSniper(golsCasa, golsFora)) continue;
+      qtdFiltrados += 1;
       const casa = jogo?.teams?.home?.name || '';
       const fora = jogo?.teams?.away?.name || '';
       const liga = jogo?.league?.name || '';
@@ -2004,6 +2023,7 @@ async function cicloSniperXG() {
     console.warn(`[SNIPER] ciclo ignorado: ${erro?.message || erro}`);
   } finally {
     sniperEmCurso = false;
+    console.log(`🎯 [SNIPER xG] Varredura concluída | Jogos na janela quente: ${qtdFiltrados} | Cota Sniper hoje: ${consumoSniper.total}/3750`);
   }
 }
 
