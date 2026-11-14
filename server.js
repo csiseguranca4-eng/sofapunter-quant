@@ -7,7 +7,7 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 import { aceitarPartidaReal, codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
-import { garantirFixtureId, iniciarMonitorCarpina } from './liveMonitor.js';
+import { apostaSemApi, garantirFixtureId, iniciarMonitorCarpina, marcarSemApi } from './liveMonitor.js';
 import { supabase, TABELA_APOSTAS } from './lib/supabase.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
@@ -205,42 +205,74 @@ async function inserirLinhaAposta(campos) {
   throw new Error(ultimo);
 }
 
+function statusPlanilhaPedido(valor) {
+  const bruto = String(valor || 'PENDENTE').trim().toUpperCase();
+  if (bruto === 'PENDING') return 'PENDENTE';
+  if (['PENDENTE', 'GREEN', 'RED', 'CASHOUT'].includes(bruto)) return bruto;
+  return '';
+}
+
+function lucroDoLancamento(status, stake, odd, corpo) {
+  const informado = Number(corpo?.lucro ?? corpo?.realProfit);
+  if (Number.isFinite(informado)) return Math.round(informado * 100) / 100;
+  if (status === 'GREEN' && stake > 0 && odd > 1) return Math.round(stake * (odd - 1) * 100) / 100;
+  if (status === 'RED' && stake > 0) return Math.round(-stake * 100) / 100;
+  if (status === 'CASHOUT' && stake > 0) {
+    const devolvido = Number(corpo?.returnedAmount ?? corpo?.devolvido);
+    if (Number.isFinite(devolvido)) return Math.round((devolvido - stake) * 100) / 100;
+  }
+  return null;
+}
+
 async function registrarApostaPlanilha(corpo) {
   const jogo = nomeConfronto(corpo?.jogo || corpo?.match || corpo?.partida);
   const mercado = String(corpo?.mercado || corpo?.market || '').trim();
   if (!jogo || !mercado) throw new Error('Informe a partida e o mercado.');
+  const status = statusPlanilhaPedido(corpo?.status);
+  if (!status) throw new Error('Status inválido. Use PENDENTE, GREEN, CASHOUT ou RED.');
   const odd = Number(corpo?.odd);
   const stake = Number(corpo?.stake);
+  const semApi = corpo?.semApi === true || corpo?.sem_api === true;
   const chave = chavePlanilha({ match: jogo, market: mercado });
-  const existentes = await lerTabelaPlanilha(TABELA_APOSTAS);
-  const aberta = existentes
-    .map(linhaParaPlanilha)
-    .filter(Boolean)
-    .find((item) => chavePlanilha(item) === chave && ['PENDING', 'PENDENTE'].includes(String(item.status || '').toUpperCase()));
-  if (aberta) return { ...aberta, criado: false };
+  if (status === 'PENDENTE') {
+    const existentes = await lerTabelaPlanilha(TABELA_APOSTAS);
+    const aberta = existentes
+      .map(linhaParaPlanilha)
+      .filter(Boolean)
+      .find((item) => chavePlanilha(item) === chave && ['PENDING', 'PENDENTE'].includes(String(item.status || '').toUpperCase()));
+    if (aberta) {
+      if (semApi) marcarSemApi({ match: jogo, market: mercado });
+      return { ...aberta, criado: false, semApi: semApi || apostaSemApi({ match: jogo, market: mercado }) };
+    }
+  }
 
   const campos = {
     jogo,
     mercado,
     odd: Number.isFinite(odd) && odd > 1 ? odd : null,
-    status: 'PENDENTE'
+    status
   };
   if (Number.isFinite(stake) && stake > 0) campos.stake = stake;
   const fixture = fixtureNumerico(corpo?.fixtureId || corpo?.fixture_id);
-  if (fixture) campos.fixture_id = fixture;
+  if (fixture && !semApi) campos.fixture_id = fixture;
+  const lucro = status === 'PENDENTE' ? null : lucroDoLancamento(status, Number(campos.stake) || 0, Number(campos.odd) || 0, corpo);
+  if (lucro != null) campos.lucro = lucro;
+  if (semApi) campos.sem_api = true;
   const gravada = await inserirLinhaAposta(campos);
+  if (semApi) marcarSemApi({ match: jogo, market: mercado });
   const aposta = linhaParaPlanilha({
     id: gravada?.id,
     jogo,
     mercado,
     odd: campos.odd,
     stake: campos.stake,
-    status: 'PENDENTE',
+    status,
+    lucro,
     created_at: new Date().toISOString(),
-    fixture_id: fixture,
+    fixture_id: campos.fixture_id || null,
     league: corpo?.league || corpo?.liga || ''
   });
-  return { ...aposta, criado: true };
+  return { ...aposta, criado: true, semApi };
 }
 
 async function lerTabelaPlanilha(nome) {

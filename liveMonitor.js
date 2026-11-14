@@ -17,6 +17,50 @@ const getLaybackMarketData = async () => null;
 const { deveIgnorarPartida } = createRequire(import.meta.url)('./services/filtroLigas.js');
 
 const TABELA_APOSTAS = 'apostas';
+const ARQUIVO_SEM_API = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'layback_sem_api.json');
+const chavesSemApi = new Set();
+const avisadosLayback = new Set();
+
+function chaveSemApi(aposta) {
+  const limpar = (valor) => String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+vs\.?\s+/g, ' x ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const jogo = limpar(aposta?.match || aposta?.jogo || aposta?.partida);
+  const mercado = limpar(aposta?.market || aposta?.mercado);
+  if (!jogo || !mercado) return '';
+  return `${jogo}|${mercado}`;
+}
+
+function carregarChavesSemApi() {
+  try {
+    const bruto = JSON.parse(fs.readFileSync(ARQUIVO_SEM_API, 'utf8'));
+    (Array.isArray(bruto) ? bruto : []).forEach((item) => {
+      if (typeof item === 'string' && item) chavesSemApi.add(item);
+    });
+  } catch {
+    /* o arquivo nasce na primeira entrada manual da LayBack */
+  }
+}
+
+export function marcarSemApi(aposta) {
+  const chave = chaveSemApi(aposta);
+  if (!chave) return;
+  carregarChavesSemApi();
+  chavesSemApi.add(chave);
+  fs.writeFileSync(ARQUIVO_SEM_API, JSON.stringify([...chavesSemApi], null, 2));
+}
+
+export function apostaSemApi(aposta) {
+  if (aposta?.semApi === true || aposta?.sem_api === true) return true;
+  const chave = chaveSemApi(aposta);
+  return chave !== '' && chavesSemApi.has(chave);
+}
+
+carregarChavesSemApi();
 const ARQUIVO_LIVE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'public', 'live_status.json');
 const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
 const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -1185,6 +1229,15 @@ export function iniciarMonitorCarpina(opcoes) {
     }
 
     for (const aposta of pendentes) {
+      if (apostaSemApi(aposta)) {
+        const existente = watches.get(aposta.id);
+        if (existente && !existente.encerrado) encerrar(existente, 'layback');
+        else if (!avisadosLayback.has(aposta.id)) {
+          avisadosLayback.add(aposta.id);
+          console.log(`[CARPINA] ${aposta.match} na LayBack: sem consulta à API-Football.`);
+        }
+        continue;
+      }
       const times = partidaDaAposta(aposta);
       if (!times) continue;
       const atual = watches.get(aposta.id) || {
@@ -1247,6 +1300,10 @@ export function iniciarMonitorCarpina(opcoes) {
 
   const processarWatch = async (watch) => {
     if (watch.encerrado) return;
+    if (apostaSemApi(watch)) {
+      encerrar(watch, 'layback');
+      return;
+    }
     const times = partidaDaAposta({ match: watch.match });
     if (deveIgnorarPartida(watch.league, times?.home, times?.away)) {
       bloquearTelegram(watch, 'liga ou categoria bloqueada pelo filtro de base/amador');

@@ -915,7 +915,11 @@ export default function App() {
       mercado: aposta.market,
       odd: aposta.odd,
       stake: aposta.stake,
-      fixtureId: aposta.fixtureId || null,
+      status: aposta.status === 'PENDING' ? 'PENDENTE' : (aposta.status || 'PENDENTE'),
+      lucro: aposta.realProfit,
+      returnedAmount: aposta.returnedAmount,
+      semApi: aposta.semApi === true,
+      fixtureId: aposta.semApi ? null : (aposta.fixtureId || null),
       league: aposta.league || ''
     });
     for (const destino of destinos) {
@@ -931,6 +935,10 @@ export default function App() {
             ...aposta,
             ...data.aposta,
             id: data.aposta.id != null ? String(data.aposta.id) : aposta.id,
+            status: aposta.status,
+            realProfit: aposta.realProfit,
+            returnedAmount: aposta.returnedAmount,
+            semApi: aposta.semApi === true || data.aposta.semApi === true,
             league: aposta.league || data.aposta.league || '',
             marketType: aposta.marketType || data.aposta.marketType,
             gameLink: aposta.gameLink || data.aposta.gameLink || '',
@@ -1056,6 +1064,19 @@ export default function App() {
   const [multiplaStakeText, setMultiplaStakeText] = useState('');
   const [multiplaOddEdited, setMultiplaOddEdited] = useState(false);
   const [radarPlanilhaAberto, setRadarPlanilhaAberto] = useState({});
+  const entradaManualVazia = () => ({
+    jogo: '',
+    mercado: '',
+    odd: '',
+    stake: recommendedStake.toFixed(2),
+    status: 'PENDENTE',
+    devolvido: '',
+    semApi: true,
+    erro: '',
+    salvando: false
+  });
+  const [entradaManualAberta, setEntradaManualAberta] = useState(false);
+  const [entradaManual, setEntradaManual] = useState(entradaManualVazia);
 
   const normalizeDate = dataCalendarioLocal;
 
@@ -1451,6 +1472,77 @@ export default function App() {
     alert(gravada
       ? `Aposta "${formattedName}" enviada para a Planilha Diária.`
       : `Aposta "${formattedName}" ficou nesta planilha, mas a tabela apostas ainda não confirmou a gravação.`);
+  };
+
+  const abrirEntradaManual = () => {
+    setEntradaManual(entradaManualVazia());
+    setEntradaManualAberta(true);
+  };
+
+  const salvarEntradaManual = async (event) => {
+    event.preventDefault();
+    const jogo = String(entradaManual.jogo || '').trim();
+    const mercado = String(entradaManual.mercado || '').trim();
+    const odd = Number(String(entradaManual.odd || '').replace(',', '.'));
+    const stake = Number(String(entradaManual.stake || '').replace(',', '.'));
+    const status = entradaManual.status || 'PENDENTE';
+    if (!jogo || !mercado) {
+      setEntradaManual((atual) => ({ ...atual, erro: 'Informe o jogo e o mercado.' }));
+      return;
+    }
+    if (!(odd > 1)) {
+      setEntradaManual((atual) => ({ ...atual, erro: 'A odd precisa ser maior que 1.' }));
+      return;
+    }
+    if (!(stake > 0)) {
+      setEntradaManual((atual) => ({ ...atual, erro: 'Informe a stake em US$.' }));
+      return;
+    }
+    let returnedAmount = 0;
+    if (status === 'CASHOUT') {
+      returnedAmount = Number(String(entradaManual.devolvido || '').replace(',', '.'));
+      if (!Number.isFinite(returnedAmount) || returnedAmount < 0) {
+        setEntradaManual((atual) => ({ ...atual, erro: 'Informe quanto a LayBack devolveu no cashout.' }));
+        return;
+      }
+    }
+    const statusLocal = status === 'PENDENTE' ? 'PENDING' : status;
+    const rascunho = { status: statusLocal, stake, odd, returnedAmount };
+    const realProfit = entryNetProfit(rascunho);
+    const newBet = {
+      id: `bet_${Date.now()}${Math.random().toString(36).substring(2, 5)}`,
+      match: jogo.replace(/\s+vs\.?\s+/gi, ' x '),
+      league: '',
+      market: mercado,
+      marketType: categoriaMercado(mercado) || 'Outro',
+      odd: Number(odd.toFixed(2)),
+      stake: Number(stake.toFixed(2)),
+      status: statusLocal,
+      returnedAmount,
+      realProfit,
+      date: getTodayLocal(),
+      timestamp: Date.now(),
+      semApi: entradaManual.semApi === true
+    };
+    setEntradaManual((atual) => ({ ...atual, salvando: true, erro: '' }));
+    const gravada = await gravarApostaNaNuvem(newBet);
+    const salva = gravada
+      ? { ...newBet, ...gravada, status: newBet.status, realProfit: newBet.realProfit, returnedAmount: newBet.returnedAmount, semApi: newBet.semApi }
+      : newBet;
+    const updated = [salva, ...sheetBets.filter((item) => identidadeAposta(item) !== identidadeAposta(salva))];
+    const banco = bancaConsolidada(updated);
+    setSheetBets(updated);
+    setCurrentBankroll(banco);
+    persistToDisk(updated, banco);
+    if (!gravada) {
+      setEntradaManual((atual) => ({
+        ...atual,
+        salvando: false,
+        erro: 'A entrada ficou nesta planilha, mas a tabela apostas ainda não confirmou a gravação.'
+      }));
+      return;
+    }
+    setEntradaManualAberta(false);
   };
 
   const selectionProbability = (fairOdd, odd) => {
@@ -2637,6 +2729,105 @@ export default function App() {
               />
             ) : (
             <>
+            <button
+              type="button"
+              onClick={abrirEntradaManual}
+              className="mb-3 min-h-[42px] w-full sm:w-auto px-3 rounded-lg bg-[#00c853] text-black text-sm font-bold"
+            >
+              + Registrar Entrada Manual (Ao Vivo)
+            </button>
+            {entradaManualAberta && (
+              <form onSubmit={salvarEntradaManual} className="mb-4 bg-[#161b22] border border-gray-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Entrada manual ao vivo</h3>
+                    <p className="text-[11px] text-gray-400 mt-1">Qualquer jogo alertado pelos radares, em US$.</p>
+                  </div>
+                  <button type="button" onClick={() => setEntradaManualAberta(false)} className="text-xs text-gray-400 hover:text-white">Fechar</button>
+                </div>
+                <label className="block text-[11px] text-gray-400">
+                  Jogo
+                  <input
+                    value={entradaManual.jogo}
+                    onChange={(event) => setEntradaManual((atual) => ({ ...atual, jogo: event.target.value }))}
+                    placeholder="NAC Breda x Emmen"
+                    className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                  />
+                </label>
+                <label className="block text-[11px] text-gray-400">
+                  Mercado
+                  <input
+                    value={entradaManual.mercado}
+                    onChange={(event) => setEntradaManual((atual) => ({ ...atual, mercado: event.target.value }))}
+                    placeholder="Back NAC Breda, Lay Emmen, Over 1.5 FT"
+                    className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-[11px] text-gray-400">
+                    Odd
+                    <input
+                      inputMode="decimal"
+                      value={entradaManual.odd}
+                      onChange={(event) => setEntradaManual((atual) => ({ ...atual, odd: event.target.value }))}
+                      placeholder="2.94"
+                      className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                    />
+                  </label>
+                  <label className="block text-[11px] text-gray-400">
+                    Stake (US$)
+                    <input
+                      inputMode="decimal"
+                      value={entradaManual.stake}
+                      onChange={(event) => setEntradaManual((atual) => ({ ...atual, stake: event.target.value }))}
+                      className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    ['PENDENTE', 'Pendente'],
+                    ['GREEN', 'Green'],
+                    ['CASHOUT', 'Cashout'],
+                    ['RED', 'Red']
+                  ].map(([valor, rotulo]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() => setEntradaManual((atual) => ({ ...atual, status: valor }))}
+                      className={`min-h-[42px] rounded-lg text-xs font-bold ${entradaManual.status === valor ? 'bg-[#00c853] text-black' : 'bg-[#0d1117] text-gray-300 border border-gray-700'}`}
+                    >
+                      {rotulo}
+                    </button>
+                  ))}
+                </div>
+                {entradaManual.status === 'CASHOUT' && (
+                  <label className="block text-[11px] text-gray-400">
+                    Valor devolvido (US$)
+                    <input
+                      inputMode="decimal"
+                      value={entradaManual.devolvido}
+                      onChange={(event) => setEntradaManual((atual) => ({ ...atual, devolvido: event.target.value }))}
+                      placeholder="2.31"
+                      className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                    />
+                  </label>
+                )}
+                <label className="flex items-start gap-2 text-xs text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={entradaManual.semApi}
+                    onChange={(event) => setEntradaManual((atual) => ({ ...atual, semApi: event.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span>Já estou acompanhando na LayBack (não consumir API-Football)</span>
+                </label>
+                {entradaManual.erro ? <p className="text-xs text-red-400">{entradaManual.erro}</p> : null}
+                <button type="submit" disabled={entradaManual.salvando} className="min-h-[42px] w-full rounded-lg bg-[#00c853] text-black text-sm font-bold disabled:opacity-60">
+                  {entradaManual.salvando ? 'Salvando...' : 'Salvar na planilha'}
+                </button>
+              </form>
+            )}
             <button
               type="button"
               onClick={() => setCalendarioAberto((aberto) => !aberto)}
