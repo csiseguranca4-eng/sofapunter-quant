@@ -976,13 +976,26 @@ export default function App() {
     try {
       const saved = localStorage.getItem('sp_custom_inputs');
       const atual = saved ? JSON.parse(saved) : {};
-      if (localStorage.getItem('sp_operacao') === INICIO_METODO) return atual;
+      if (localStorage.getItem('sp_operacao') === INICIO_METODO) {
+        if (localStorage.getItem('sp_stake_padrao') === String(STAKE_PADRAO)) return atual;
+        const ajustadas = {};
+        Object.entries(atual).forEach(([id, valor]) => {
+          const stake = Number(valor?.stake);
+          ajustadas[id] = stake === 3
+            ? { ...(valor && typeof valor === 'object' ? valor : {}), stake: STAKE_PADRAO }
+            : valor;
+        });
+        localStorage.setItem('sp_custom_inputs', JSON.stringify(ajustadas));
+        localStorage.setItem('sp_stake_padrao', String(STAKE_PADRAO));
+        return ajustadas;
+      }
       const limpas = {};
       Object.entries(atual).forEach(([id, valor]) => {
         limpas[id] = { ...(valor && typeof valor === 'object' ? valor : {}), stake: STAKE_PADRAO };
       });
       localStorage.setItem('sp_custom_inputs', JSON.stringify(limpas));
       localStorage.setItem('sp_operacao', INICIO_METODO);
+      localStorage.setItem('sp_stake_padrao', String(STAKE_PADRAO));
       localStorage.removeItem('sp_sheet_bets');
       return limpas;
     } catch {

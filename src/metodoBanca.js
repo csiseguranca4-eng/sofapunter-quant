@@ -1,5 +1,5 @@
 export const BANCA_OPERACIONAL = 69.16;
-export const STAKE_PADRAO = 3;
+export const STAKE_PADRAO = 4;
 export const INICIO_METODO = '2026-11-14';
 export const CORTE_REGISTRO_MS = Date.parse('2026-11-14T15:00:00.000Z');
 export const STOP_LOSS_DIARIO = -15;
@@ -7,7 +7,7 @@ export const LIMITE_ENTRADAS_MIN = 3;
 export const LIMITE_ENTRADAS_MAX = 4;
 
 export const FASES_CDB = [
-  { fase: 1, banca: 69.16, stake: 3, meta: 34.58 },
+  { fase: 1, banca: 69.16, stake: 4, meta: 34.58 },
   { fase: 2, banca: 103.74, stake: 4.5, meta: 69.16 },
   { fase: 3, banca: 138.32, stake: 6, meta: 138.32 },
   { fase: 4, banca: 207.48, stake: 9, meta: 207.48 },
