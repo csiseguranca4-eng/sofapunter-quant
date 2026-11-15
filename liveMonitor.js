@@ -2039,8 +2039,10 @@ async function enviarTelegramSniper(texto) {
   }
 }
 
-const IDS_SELECOES = new Set(
-  LIGAS_OFICIAIS.filter((liga) => liga.grupo === 'selecoes').map((liga) => liga.id)
+const IDS_SELECOES_ELITE = new Set(
+  LIGAS_OFICIAIS
+    .filter((liga) => liga.grupo === 'selecoes' && liga.id !== 10)
+    .map((liga) => liga.id)
 );
 
 const PAISES_TIER1 = new Set([
@@ -2071,7 +2073,7 @@ function ligaContinentalEuropeia(liga) {
   if (nome.includes('champions league')) return true;
   if (nome.includes('europa league')) return true;
   if (nome.includes('conference league')) return true;
-  if (nome.includes('nations league')) return true;
+  if (nome.includes('uefa') && nome.includes('nations league')) return true;
   if (/\beuro\b/.test(nome) || nome.includes('european championship')) return true;
   if (nome.includes('uefa') && nome.includes('super cup')) return true;
   if (ligaYouthUefa(liga)) return true;
@@ -2085,8 +2087,22 @@ function femininoEuropeuOuMundial(liga, pais) {
   return paisNorm === 'world' || PAISES_TIER1.has(paisNorm);
 }
 
+function selecaoDeElite(jogo) {
+  const nome = rotuloRadar(jogo?.liga);
+  if (IDS_SELECOES_ELITE.has(Number(jogo?.idLiga))) return true;
+  if (nome.includes('uefa') && nome.includes('nations league')) return true;
+  if (/\beuro\b/.test(nome) || nome.includes('european championship')) return true;
+  if (nome.includes('copa america')) return true;
+  if (nome.includes('world cup') && nome.includes('qualification')) {
+    return nome.includes('europe') || nome.includes('south america');
+  }
+  return nome.includes('world cup');
+}
+
 function ehTier1(jogo) {
-  if (IDS_SELECOES.has(Number(jogo?.idLiga))) return true;
+  const nome = rotuloRadar(jogo?.liga);
+  if (nome.includes('concacaf') && nome.includes('nations league')) return false;
+  if (selecaoDeElite(jogo)) return true;
   if (ligaContinentalEuropeia(jogo?.liga)) return true;
   if (PAISES_TIER1.has(rotuloRadar(jogo?.pais))) return true;
   return femininoEuropeuOuMundial(jogo?.liga, jogo?.pais);
@@ -2235,7 +2251,8 @@ async function cicloSniperXG() {
         const tier1 = ehTier1(jogo);
         const minimoXg = jogo.tempo === '1T' ? 1.05 : 1.5;
         const minimoChutes = jogo.tempo === '1T' ? 4 : 5;
-        if (tier1 && aberto && pressao.xgTotal >= minimoXg && pressao.chutesTotal >= minimoChutes) {
+        const dentroDo2T = jogo.tempo !== '2T' || (jogo.minuto >= 55 && jogo.minuto <= 68);
+        if (tier1 && aberto && dentroDo2T && pressao.xgTotal >= minimoXg && pressao.chutesTotal >= minimoChutes) {
           const totalGols = jogo.golsCasa + jogo.golsFora;
           const xgExcedente = pressao.xgTotal - totalGols;
           const isXgDeOuro = jogo.tempo === '1T'
@@ -2264,7 +2281,7 @@ async function cicloSniperXG() {
         const favorito = lado ? pressao.lado[lado] : null;
         const naJanelaZebra = minutoNoIntervalo(jogo.status, jogo.minuto, 10, 65, ['1H', 'HT', '2H', 'LIVE']);
         const zebraLiberada = tier1 || zebraForaDaEuropa(jogo);
-        if (zebraLiberada && naJanelaZebra && favorito && favorito.vermelhos === 0 && (favorito.xg >= 0.7 || favorito.chutes >= 3)) {
+        if (zebraLiberada && naJanelaZebra && favorito && favorito.vermelhos === 0 && favorito.xg >= 0.55 && favorito.chutes >= 3) {
           const odd = lado === 'casa' ? oddsPreJogoMap.get(jogo.id).oddHome : oddsPreJogoMap.get(jogo.id).oddAway;
           const nome = lado === 'casa' ? jogo.casa : jogo.fora;
           await dispararAlerta(
