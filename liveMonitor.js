@@ -829,14 +829,28 @@ async function listarPendentesOver25(ehOver25) {
 async function garantirApostaPendente(aposta) {
   const cliente = clienteApostas();
   if (!cliente) throw new Error('Supabase indisponível.');
-  const { data, error } = await cliente.from(TABELA_APOSTAS).insert({
+  const payload = {
     jogo: aposta.match,
     mercado: aposta.market,
     odd: Number(aposta.odd) || null,
     status: 'PENDENTE'
-  }).select('id').single();
-  if (error) throw new Error(error.message);
-  return data.id;
+  };
+  const liga = String(aposta.league || aposta.liga || '').trim();
+  if (liga) {
+    payload.league = liga;
+    payload.liga = liga;
+  }
+  let ultimo = null;
+  for (let tentativa = 0; tentativa < 4; tentativa += 1) {
+    const resultado = await cliente.from(TABELA_APOSTAS).insert(payload).select('id').single();
+    if (!resultado.error) return resultado.data.id;
+    ultimo = resultado.error;
+    const citada = String(ultimo.message || '').match(/'([^']+)'/);
+    const coluna = citada ? citada[1] : '';
+    if (!coluna || !Object.prototype.hasOwnProperty.call(payload, coluna)) break;
+    delete payload[coluna];
+  }
+  throw new Error(ultimo?.message || 'INSERT recusado');
 }
 
 async function gravarFixture(id, fixtureId) {

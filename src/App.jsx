@@ -921,7 +921,8 @@ export default function App() {
       returnedAmount: aposta.returnedAmount,
       semApi: aposta.semApi === true,
       fixtureId: aposta.semApi ? null : (aposta.fixtureId || null),
-      league: aposta.league || ''
+      league: aposta.league || '',
+      liga: aposta.league || ''
     });
     for (const destino of destinos) {
       try {
@@ -1068,6 +1069,7 @@ export default function App() {
   const entradaManualVazia = () => ({
     jogo: '',
     mercado: '',
+    liga: '',
     odd: '',
     stake: recommendedStake.toFixed(2),
     status: 'PENDENTE',
@@ -1445,7 +1447,7 @@ export default function App() {
     const newBet = {
       id: 'bet_' + Date.now() + Math.random().toString(36).substring(2, 5),
       match: `${game.home} x ${game.away}`,
-      league: game.league,
+      league: String(game.league || '').trim(),
       market: formattedName,
       marketType: categoriaMercado(formattedName, market.marketType) || market.marketType || 'Outro',
       fairOdd: Number(market.fairOdd) || 0,
@@ -1513,7 +1515,7 @@ export default function App() {
     const newBet = {
       id: `bet_${Date.now()}${Math.random().toString(36).substring(2, 5)}`,
       match: jogo.replace(/\s+vs\.?\s+/gi, ' x '),
-      league: '',
+      league: String(entradaManual.liga || '').replace(/\s+/g, ' ').trim(),
       market: mercado,
       marketType: categoriaMercado(mercado) || 'Outro',
       odd: Number(odd.toFixed(2)),
@@ -1528,7 +1530,7 @@ export default function App() {
     setEntradaManual((atual) => ({ ...atual, salvando: true, erro: '' }));
     const gravada = await gravarApostaNaNuvem(newBet);
     const salva = gravada
-      ? { ...newBet, ...gravada, status: newBet.status, realProfit: newBet.realProfit, returnedAmount: newBet.returnedAmount, semApi: newBet.semApi }
+      ? { ...newBet, ...gravada, status: newBet.status, realProfit: newBet.realProfit, returnedAmount: newBet.returnedAmount, semApi: newBet.semApi, league: newBet.league || gravada.league || '' }
       : newBet;
     const updated = [salva, ...sheetBets.filter((item) => identidadeAposta(item) !== identidadeAposta(salva))];
     const banco = bancaConsolidada(updated);
@@ -2770,6 +2772,15 @@ export default function App() {
                     value={entradaManual.mercado}
                     onChange={(event) => setEntradaManual((atual) => ({ ...atual, mercado: event.target.value }))}
                     placeholder="Back NAC Breda, Lay Emmen, Over 1.5 FT"
+                    className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                  />
+                </label>
+                <label className="block text-[11px] text-gray-400">
+                  Liga
+                  <input
+                    value={entradaManual.liga}
+                    onChange={(event) => setEntradaManual((atual) => ({ ...atual, liga: event.target.value }))}
+                    placeholder="Eredivisie, Champions League, Premier League"
                     className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
                   />
                 </label>

@@ -149,6 +149,23 @@ function nomeConfronto(valor) {
   return String(valor || '').replace(/\s+vs\.?\s+/gi, ' x ').replace(/\s+/g, ' ').trim();
 }
 
+function nomeLiga(valor) {
+  const texto = valor && typeof valor === 'object'
+    ? (valor.league || valor.liga || '')
+    : valor;
+  return String(texto || '').replace(/\s+/g, ' ').trim();
+}
+
+async function complementarLiga(id, liga) {
+  if (id == null || !liga) return;
+  for (const coluna of ['league', 'liga']) {
+    const resultado = await supabase.from(TABELA_APOSTAS).update({ [coluna]: liga }).eq('id', id);
+    if (!resultado.error) return;
+    const mensagem = resultado.error.message || '';
+    if (!new RegExp(`'${coluna}'`, 'i').test(mensagem)) return;
+  }
+}
+
 function fixtureNumerico(valor) {
   if (typeof valor === 'number' && Number.isSafeInteger(valor) && valor > 0) return valor;
   const texto = String(valor ?? '').trim();
@@ -233,6 +250,7 @@ async function registrarApostaPlanilha(corpo) {
   const odd = Number(corpo?.odd);
   const stake = Number(corpo?.stake);
   const semApi = corpo?.semApi === true || corpo?.sem_api === true;
+  const liga = nomeLiga(corpo);
   const chave = chavePlanilha({ match: jogo, market: mercado });
   if (status === 'PENDENTE') {
     const existentes = await lerTabelaPlanilha(TABELA_APOSTAS);
@@ -242,7 +260,13 @@ async function registrarApostaPlanilha(corpo) {
       .find((item) => chavePlanilha(item) === chave && ['PENDING', 'PENDENTE'].includes(String(item.status || '').toUpperCase()));
     if (aberta) {
       if (semApi) marcarSemApi({ match: jogo, market: mercado });
-      return { ...aberta, criado: false, semApi: semApi || apostaSemApi({ match: jogo, market: mercado }) };
+      if (liga && !String(aberta.league || '').trim()) await complementarLiga(aberta.id, liga);
+      return {
+        ...aberta,
+        league: aberta.league || liga,
+        criado: false,
+        semApi: semApi || apostaSemApi({ match: jogo, market: mercado })
+      };
     }
   }
 
@@ -258,6 +282,10 @@ async function registrarApostaPlanilha(corpo) {
   const lucro = status === 'PENDENTE' ? null : lucroDoLancamento(status, Number(campos.stake) || 0, Number(campos.odd) || 0, corpo);
   if (lucro != null) campos.lucro = lucro;
   if (semApi) campos.sem_api = true;
+  if (liga) {
+    campos.league = liga;
+    campos.liga = liga;
+  }
   const gravada = await inserirLinhaAposta(campos);
   if (semApi) marcarSemApi({ match: jogo, market: mercado });
   const aposta = linhaParaPlanilha({
@@ -270,7 +298,7 @@ async function registrarApostaPlanilha(corpo) {
     lucro,
     created_at: new Date().toISOString(),
     fixture_id: campos.fixture_id || null,
-    league: corpo?.league || corpo?.liga || ''
+    league: liga
   });
   return { ...aposta, criado: true, semApi };
 }
@@ -281,7 +309,10 @@ async function lerTabelaPlanilha(nome) {
     if (ordem) consulta = consulta.order(ordem, { ascending: false });
     return consulta;
   };
-  let resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id', 'created_at');
+  let resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, league, liga', 'created_at');
+  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, league', 'created_at');
+  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, liga', 'created_at');
+  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id', 'created_at');
   if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, status, created_at', 'created_at');
   if (resultado.error) resultado = await tentar('*', 'id');
   if (resultado.error) {
