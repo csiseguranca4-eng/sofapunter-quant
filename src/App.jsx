@@ -4,6 +4,7 @@ import { API_BASE, apiUrl, emLocal, grupoCompativel, grupoDaLiga, OPCOES_LIGA, u
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
+import AuditoriaRoi from './AuditoriaRoi.jsx';
 import { BANCA_OPERACIONAL, CORTE_REGISTRO_MS, INICIO_METODO, STAKE_PADRAO, lerSaldoCdb } from './metodoBanca.js';
 
 function nomesIguais(a, b) {
@@ -2702,7 +2703,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
               <button
                 type="button"
                 onClick={() => setVistaPlanilha('entradas')}
@@ -2717,9 +2718,18 @@ export default function App() {
               >
                 Método & CDB
               </button>
+              <button
+                type="button"
+                onClick={() => setVistaPlanilha('auditoria')}
+                className={`min-h-[42px] rounded-lg px-2 text-sm font-bold ${vistaPlanilha === 'auditoria' ? 'bg-[#00c853] text-black' : 'bg-[#161b22] text-gray-300 border border-gray-800'}`}
+              >
+                📊 Auditoria de Lucro (ROI)
+              </button>
             </div>
 
-            {vistaPlanilha === 'metodo' ? (
+            {vistaPlanilha === 'auditoria' ? (
+              <AuditoriaRoi apostas={sheetBets.filter(apostaDoMetodo)} />
+            ) : vistaPlanilha === 'metodo' ? (
               <PainelMetodo
                 linhas={linhasFinanceiras}
                 hoje={getTodayLocal()}
