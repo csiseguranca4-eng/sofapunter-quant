@@ -119,6 +119,75 @@ app.get(comESemApi('/api/apostas'), (req, res) => {
   }
 });
 
+const ARQUIVO_SHADOW_AUDIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'logs/shadow_audit.json');
+
+function lerShadowAudit() {
+  try {
+    const salvo = JSON.parse(fs.readFileSync(ARQUIVO_SHADOW_AUDIT, 'utf8'));
+    return Array.isArray(salvo?.entradas) ? salvo.entradas : [];
+  } catch {
+    return [];
+  }
+}
+
+function percentualShadow(parte, total) {
+  if (!total) return 0;
+  return Number(((parte / total) * 100).toFixed(1));
+}
+
+function montarShadowAudit(entradas) {
+  const lista = Array.isArray(entradas) ? entradas : [];
+  const doMetodo = (metodo) => lista.filter((item) => item?.metodo === metodo);
+  const f = doMetodo('F');
+  const b = doMetodo('B');
+  const greensF = f.filter((item) => item.status === 'green').length;
+  const redsF = f.filter((item) => item.status === 'red').length;
+  const pendentesF = f.filter((item) => item.status === 'aberta').length;
+  const fechadasF = greensF + redsF;
+  const lucroF = f.reduce((soma, item) => soma + (item.status === 'aberta' ? 0 : Number(item.lucro) || 0), 0);
+  const greensB = b.filter((item) => item.status === 'green').length;
+  const semGolB = b.filter((item) => item.status === 'sem-gol').length;
+  const pendentesB = b.filter((item) => item.status === 'aberta').length;
+  const fechadasB = greensB + semGolB;
+  return {
+    metodoF: {
+      total: f.length,
+      pendentes: pendentesF,
+      greens: greensF,
+      reds: redsF,
+      taxaAcerto: percentualShadow(greensF, fechadasF),
+      lucroVirtual: Number(lucroF.toFixed(2)),
+      roiPercentual: percentualShadow(lucroF, fechadasF * 2)
+    },
+    metodoB: {
+      total: b.length,
+      pendentes: pendentesB,
+      greens: greensB,
+      semGol: semGolB,
+      taxaAcerto: percentualShadow(greensB, fechadasB)
+    },
+    entradas: [...lista]
+      .sort((a, bItem) => String(bItem?.em || '').localeCompare(String(a?.em || '')))
+      .map((item) => ({
+        jogo: [item?.casa, item?.fora].filter(Boolean).join(' x '),
+        liga: item?.liga || '',
+        metodo: item?.metodo || '',
+        minutoEntrada: item?.minuto ?? null,
+        placarEntrada: item?.placar || '',
+        xgEntrada: item?.xg ?? null,
+        chutesAlvoEntrada: item?.noAlvo ?? null,
+        placarFinal: item?.placarFinal || item?.placarIntervalo || null,
+        status: item?.status || 'aberta',
+        lucroVirtual: item?.status === 'aberta' || item?.lucro == null ? null : Number(item.lucro),
+        registradoEm: item?.em || null
+      }))
+  };
+}
+
+app.get(comESemApi('/api/shadow-audit'), (_req, res) => {
+  res.json(montarShadowAudit(lerShadowAudit()));
+});
+
 function chavePlanilha(aposta) {
   const limpar = (valor) => String(valor || '')
     .normalize('NFD')

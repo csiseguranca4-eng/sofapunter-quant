@@ -3,6 +3,7 @@ import livroLocal from '../bets_database.json';
 import { API_BASE, apiUrl, emLocal, grupoCompativel, grupoDaLiga, OPCOES_LIGA, urlVarredura } from './apiBase.js';
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
+import LaboratorioShadow from './LaboratorioShadow.jsx';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
 import AuditoriaRoi from './AuditoriaRoi.jsx';
 import { MODOS_ENTRADA, avaliarStatusMensal, avisoStop, cabeModo, calcularProtocoloMensal, contarCliquesMes, gravarModoProtocolo, lerModosProtocolo, modoEntrada } from './utils/gestaoSniperEngine.js';
@@ -805,7 +806,7 @@ function DetalheQuantExtra({ quant, home, away }) {
   );
 }
 
-const ABAS_VALIDAS = ['opps', 'sheet', 'markets', 'desempenho'];
+const ABAS_VALIDAS = ['opps', 'sheet', 'markets', 'desempenho', 'shadow'];
 
 function lerAbaSalva() {
   try {
@@ -2363,6 +2364,13 @@ export default function App() {
           >
             📊 Desempenho por Mercado
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('shadow')}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'shadow' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            🔬 Laboratório Shadow
+          </button>
         </div>
 
         {/* ABA 1: OPORTUNIDADES + AUDITORIA 1WIN + RADAR LIVE */}
@@ -3265,6 +3273,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {activeTab === 'shadow' && <LaboratorioShadow />}
       </div>
 
       {bilheteMultipla.length >= 2 && (
