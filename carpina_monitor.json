@@ -2705,11 +2705,12 @@
       "kickoff": "2026-11-10T22:00:00-03:00",
       "feitos": [],
       "precisaRetry48": false,
-      "encerrado": false,
+      "encerrado": true,
       "ancora": null,
       "notificados": [],
       "league": "Liga MX",
-      "gameLink": null
+      "gameLink": null,
+      "motivo": "encerrada"
     }
   }
 }
