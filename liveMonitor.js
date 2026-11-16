@@ -2277,7 +2277,7 @@ function qualificaShadowF(jogo, pressao) {
 
 function resultadoShadowF(golsEntrada, golsCasa, golsFora) {
   const green = (Number(golsCasa) + Number(golsFora)) > Number(golsEntrada);
-  return { status: green ? 'green' : 'red', lucro: green ? 2.6 : -2 };
+  return { status: green ? 'green' : 'red', lucro: green ? 5.2 : -4 };
 }
 
 function auditoriaShadow() {
@@ -2307,7 +2307,7 @@ function resumoShadow() {
   const greens = fechadasF.filter((item) => item.status === 'green').length;
   const reds = fechadasF.length - greens;
   const lucro = fechadasF.reduce((soma, item) => soma + Number(item.lucro || 0), 0);
-  const apostado = fechadasF.length * 2;
+  const apostado = fechadasF.length * 4;
   const roi = apostado ? (lucro / apostado) * 100 : 0;
   const abertasF = entradas.filter((item) => item.metodo === 'F' && item.status === 'aberta').length;
   const fechadasB = entradas.filter((item) => item.metodo === 'B' && item.status !== 'aberta');
@@ -2333,7 +2333,7 @@ function registrarShadowF(jogo, pressao) {
     gols: jogo.golsCasa + jogo.golsFora,
     xg: Number(Number(pressao.xgTotal).toFixed(2)),
     noAlvo: Number(pressao.chutesTotal),
-    stake: 2,
+    stake: 4,
     odd: 2.3,
     status: 'aberta',
     lucro: null,
@@ -2395,6 +2395,7 @@ function acompanharShadow(jogos) {
         const resultado = resultadoShadowF(item.gols, aoVivo.golsCasa, aoVivo.golsFora);
         item.status = resultado.status;
         item.lucro = resultado.lucro;
+        item.stake = 4;
         item.placarFinal = `${aoVivo.golsCasa}x${aoVivo.golsFora}`;
         item.fechadoEm = new Date().toISOString();
         fechou = true;
@@ -2403,6 +2404,7 @@ function acompanharShadow(jogos) {
       const resultado = resultadoShadowF(item.gols, item.ultimoCasa, item.ultimoFora);
       item.status = resultado.status;
       item.lucro = resultado.lucro;
+      item.stake = 4;
       item.placarFinal = `${item.ultimoCasa}x${item.ultimoFora}`;
       item.fechadoEm = new Date().toISOString();
       item.fonte = 'saiu-do-ao-vivo';

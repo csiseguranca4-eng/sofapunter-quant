@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiUrl } from './apiBase.js';
 
 const META_JOGOS = 30;
-const ROI_VALIDACAO = 8;
+const ROI_VALIDACAO = 12;
 const VAZIO = {
   metodoF: { total: 0, pendentes: 0, greens: 0, reds: 0, taxaAcerto: 0, lucroVirtual: 0, roiPercentual: 0 },
   metodoB: { total: 0, pendentes: 0, greens: 0, semGol: 0, taxaAcerto: 0 },
@@ -49,20 +49,20 @@ function snapshot(item) {
 
 export function badgeShadow(item) {
   if (item?.status === 'aberta') return { texto: 'EM ANDAMENTO', classe: 'bg-amber-500/15 text-amber-300' };
-  if (item?.metodo === 'F' && item?.status === 'green') return { texto: 'GREEN +US$ 2,60', classe: 'bg-[#00c853]/20 text-[#00c853]' };
-  if (item?.metodo === 'F' && item?.status === 'red') return { texto: 'RED -US$ 2,00', classe: 'bg-red-500/20 text-red-400' };
+  if (item?.metodo === 'F' && item?.status === 'green') return { texto: 'GREEN +US$ 5,20', classe: 'bg-[#00c853]/20 text-[#00c853]' };
+  if (item?.metodo === 'F' && item?.status === 'red') return { texto: 'RED -US$ 4,00', classe: 'bg-red-500/20 text-red-400' };
   if (item?.metodo === 'B' && item?.status === 'green') return { texto: 'GREEN', classe: 'bg-[#00c853]/20 text-[#00c853]' };
   if (item?.status === 'sem-gol') return { texto: 'SEM GOL NO HT', classe: 'bg-gray-800 text-gray-300' };
   return { texto: 'EM ANDAMENTO', classe: 'bg-amber-500/15 text-amber-300' };
 }
 
 export function validacaoMetodoF(metodoF) {
-  const total = numero(metodoF?.total);
+  const fechados = numero(metodoF?.greens) + numero(metodoF?.reds);
   const roi = numero(metodoF?.roiPercentual);
   return {
-    total,
-    progresso: Math.min(100, (total / META_JOGOS) * 100),
-    validado: total >= META_JOGOS && roi >= ROI_VALIDACAO
+    fechados,
+    progresso: Math.min(100, (fechados / META_JOGOS) * 100),
+    validado: fechados >= META_JOGOS && roi >= ROI_VALIDACAO
   };
 }
 
@@ -123,7 +123,7 @@ export default function LaboratorioShadow() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className={`bg-[#161b22] border rounded-xl p-3.5 ${validacao.validado ? 'border-[#00c853]/50' : 'border-gray-800'}`}>
-          <div className="text-sm font-bold text-white">Método F — Tiro Curto 75'–90'+ (0x0 / 1x1 • Stake Virtual US$ 2,00)</div>
+          <div className="text-sm font-bold text-white">Método F — Tiro Curto 75'–90'+ (0x0 / 1x1 • Stake Virtual US$ 4,00)</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3 text-[11px]">
             <div>
               <div className="text-gray-500">Entradas</div>
@@ -150,7 +150,7 @@ export default function LaboratorioShadow() {
               <div className={`font-bold ${roiPositivo ? 'text-[#00c853]' : 'text-red-400'}`}>{percentual(f.roiPercentual, true)}</div>
             </div>
           </div>
-          <div className="text-[11px] text-gray-300 mt-3">{validacao.total} / {META_JOGOS} jogos para validação</div>
+          <div className="text-[11px] text-gray-300 mt-3">{validacao.fechados} / {META_JOGOS} jogos para validação</div>
           <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mt-1.5">
             <div className={`h-full ${validacao.validado ? 'bg-[#00c853]' : 'bg-amber-400'}`} style={{ width: `${validacao.progresso}%` }} />
           </div>

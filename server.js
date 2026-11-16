@@ -157,7 +157,7 @@ function montarShadowAudit(entradas) {
       reds: redsF,
       taxaAcerto: percentualShadow(greensF, fechadasF),
       lucroVirtual: Number(lucroF.toFixed(2)),
-      roiPercentual: percentualShadow(lucroF, fechadasF * 2)
+      roiPercentual: percentualShadow(lucroF, fechadasF * 4)
     },
     metodoB: {
       total: b.length,
