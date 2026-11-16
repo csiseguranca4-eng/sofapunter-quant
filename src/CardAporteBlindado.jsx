@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { reais } from './metodoBanca.js';
-import { avaliarStatusMensal, calcularProtocoloMensal, simularTrajetoria5k } from './utils/gestaoSniperEngine.js';
+import { avaliarStatusMensal, calcularProtocoloMensal, formatarCota, simularTrajetoria5k } from './utils/gestaoSniperEngine.js';
 
 function percentualFase(percentual) {
   return `${(Number(percentual) * 100).toFixed(1).replace('.', ',')}%`;
@@ -67,8 +67,8 @@ export default function CardAporteBlindado({
           <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-2">
               <div className="text-[10px] text-slate-400">Cliques</div>
-              <div className={`text-sm font-bold ${status.bloqueadoPorCliques ? 'text-rose-300' : 'text-white'}`}>{String(cliquesUsados).padStart(2, '0')} / 10</div>
-              <div className="text-[10px] text-slate-400">{String(status.cliquesRestantes).padStart(2, '0')} restantes</div>
+              <div className={`text-sm font-bold ${status.bloqueadoPorCliques ? 'text-rose-300' : 'text-white'}`}>{formatarCota(cliquesUsados)} / 10</div>
+              <div className="text-[10px] text-slate-400">{formatarCota(status.cliquesRestantes)} restantes</div>
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-2">
               <div className="text-[10px] text-slate-400">Stake congelada</div>

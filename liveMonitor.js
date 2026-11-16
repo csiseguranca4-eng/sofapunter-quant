@@ -1962,11 +1962,54 @@ function tempoSniper(status, minuto) {
   return null;
 }
 
-function leituraSniper(tempo, gols) {
-  if (tempo === '1T' && gols === 0) return 'Over 0.5 HT na LayBack/Polymarket';
-  if (tempo === '1T') return 'Over 1.5 HT / FT na LayBack/Polymarket';
-  if (gols <= 1) return 'Over 1.5 FT na LayBack/Polymarket';
-  return 'Over 2.5 FT na LayBack/Polymarket';
+function classificarMetodoSniper(jogo, pressao) {
+  const minuto = Number(jogo?.minuto);
+  const xg = Number(pressao?.xgTotal);
+  const noAlvo = Number(pressao?.chutesTotal);
+  const finalizacoes = Number(pressao?.finalizacoes);
+  if (jogo?.tempo === '1T' && minuto >= 22 && minuto <= 35 && xg >= 1.15 && noAlvo >= 5) return 'B';
+  if (jogo?.tempo === '2T' && minuto >= 55 && minuto <= 67 && xg >= 1.6 && (finalizacoes >= 6 || noAlvo >= 6)) return 'A+';
+  if (jogo?.tempo === '2T' && minuto >= 55 && minuto <= 75 && xg >= 1.5 && finalizacoes >= 5) return 'A';
+  return null;
+}
+
+function textoMetodoSniper(metodo, jogo, pressao) {
+  const titulo = {
+    B: '⚡ MÉTODO B — TÁTICO 1º TEMPO (Over FT)',
+    'A+': '🔥💎 MÉTODO A+ — JOGO DE OURO / ELITE (2º Tempo) 💎🔥',
+    A: '🎯 MÉTODO A — SNIPER xG PADRÃO (2º Tempo)'
+  }[metodo];
+  const protocolo = {
+    B: [
+      '📋 PROTOCOLO DE EXECUÇÃO (MÉTODO B):',
+      '• Mercado: Over Gols FT (Odd alvo: 1.18 – 1.32)',
+      '• Gestão: Stake US$ 4,00 | Custo: 0.5 clique',
+      '• 🛑 STOP OBRIGATÓRIO: Cashout no intervalo (45\') — NÃO voltar no 2T'
+    ],
+    'A+': [
+      '📋 PROTOCOLO DE EXECUÇÃO (MÉTODO A+):',
+      '• Mercado: Over Gols FT (Odd alvo: 1.55 – 1.70)',
+      '• Gestão: Stake US$ 4,00 | Custo: 1.0 clique',
+      '• ✅ Liberado pré-meta e pós-meta (+8%)',
+      '• 🛑 STOP OBRIGATÓRIO: Corte frio aos 80\' (Risco est. -US$ 1,80)'
+    ],
+    A: [
+      '📋 PROTOCOLO DE EXECUÇÃO (MÉTODO A):',
+      '• Mercado: Over Gols FT (Odd alvo: 1.50 – 1.70)',
+      '• Gestão: Stake US$ 4,00 | Custo: 1.0 clique',
+      '• ⚠️ Usar preferencialmente antes de bater a meta de +8%',
+      '• 🛑 STOP OBRIGATÓRIO: Corte frio aos 80\' (Risco est. -US$ 1,80)'
+    ]
+  }[metodo];
+  return [
+    titulo,
+    `🏆 Liga: ${jogo.liga}`,
+    `⚽ Times: ${jogo.casa} x ${jogo.fora}`,
+    `📊 Placar: ${jogo.golsCasa} x ${jogo.golsFora} | Minuto: ${jogo.minuto}'`,
+    `🎯 xG total: ${Number(pressao.xgTotal).toFixed(2)} | 🥅 No alvo: ${pressao.chutesTotal}`,
+    '',
+    ...protocolo
+  ].join('\n');
 }
 
 function minutoNoIntervalo(status, minuto, inicio, fim, tempos) {
@@ -2162,10 +2205,16 @@ function resumoPressao(times, jogo) {
   if (xgCasa == null && xgFora == null) return null;
   const chutesCasa = lerNumeroSniper(casa, ['Shots on Goal', 'Shots on Target']) || 0;
   const chutesFora = lerNumeroSniper(fora, ['Shots on Goal', 'Shots on Target']) || 0;
+  const totaisCasa = lerNumeroSniper(casa, ['Total Shots', 'Total shots']);
+  const totaisFora = lerNumeroSniper(fora, ['Total Shots', 'Total shots']);
+  const finalizacoes = totaisCasa == null && totaisFora == null
+    ? chutesCasa + chutesFora
+    : (totaisCasa || 0) + (totaisFora || 0);
   const vermelhos = (lado) => lerNumeroSniper(lado === 'casa' ? casa : fora, ['Red Cards']) || 0;
   return {
     xgTotal: (xgCasa || 0) + (xgFora || 0),
     chutesTotal: chutesCasa + chutesFora,
+    finalizacoes,
     lado: {
       casa: { xg: xgCasa || 0, chutes: chutesCasa, vermelhos: vermelhos('casa') },
       fora: { xg: xgFora || 0, chutes: chutesFora, vermelhos: vermelhos('fora') }
@@ -2263,32 +2312,13 @@ async function cicloSniperXG() {
         if (!pressao) continue;
         const aberto = jogo.tempo && placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
         const tier1 = ehTier1(jogo);
-        const minimoXg = jogo.tempo === '1T' ? 1.05 : 1.5;
-        const minimoChutes = jogo.tempo === '1T' ? 4 : 5;
-        const dentroDo2T = jogo.tempo !== '2T' || (jogo.minuto >= 55 && jogo.minuto <= 68);
-        if (tier1 && aberto && dentroDo2T && pressao.xgTotal >= minimoXg && pressao.chutesTotal >= minimoChutes) {
-          const totalGols = jogo.golsCasa + jogo.golsFora;
-          const xgExcedente = pressao.xgTotal - totalGols;
-          const isXgDeOuro = jogo.tempo === '1T'
-            ? pressao.xgTotal >= 1.35 && pressao.chutesTotal >= 5
-            : (xgExcedente >= 0.45 || pressao.xgTotal >= 2.20) && pressao.chutesTotal >= 6;
-          const detalhesSniper = [
-            `🎯 xG total: ${pressao.xgTotal.toFixed(2)}`,
-            `🥅 Chutes no alvo: ${pressao.chutesTotal}`
-          ];
-          if (isXgDeOuro) {
-            detalhesSniper.push(`💎 xG Excedente (acima do placar): +${xgExcedente.toFixed(2)}`);
-          }
+        const metodo = tier1 && aberto ? classificarMetodoSniper(jogo, pressao) : null;
+        if (metodo) {
           await dispararAlerta(
             `${jogo.id}_${jogo.tempo}`,
             alertasSniperEnviados,
-            textoRadar(
-              isXgDeOuro ? '🏆🔥 SNIPER xG DE OURO — ALTÍSSIMA PROBABILIDADE' : '🔥 SNIPER xG',
-              jogo,
-              detalhesSniper,
-              leituraSniper(jogo.tempo, jogo.gols)
-            ),
-            `[SNIPER] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
+            textoMetodoSniper(metodo, jogo, pressao),
+            `[SNIPER ${metodo}] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
           );
         }
         const lado = ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora);

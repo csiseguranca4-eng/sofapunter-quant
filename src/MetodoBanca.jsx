@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import CardAporteBlindado from './CardAporteBlindado.jsx';
-import { BANCA_OPERACIONAL, FASES_CDB, STOP_LOSS_DIARIO, agruparDias, faseAtual, reais, resumoDoDia, textoResultadoStake } from './metodoBanca.js';
+import { BANCA_OPERACIONAL, STOP_LOSS_DIARIO, agruparDias, reais, resumoDoDia, textoResultadoStake } from './metodoBanca.js';
 import { contarCliquesMes } from './utils/gestaoSniperEngine.js';
 
 const SEMANA = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
@@ -103,21 +103,11 @@ function leituraDoMes(linhas, hoje) {
   };
 }
 
-export function PainelMetodo({ linhas, hoje, saldoCdb, onSaldo, lucroLivro, protocolo, onRegistrarAporte }) {
-  const [valor, setValor] = useState('');
+export function PainelMetodo({ linhas, hoje, protocolo, onRegistrarAporte }) {
   const aporte = useMemo(() => leituraDoMes(linhas, hoje), [linhas, hoje]);
   const leitura = protocolo || aporte;
-  const fase = faseAtual(saldoCdb);
   const hojeResumo = resumoDoDia(linhas, hoje);
-  const bancaAtual = Math.round((fase.banca + (Number(lucroLivro) || 0) - (Number(saldoCdb) || 0)) * 100) / 100;
-  const disponivel = Math.max(0, Math.round(((Number(lucroLivro) || 0) - (Number(saldoCdb) || 0)) * 100) / 100);
   const acimaDoLimite = hojeResumo.entradas > 4;
-  const lancar = () => {
-    const numero = Number(String(valor).replace(',', '.'));
-    if (!Number.isFinite(numero) || numero <= 0) return;
-    onSaldo(Math.round(((Number(saldoCdb) || 0) + numero) * 100) / 100);
-    setValor('');
-  };
 
   return (
     <div className="space-y-3">
@@ -153,62 +143,6 @@ export function PainelMetodo({ linhas, hoje, saldoCdb, onSaldo, lucroLivro, prot
               {hojeResumo.stop ? 'Atingido: encerrar o dia' : 'Livre'}
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
-        <h3 className="text-sm font-bold text-white">Fechamento mensal e drenagem CDB</h3>
-        <p className="text-[11px] text-gray-400 mt-1">No dia 1º, o que estiver acima da banca da fase pode ir para o CDB. O saldo fica neste navegador.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
-          <div className="bg-[#0d1117] rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-400">Fase {fase.fase}</div>
-            <div className="text-sm font-bold text-white">Banca base {reais(fase.banca)}</div>
-            <div className="text-[10px] text-[#00c853]">Stake {reais(fase.stake)}</div>
-          </div>
-          <div className="bg-[#0d1117] rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-400">Banca atual da fase</div>
-            <div className="text-sm font-bold text-white">{reais(bancaAtual)}</div>
-          </div>
-          <div className="bg-[#0d1117] rounded-lg px-3 py-2">
-            <div className="text-[10px] text-gray-400">Disponível para o CDB</div>
-            <div className="text-sm font-bold text-[#00c853]">{reais(disponivel)}</div>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-col sm:flex-row gap-2">
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            value={valor}
-            onChange={(event) => setValor(event.target.value)}
-            placeholder="Valor a lançar no CDB"
-            className="min-h-[42px] flex-1 bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
-          />
-          <button type="button" onClick={lancar} className="min-h-[42px] px-4 rounded-lg bg-[#00c853] text-black text-sm font-bold">
-            Registrar no CDB
-          </button>
-        </div>
-        <div className="text-xs text-gray-300 mt-2">Saldo acumulado no CDB: <strong className="text-white">{reais(saldoCdb)}</strong></div>
-        <div className="space-y-2 mt-4">
-          {FASES_CDB.map((item) => {
-            const atual = item.fase === fase.fase;
-            const concluida = item.fase < fase.fase;
-            const progresso = concluida ? 1 : atual ? fase.progresso : 0;
-            return (
-              <div key={item.fase}>
-                <div className="flex justify-between gap-2 text-[11px] text-gray-300">
-                  <span className={atual ? 'text-white font-bold' : ''}>
-                    Fase {item.fase}: {reais(item.banca)} · stake {reais(item.stake)}
-                  </span>
-                  <span>{item.meta == null ? 'Consolidação' : `Meta ${reais(item.meta)}`}</span>
-                </div>
-                <div className="h-2 mt-1 rounded-full bg-gray-800 overflow-hidden">
-                  <div className="h-full bg-[#00c853]" style={{ width: `${Math.max(0, Math.min(1, progresso)) * 100}%` }} />
-                </div>
-              </div>
-            );
-          })}
         </div>
       </section>
     </div>

@@ -5,8 +5,8 @@ import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.
 import RadarLive from './RadarLive.jsx';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
 import AuditoriaRoi from './AuditoriaRoi.jsx';
-import { avaliarStatusMensal, calcularProtocoloMensal, contarCliquesMes } from './utils/gestaoSniperEngine.js';
-import { APORTE_PROTOCOLO, BANCA_OPERACIONAL, CORTE_REGISTRO_MS, INICIO_METODO, LIMITE_CLIQUES_MES, STAKE_PADRAO, lerAportes, lerSaldoCdb, registrarAporteProtocolo } from './metodoBanca.js';
+import { MODOS_ENTRADA, avaliarStatusMensal, avisoStop, cabeModo, calcularProtocoloMensal, contarCliquesMes, gravarModoProtocolo, lerModosProtocolo, modoEntrada } from './utils/gestaoSniperEngine.js';
+import { APORTE_PROTOCOLO, BANCA_OPERACIONAL, CORTE_REGISTRO_MS, INICIO_METODO, LIMITE_CLIQUES_MES, STAKE_PADRAO, lerAportes, registrarAporteProtocolo } from './metodoBanca.js';
 
 function nomesIguais(a, b) {
   const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -970,21 +970,12 @@ export default function App() {
     }
   };
 
-  const [saldoCdb, setSaldoCdb] = useState(lerSaldoCdb);
   const [aportes, setAportes] = useState(lerAportes);
+  const [modosProtocolo, setModosProtocolo] = useState(lerModosProtocolo);
   const protocoloRef = useRef({ stake: STAKE_PADRAO, fase: 1, teto: false });
   const [vistaPlanilha, setVistaPlanilha] = useState('entradas');
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const recommendedStake = STAKE_PADRAO;
-  const gravarSaldoCdb = (valor) => {
-    const saldo = roundMoney(Math.max(0, Number(valor) || 0));
-    try {
-      localStorage.setItem('sp_cdb_saldo', String(saldo));
-    } catch {
-      /* o navegador pode bloquear o storage */
-    }
-    setSaldoCdb(saldo);
-  };
 
   const [customInputs, setCustomInputs] = useState(() => {
     try {
@@ -1076,6 +1067,7 @@ export default function App() {
     liga: '',
     odd: '',
     stake: recommendedStake.toFixed(2),
+    modo: 'SNIPER_2T',
     status: 'PENDENTE',
     devolvido: '',
     semApi: true,
@@ -1484,7 +1476,8 @@ export default function App() {
   const abrirEntradaManual = () => {
     if (protocoloRef.current.teto) return;
     const stake = Number(protocoloRef.current.stake) || STAKE_PADRAO;
-    setEntradaManual({ ...entradaManualVazia(), stake: stake.toFixed(2) });
+    const modo = protocoloRef.current.restantes < 1 ? 'TATICO_1T' : 'SNIPER_2T';
+    setEntradaManual({ ...entradaManualVazia(), stake: stake.toFixed(2), modo });
     setEntradaManualAberta(true);
   };
 
@@ -1503,7 +1496,8 @@ export default function App() {
       setEntradaManual((atual) => ({ ...atual, erro: 'A odd precisa ser maior que 1.' }));
       return;
     }
-    if (protocoloRef.current.teto) {
+    const modo = modoEntrada(entradaManual.modo);
+    if (protocoloRef.current.teto || !cabeModo(protocoloRef.current.usados, modo.id)) {
       setEntradaManual((atual) => ({ ...atual, erro: 'Limite mensal de 10 entradas atingido' }));
       return;
     }
@@ -1536,13 +1530,15 @@ export default function App() {
       realProfit,
       date: getTodayLocal(),
       timestamp: Date.now(),
-      semApi: entradaManual.semApi === true
+      semApi: entradaManual.semApi === true,
+      modoProtocolo: modo.id
     };
     setEntradaManual((atual) => ({ ...atual, salvando: true, erro: '' }));
     const gravada = await gravarApostaNaNuvem(newBet);
     const salva = gravada
-      ? { ...newBet, ...gravada, status: newBet.status, realProfit: newBet.realProfit, returnedAmount: newBet.returnedAmount, semApi: newBet.semApi, league: newBet.league || gravada.league || '' }
+      ? { ...newBet, ...gravada, status: newBet.status, realProfit: newBet.realProfit, returnedAmount: newBet.returnedAmount, semApi: newBet.semApi, league: newBet.league || gravada.league || '', modoProtocolo: newBet.modoProtocolo }
       : newBet;
+    setModosProtocolo(gravarModoProtocolo([newBet.id, salva.id, salva.nuvemId], modo.id));
     const updated = [salva, ...sheetBets.filter((item) => identidadeAposta(item) !== identidadeAposta(salva))];
     const banco = bancaConsolidada(updated);
     setSheetBets(updated);
@@ -1878,12 +1874,9 @@ export default function App() {
     date: normalizeDate(aposta.date),
     status: String(aposta.status || '').toUpperCase(),
     lucro: entryNetProfit(aposta),
-    stake: Number(aposta.stake) || 0
-  })), [sheetBets]);
-  const lucroLivro = useMemo(
-    () => roundMoney(linhasFinanceiras.reduce((total, linha) => total + linha.lucro, 0)),
-    [linhasFinanceiras]
-  );
+    stake: Number(aposta.stake) || 0,
+    modo: modoEntrada(aposta.modoProtocolo || modosProtocolo[aposta.id] || modosProtocolo[aposta.nuvemId]).id
+  })), [sheetBets, modosProtocolo]);
 
   const currentMonthKey = getTodayLocal().slice(0, 7);
 
@@ -1977,6 +1970,8 @@ export default function App() {
     stake: regraStake.stakeCongelada,
     fase: regraStake.fase,
     percentual: regraStake.percentual,
+    usados: cliquesOperacao,
+    restantes: statusMes.cliquesRestantes,
     teto: statusMes.bloqueadoPorCliques
   };
   const registrarAporteInter = () => {
@@ -2793,9 +2788,6 @@ export default function App() {
               <PainelMetodo
                 linhas={linhasFinanceiras}
                 hoje={getTodayLocal()}
-                saldoCdb={saldoCdb}
-                onSaldo={gravarSaldoCdb}
-                lucroLivro={lucroLivro}
                 protocolo={protocoloMes}
                 onRegistrarAporte={registrarAporteInter}
               />
@@ -2838,6 +2830,23 @@ export default function App() {
                     className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
                   />
                 </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {Object.values(MODOS_ENTRADA).map((item) => {
+                    const cabe = cabeModo(protocoloRef.current.usados, item.id);
+                    const ativo = entradaManual.modo === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={!cabe}
+                        onClick={() => setEntradaManual((atual) => ({ ...atual, modo: item.id, erro: '' }))}
+                        className={`min-h-[42px] rounded-lg px-3 py-2 text-xs font-bold text-left ${ativo ? 'bg-emerald-400 text-slate-950' : 'bg-[#0d1117] text-gray-300 border border-gray-700'} disabled:opacity-40 disabled:cursor-not-allowed`}
+                      >
+                        {item.nome}
+                      </button>
+                    );
+                  })}
+                </div>
                 <label className="block text-[11px] text-gray-400">
                   Liga
                   <input
@@ -2868,6 +2877,7 @@ export default function App() {
                       className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-slate-700 rounded-lg px-3 text-sm text-white outline-none cursor-not-allowed"
                     />
                     <span className="mt-1 block text-[11px] font-semibold text-sky-300">Stake Travada pelo Protocolo (Fase {protocoloRef.current.fase} • {(Number(protocoloRef.current.percentual) * 100).toFixed(1).replace('.', ',')}%)</span>
+                    <span className="mt-1 block text-[11px] font-semibold text-amber-300">{avisoStop(entradaManual.modo, protocoloRef.current.stake)}</span>
                   </label>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -2909,7 +2919,7 @@ export default function App() {
                   <span>Já estou acompanhando na LayBack (não consumir API-Football)</span>
                 </label>
                 {entradaManual.erro ? <p className="text-xs text-red-400">{entradaManual.erro}</p> : null}
-                <button type="submit" disabled={entradaManual.salvando} className="min-h-[42px] w-full rounded-lg bg-[#00c853] text-black text-sm font-bold disabled:opacity-60">
+                <button type="submit" disabled={entradaManual.salvando || !cabeModo(protocoloRef.current.usados, entradaManual.modo)} className="min-h-[42px] w-full rounded-lg bg-[#00c853] text-black text-sm font-bold disabled:opacity-60">
                   {entradaManual.salvando ? 'Salvando...' : 'Salvar na planilha'}
                 </button>
               </form>
