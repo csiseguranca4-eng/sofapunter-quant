@@ -2261,6 +2261,159 @@ function jogoAoVivo(bruto) {
   };
 }
 
+const ARQUIVO_SHADOW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'logs/shadow_audit.json');
+const STATUS_FIM = new Set(['FT', 'AET', 'PEN']);
+let shadowAudit = null;
+
+function qualificaShadowF(jogo, pressao) {
+  const minuto = Number(jogo?.minuto);
+  const status = String(jogo?.status || '').toUpperCase();
+  if (status !== '2H' || minuto < 75 || minuto > 77) return false;
+  const casa = Number(jogo?.golsCasa);
+  const fora = Number(jogo?.golsFora);
+  const empate = (casa === 0 && fora === 0) || (casa === 1 && fora === 1);
+  return empate && Number(pressao?.xgTotal) >= 1.5 && Number(pressao?.chutesTotal) >= 5;
+}
+
+function resultadoShadowF(golsEntrada, golsCasa, golsFora) {
+  const green = (Number(golsCasa) + Number(golsFora)) > Number(golsEntrada);
+  return { status: green ? 'green' : 'red', lucro: green ? 2.6 : -2 };
+}
+
+function auditoriaShadow() {
+  if (shadowAudit) return shadowAudit;
+  try {
+    const salvo = JSON.parse(fs.readFileSync(ARQUIVO_SHADOW, 'utf8'));
+    shadowAudit = Array.isArray(salvo?.entradas) ? salvo : { entradas: [] };
+  } catch {
+    shadowAudit = { entradas: [] };
+  }
+  return shadowAudit;
+}
+
+function gravarShadow() {
+  fs.mkdirSync(path.dirname(ARQUIVO_SHADOW), { recursive: true });
+  fs.writeFileSync(ARQUIVO_SHADOW, JSON.stringify(auditoriaShadow(), null, 2));
+}
+
+function dinheiroShadow(valor) {
+  const sinal = valor < 0 ? '-' : '';
+  return `${sinal}US$ ${Math.abs(valor).toFixed(2).replace('.', ',')}`;
+}
+
+function resumoShadow() {
+  const entradas = auditoriaShadow().entradas;
+  const fechadasF = entradas.filter((item) => item.metodo === 'F' && item.status !== 'aberta');
+  const greens = fechadasF.filter((item) => item.status === 'green').length;
+  const reds = fechadasF.length - greens;
+  const lucro = fechadasF.reduce((soma, item) => soma + Number(item.lucro || 0), 0);
+  const apostado = fechadasF.length * 2;
+  const roi = apostado ? (lucro / apostado) * 100 : 0;
+  const abertasF = entradas.filter((item) => item.metodo === 'F' && item.status === 'aberta').length;
+  const fechadasB = entradas.filter((item) => item.metodo === 'B' && item.status !== 'aberta');
+  const comGol = fechadasB.filter((item) => item.golIntervalo).length;
+  const abertasB = entradas.filter((item) => item.metodo === 'B' && item.status === 'aberta').length;
+  console.log(`[SHADOW F] ${greens} green / ${reds} red | lucro ${dinheiroShadow(lucro)} | ROI ${roi.toFixed(1)}% | abertas ${abertasF}`);
+  console.log(`[SHADOW B] ${comGol} com gol no HT / ${fechadasB.length - comGol} sem gol | abertas ${abertasB}`);
+}
+
+function registrarShadowF(jogo, pressao) {
+  if (!qualificaShadowF(jogo, pressao)) return;
+  const livro = auditoriaShadow();
+  if (livro.entradas.some((item) => item.metodo === 'F' && item.fixtureId === jogo.id)) return;
+  livro.entradas.push({
+    id: `F-${jogo.id}`,
+    metodo: 'F',
+    fixtureId: jogo.id,
+    liga: jogo.liga,
+    casa: jogo.casa,
+    fora: jogo.fora,
+    minuto: jogo.minuto,
+    placar: `${jogo.golsCasa}x${jogo.golsFora}`,
+    gols: jogo.golsCasa + jogo.golsFora,
+    xg: Number(Number(pressao.xgTotal).toFixed(2)),
+    noAlvo: Number(pressao.chutesTotal),
+    stake: 2,
+    odd: 2.3,
+    status: 'aberta',
+    lucro: null,
+    placarFinal: null,
+    ultimoMinuto: jogo.minuto,
+    em: new Date().toISOString()
+  });
+  gravarShadow();
+}
+
+function registrarShadowB(jogo, pressao) {
+  const livro = auditoriaShadow();
+  if (livro.entradas.some((item) => item.metodo === 'B' && item.fixtureId === jogo.id)) return;
+  livro.entradas.push({
+    id: `B-${jogo.id}`,
+    metodo: 'B',
+    fixtureId: jogo.id,
+    liga: jogo.liga,
+    casa: jogo.casa,
+    fora: jogo.fora,
+    minuto: jogo.minuto,
+    placar: `${jogo.golsCasa}x${jogo.golsFora}`,
+    gols: jogo.golsCasa + jogo.golsFora,
+    xg: Number(Number(pressao.xgTotal).toFixed(2)),
+    noAlvo: Number(pressao.chutesTotal),
+    stake: 4,
+    status: 'aberta',
+    golIntervalo: null,
+    placarIntervalo: null,
+    em: new Date().toISOString()
+  });
+  gravarShadow();
+}
+
+function acompanharShadow(jogos) {
+  const livro = auditoriaShadow();
+  const abertas = livro.entradas.filter((item) => item.status === 'aberta');
+  if (!abertas.length || !Array.isArray(jogos) || !jogos.length) return;
+  const porId = new Map(jogos.map((jogo) => [jogo.id, jogo]));
+  let fechou = false;
+  for (const item of abertas) {
+    const aoVivo = porId.get(item.fixtureId);
+    if (item.metodo === 'B' && aoVivo && String(aoVivo.status || '').toUpperCase() === 'HT') {
+      const gols = aoVivo.golsCasa + aoVivo.golsFora;
+      item.golIntervalo = gols > item.gols;
+      item.status = item.golIntervalo ? 'green' : 'sem-gol';
+      item.placarIntervalo = `${aoVivo.golsCasa}x${aoVivo.golsFora}`;
+      item.fechadoEm = new Date().toISOString();
+      fechou = true;
+      continue;
+    }
+    if (item.metodo !== 'F') continue;
+    if (aoVivo) {
+      item.ultimoMinuto = aoVivo.minuto;
+      item.ultimoCasa = aoVivo.golsCasa;
+      item.ultimoFora = aoVivo.golsFora;
+      item.vistoDepois = true;
+      if (STATUS_FIM.has(String(aoVivo.status || '').toUpperCase())) {
+        const resultado = resultadoShadowF(item.gols, aoVivo.golsCasa, aoVivo.golsFora);
+        item.status = resultado.status;
+        item.lucro = resultado.lucro;
+        item.placarFinal = `${aoVivo.golsCasa}x${aoVivo.golsFora}`;
+        item.fechadoEm = new Date().toISOString();
+        fechou = true;
+      }
+    } else if (item.vistoDepois && Number(item.ultimoMinuto) >= 90) {
+      const resultado = resultadoShadowF(item.gols, item.ultimoCasa, item.ultimoFora);
+      item.status = resultado.status;
+      item.lucro = resultado.lucro;
+      item.placarFinal = `${item.ultimoCasa}x${item.ultimoFora}`;
+      item.fechadoEm = new Date().toISOString();
+      item.fonte = 'saiu-do-ao-vivo';
+      fechou = true;
+    }
+  }
+  if (!fechou) return;
+  gravarShadow();
+  resumoShadow();
+}
+
 async function dispararAlerta(chave, conjunto, texto, log) {
   if (conjunto.has(chave)) return;
   conjunto.add(chave);
@@ -2285,6 +2438,9 @@ async function cicloSniperXG() {
     if (daRede) consumoSniper.total += 1;
     if (!aoVivo) return;
     const jogos = (Array.isArray(aoVivo.response) ? aoVivo.response : []).map(jogoAoVivo).filter(Boolean);
+    try { acompanharShadow(jogos); } catch (erro) {
+      console.warn(`[SHADOW] acompanhamento ignorado: ${erro?.message || erro}`);
+    }
     const agora = Date.now();
     const precisaOdds = [];
     const candidatos = [];
@@ -2321,16 +2477,26 @@ async function cicloSniperXG() {
         if (!corpo) break;
         const pressao = resumoPressao(corpo.response, jogo);
         if (!pressao) continue;
+        try { registrarShadowF(jogo, pressao); } catch (erro) {
+          console.warn(`[SHADOW] registro F ignorado: ${erro?.message || erro}`);
+        }
         const aberto = sniperLiberado(jogo);
         const tier1 = ehTier1(jogo);
         const metodo = tier1 && aberto ? classificarMetodoSniper(jogo, pressao) : null;
         if (metodo) {
+          const chaveAlerta = `${jogo.id}_${jogo.tempo}`;
+          const jaEnviado = alertasSniperEnviados.has(chaveAlerta);
           await dispararAlerta(
-            `${jogo.id}_${jogo.tempo}`,
+            chaveAlerta,
             alertasSniperEnviados,
             textoMetodoSniper(metodo, jogo, pressao),
             `[SNIPER ${metodo}] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
           );
+          if (metodo === 'B' && !jaEnviado && alertasSniperEnviados.has(chaveAlerta)) {
+            try { registrarShadowB(jogo, pressao); } catch (erro) {
+              console.warn(`[SHADOW] registro B ignorado: ${erro?.message || erro}`);
+            }
+          }
         }
         const lado = ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora);
         const favorito = lado ? pressao.lado[lado] : null;
