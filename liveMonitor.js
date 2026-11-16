@@ -1955,6 +1955,12 @@ function placarAbertoSniper(casa, fora) {
     || (casa === 1 && fora === 1);
 }
 
+function sniperLiberado(jogo) {
+  if (!jogo?.tempo) return false;
+  if (jogo.tempo === '2T') return Number(jogo.golsCasa) === Number(jogo.golsFora);
+  return placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
+}
+
 function tempoSniper(status, minuto) {
   const curto = String(status || '').toUpperCase();
   if (curto === '1H' && minuto >= 20 && minuto <= 38) return '1T';
@@ -1968,8 +1974,9 @@ function classificarMetodoSniper(jogo, pressao) {
   const noAlvo = Number(pressao?.chutesTotal);
   const finalizacoes = Number(pressao?.finalizacoes);
   if (jogo?.tempo === '1T' && minuto >= 22 && minuto <= 35 && xg >= 1.15 && noAlvo >= 5) return 'B';
-  if (jogo?.tempo === '2T' && minuto >= 55 && minuto <= 67 && xg >= 1.6 && (finalizacoes >= 6 || noAlvo >= 6)) return 'A+';
-  if (jogo?.tempo === '2T' && minuto >= 55 && minuto <= 75 && xg >= 1.5 && finalizacoes >= 5) return 'A';
+  if (jogo?.tempo !== '2T' || Number(jogo?.golsCasa) !== Number(jogo?.golsFora)) return null;
+  if (minuto >= 55 && minuto <= 67 && xg >= 1.6 && (finalizacoes >= 6 || noAlvo >= 6)) return 'A+';
+  if (minuto >= 55 && minuto <= 75 && xg >= 1.5 && finalizacoes >= 5) return 'A';
   return null;
 }
 
@@ -2278,7 +2285,7 @@ async function cicloSniperXG() {
     const precisaOdds = [];
     const candidatos = [];
     for (const jogo of jogos) {
-      const aberto = jogo.tempo && placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
+      const aberto = sniperLiberado(jogo);
       if (aberto) qtdFiltrados += 1;
       const zebra = minutoNoIntervalo(jogo.status, jogo.minuto, 10, 65, ['1H', 'HT', '2H', 'LIVE'])
         && Math.abs(jogo.golsCasa - jogo.golsFora) === 1;
@@ -2310,7 +2317,7 @@ async function cicloSniperXG() {
         if (!corpo) break;
         const pressao = resumoPressao(corpo.response, jogo);
         if (!pressao) continue;
-        const aberto = jogo.tempo && placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
+        const aberto = sniperLiberado(jogo);
         const tier1 = ehTier1(jogo);
         const metodo = tier1 && aberto ? classificarMetodoSniper(jogo, pressao) : null;
         if (metodo) {
