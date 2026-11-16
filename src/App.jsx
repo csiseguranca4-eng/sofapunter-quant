@@ -5,7 +5,8 @@ import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.
 import RadarLive from './RadarLive.jsx';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
 import AuditoriaRoi from './AuditoriaRoi.jsx';
-import { BANCA_OPERACIONAL, CORTE_REGISTRO_MS, INICIO_METODO, STAKE_PADRAO, lerSaldoCdb } from './metodoBanca.js';
+import { avaliarStatusMensal, calcularProtocoloMensal, contarCliquesMes } from './utils/gestaoSniperEngine.js';
+import { APORTE_PROTOCOLO, BANCA_OPERACIONAL, CORTE_REGISTRO_MS, INICIO_METODO, LIMITE_CLIQUES_MES, STAKE_PADRAO, lerAportes, lerSaldoCdb, registrarAporteProtocolo } from './metodoBanca.js';
 
 function nomesIguais(a, b) {
   const limpar = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -423,7 +424,8 @@ function bancaConsolidada(apostas) {
   const lucro = (Array.isArray(apostas) ? apostas : [])
     .filter(apostaDoMetodo)
     .reduce((total, aposta) => total + entryNetProfit(aposta), 0);
-  return roundMoney(BANCA_OPERACIONAL + lucro);
+  const aportes = lerAportes().reduce((total, item) => total + (Number(item.valor) || 0), 0);
+  return roundMoney(BANCA_OPERACIONAL + lucro + aportes);
 }
 
 function signedGrowth(value) {
@@ -969,6 +971,8 @@ export default function App() {
   };
 
   const [saldoCdb, setSaldoCdb] = useState(lerSaldoCdb);
+  const [aportes, setAportes] = useState(lerAportes);
+  const protocoloRef = useRef({ stake: STAKE_PADRAO, fase: 1, teto: false });
   const [vistaPlanilha, setVistaPlanilha] = useState('entradas');
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const recommendedStake = STAKE_PADRAO;
@@ -1478,7 +1482,9 @@ export default function App() {
   };
 
   const abrirEntradaManual = () => {
-    setEntradaManual(entradaManualVazia());
+    if (protocoloRef.current.teto) return;
+    const stake = Number(protocoloRef.current.stake) || STAKE_PADRAO;
+    setEntradaManual({ ...entradaManualVazia(), stake: stake.toFixed(2) });
     setEntradaManualAberta(true);
   };
 
@@ -1497,7 +1503,12 @@ export default function App() {
       setEntradaManual((atual) => ({ ...atual, erro: 'A odd precisa ser maior que 1.' }));
       return;
     }
-    if (!(stake > 0)) {
+    if (protocoloRef.current.teto) {
+      setEntradaManual((atual) => ({ ...atual, erro: 'Limite mensal de 10 entradas atingido' }));
+      return;
+    }
+    const stakeTravada = Number(protocoloRef.current.stake) || stake;
+    if (!(stakeTravada > 0)) {
       setEntradaManual((atual) => ({ ...atual, erro: 'Informe a stake em US$.' }));
       return;
     }
@@ -1510,7 +1521,7 @@ export default function App() {
       }
     }
     const statusLocal = status === 'PENDENTE' ? 'PENDING' : status;
-    const rascunho = { status: statusLocal, stake, odd, returnedAmount };
+    const rascunho = { status: statusLocal, stake: stakeTravada, odd, returnedAmount };
     const realProfit = entryNetProfit(rascunho);
     const newBet = {
       id: `bet_${Date.now()}${Math.random().toString(36).substring(2, 5)}`,
@@ -1519,7 +1530,7 @@ export default function App() {
       market: mercado,
       marketType: categoriaMercado(mercado) || 'Outro',
       odd: Number(odd.toFixed(2)),
-      stake: Number(stake.toFixed(2)),
+      stake: Number(stakeTravada.toFixed(2)),
       status: statusLocal,
       returnedAmount,
       realProfit,
@@ -1903,6 +1914,9 @@ export default function App() {
       if (!/^\d{4}-\d{2}$/.test(key)) return;
       profits.set(key, (profits.get(key) || 0) + entryNetProfit(bet));
     });
+    aportes.forEach((item) => {
+      if (/^\d{4}-\d{2}$/.test(item.mes)) profits.set(item.mes, profits.get(item.mes) || 0);
+    });
     if (/^\d{4}-\d{2}$/.test(currentMonthKey)) {
       profits.set(currentMonthKey, profits.get(currentMonthKey) || 0);
     }
@@ -1911,18 +1925,20 @@ export default function App() {
     let running = BANCA_OPERACIONAL;
     [...profits.keys()].sort().forEach((key) => {
       const profit = roundMoney(profits.get(key) || 0);
+      const aporteMes = roundMoney(aportes.reduce((total, item) => total + (item.mes === key ? Number(item.valor) || 0 : 0), 0));
       const initial = roundMoney(running);
-      const finalBank = roundMoney(initial + profit);
+      const finalBank = roundMoney(initial + profit + aporteMes);
       months[key] = {
         initial,
         profit,
+        aporte: aporteMes,
         final: finalBank,
         growth: growthPercent(profit, initial)
       };
       running = finalBank;
     });
 
-    const totalProfit = roundMoney(running - BANCA_OPERACIONAL);
+    const totalProfit = roundMoney([...profits.values()].reduce((total, valor) => total + valor, 0));
     return {
       months,
       totalProfit,
@@ -1930,7 +1946,45 @@ export default function App() {
       current: roundMoney(running),
       historicalGrowth: growthPercent(totalProfit, BANCA_OPERACIONAL)
     };
-  }, [sheetBets, currentMonthKey]);
+  }, [sheetBets, currentMonthKey, aportes]);
+
+  const cliquesOperacao = contarCliquesMes(linhasFinanceiras, currentMonthKey);
+  const bancaInicialMes = monthLedger.months[currentMonthKey]?.initial ?? BANCA_OPERACIONAL;
+  const lucroMes = monthLedger.months[currentMonthKey]?.profit || 0;
+  const regraStake = calcularProtocoloMensal(bancaInicialMes);
+  const statusMes = avaliarStatusMensal({
+    bancaInicialMes,
+    bancaAtual: bancaInicialMes + lucroMes,
+    cliquesUsados: cliquesOperacao,
+    aporteJaRealizadoNoMes: aportes.some((item) => item.mes === currentMonthKey)
+  });
+  const protocoloMes = {
+    mes: currentMonthKey,
+    bancaInicialMes,
+    bancaAtual: monthLedger.months[currentMonthKey]?.final ?? BANCA_OPERACIONAL,
+    lucroMes,
+    fase: regraStake.fase,
+    percentual: regraStake.percentual,
+    stake: regraStake.stakeCongelada,
+    risco80: regraStake.riscoRealCorte80,
+    riscoRealPctBanca: regraStake.riscoRealPctBanca,
+    cliquesUsados: cliquesOperacao,
+    limiteCliques: LIMITE_CLIQUES_MES,
+    aportes,
+    statusMes
+  };
+  protocoloRef.current = {
+    stake: regraStake.stakeCongelada,
+    fase: regraStake.fase,
+    percentual: regraStake.percentual,
+    teto: statusMes.bloqueadoPorCliques
+  };
+  const registrarAporteInter = () => {
+    if (!statusMes.podeAportar) return;
+    const salvos = registrarAporteProtocolo(protocoloMes.mes, APORTE_PROTOCOLO);
+    setAportes(salvos);
+    setCurrentBankroll(bancaConsolidada(sheetBets));
+  };
 
   const selectedMonthKey = profitSelectValue === 'CURRENT' ? currentMonthKey : profitSelectValue;
   const selectedMonth = monthLedger.months[selectedMonthKey];
@@ -2235,7 +2289,7 @@ export default function App() {
           <div className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5">
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Banca Atual</div>
             <div className="text-xl font-bold text-white mt-1">US$ {currentBankroll.toFixed(2).replace('.', ',')}</div>
-            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Banca inicial: US$ {BANCA_OPERACIONAL.toFixed(2).replace('.', ',')} · Stake padrão: US$ {recommendedStake.toFixed(2).replace('.', ',')}</div>
+            <div className="text-[10px] text-[#00c853] font-semibold mt-0.5">Banca inicial: US$ {BANCA_OPERACIONAL.toFixed(2).replace('.', ',')} · Stake do mês: US$ {regraStake.stakeCongelada.toFixed(2).replace('.', ',')}</div>
           </div>
 
           <div className="bg-[#161b22] border border-[#00c853]/30 rounded-xl p-3.5 bg-gradient-to-br from-[#161b22] to-[#122319]">
@@ -2705,6 +2759,10 @@ export default function App() {
               </div>
             </div>
 
+            <div className="mb-3 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm font-bold text-white">
+              {statusMes.textoCliques}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
               <button
                 type="button"
@@ -2738,15 +2796,20 @@ export default function App() {
                 saldoCdb={saldoCdb}
                 onSaldo={gravarSaldoCdb}
                 lucroLivro={lucroLivro}
+                protocolo={protocoloMes}
+                onRegistrarAporte={registrarAporteInter}
               />
             ) : (
             <>
             <button
               type="button"
               onClick={abrirEntradaManual}
-              className="mb-3 min-h-[42px] w-full sm:w-auto px-3 rounded-lg bg-[#00c853] text-black text-sm font-bold"
+              disabled={protocoloRef.current.teto}
+              className={`mb-3 min-h-[42px] w-full px-3 py-2 rounded-lg text-sm font-bold whitespace-normal text-left sm:text-center ${protocoloRef.current.teto ? 'bg-slate-800 text-rose-300 cursor-not-allowed' : 'sm:w-auto bg-[#00c853] text-black'}`}
             >
-              + Registrar Entrada Manual (Ao Vivo)
+              {protocoloRef.current.teto
+                ? 'Limite mensal de 10 entradas atingido'
+                : '+ Registrar Entrada Manual (Ao Vivo)'}
             </button>
             {entradaManualAberta && (
               <form onSubmit={salvarEntradaManual} className="mb-4 bg-[#161b22] border border-gray-800 rounded-xl p-4 space-y-3">
@@ -2799,10 +2862,12 @@ export default function App() {
                     Stake (US$)
                     <input
                       inputMode="decimal"
+                      readOnly
                       value={entradaManual.stake}
-                      onChange={(event) => setEntradaManual((atual) => ({ ...atual, stake: event.target.value }))}
-                      className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                      aria-readonly="true"
+                      className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-slate-700 rounded-lg px-3 text-sm text-white outline-none cursor-not-allowed"
                     />
+                    <span className="mt-1 block text-[11px] font-semibold text-sky-300">Stake Travada pelo Protocolo (Fase {protocoloRef.current.fase} • {(Number(protocoloRef.current.percentual) * 100).toFixed(1).replace('.', ',')}%)</span>
                   </label>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

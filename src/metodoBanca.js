@@ -1,3 +1,5 @@
+import { calcularProtocoloMensal } from './utils/gestaoSniperEngine.js';
+
 export const BANCA_OPERACIONAL = 69.16;
 export const STAKE_PADRAO = 4;
 export const INICIO_METODO = '2026-11-14';
@@ -79,6 +81,48 @@ export function agruparDias(linhas, monthKey) {
     mapa.set(dia, atual);
   });
   return mapa;
+}
+
+export const LIMITE_CLIQUES_MES = 10;
+export const APORTE_PROTOCOLO = 35;
+export const META_PROTOCOLO = 5000;
+const CHAVE_APORTES = 'sp_protocolo_aportes';
+
+export function calcularStakeDoMes(bancaInicialDoMes) {
+  const regra = calcularProtocoloMensal(bancaInicialDoMes);
+  return {
+    fase: regra.fase,
+    percentual: regra.percentual,
+    stake: regra.stakeCongelada,
+    risco80: regra.riscoRealCorte80
+  };
+}
+
+export function lerAportes() {
+  try {
+    const lista = JSON.parse(localStorage.getItem(CHAVE_APORTES) || '[]');
+    if (!Array.isArray(lista)) return [];
+    return lista
+      .filter((item) => item && /^\d{4}-\d{2}$/.test(String(item.mes)) && Number(item.valor) > 0)
+      .map((item) => ({
+        id: String(item.id || `aporte_${item.mes}`),
+        mes: String(item.mes),
+        valor: Math.round(Number(item.valor) * 100) / 100,
+        em: String(item.em || '')
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function registrarAporteProtocolo(mes, valor = APORTE_PROTOCOLO) {
+  const chave = String(mes || '');
+  const lista = lerAportes();
+  const quantia = Math.round((Number(valor) || APORTE_PROTOCOLO) * 100) / 100;
+  if (!/^\d{4}-\d{2}$/.test(chave) || !(quantia > 0) || lista.some((item) => item.mes === chave)) return lista;
+  const salva = [...lista, { id: `aporte_${chave}`, mes: chave, valor: quantia, em: new Date().toISOString() }];
+  localStorage.setItem(CHAVE_APORTES, JSON.stringify(salva));
+  return salva;
 }
 
 export function resumoDoDia(linhas, dia) {

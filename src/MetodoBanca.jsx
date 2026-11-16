@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { FASES_CDB, STOP_LOSS_DIARIO, agruparDias, faseAtual, reais, resumoDoDia, textoResultadoStake } from './metodoBanca.js';
+import CardAporteBlindado from './CardAporteBlindado.jsx';
+import { BANCA_OPERACIONAL, FASES_CDB, STOP_LOSS_DIARIO, agruparDias, faseAtual, reais, resumoDoDia, textoResultadoStake } from './metodoBanca.js';
+import { contarCliquesMes } from './utils/gestaoSniperEngine.js';
 
 const SEMANA = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
@@ -79,8 +81,32 @@ export function CalendarioMes({ linhas, hoje, dataSelecionada, onSelectDate }) {
   );
 }
 
-export function PainelMetodo({ linhas, hoje, saldoCdb, onSaldo, lucroLivro }) {
+function leituraDoMes(linhas, hoje) {
+  const mes = String(hoje || '').slice(0, 7);
+  const lucros = new Map();
+  const cliquesUsados = contarCliquesMes(linhas, mes);
+  (Array.isArray(linhas) ? linhas : []).forEach((linha) => {
+    const chave = String(linha?.date || '').slice(0, 7);
+    const status = String(linha?.status || '').toUpperCase();
+    if (!['GREEN', 'RED', 'CASHOUT'].includes(status) || !/^\d{4}-\d{2}$/.test(chave)) return;
+    lucros.set(chave, (lucros.get(chave) || 0) + (Number(linha.lucro) || 0));
+  });
+  let bancaInicialMes = BANCA_OPERACIONAL;
+  [...lucros.keys()].filter((chave) => chave < mes).sort().forEach((chave) => {
+    bancaInicialMes = Math.round((bancaInicialMes + lucros.get(chave)) * 100) / 100;
+  });
+  const lucroMes = Math.round((lucros.get(mes) || 0) * 100) / 100;
+  return {
+    bancaInicialMes,
+    bancaAtual: Math.round((bancaInicialMes + lucroMes) * 100) / 100,
+    cliquesUsados
+  };
+}
+
+export function PainelMetodo({ linhas, hoje, saldoCdb, onSaldo, lucroLivro, protocolo, onRegistrarAporte }) {
   const [valor, setValor] = useState('');
+  const aporte = useMemo(() => leituraDoMes(linhas, hoje), [linhas, hoje]);
+  const leitura = protocolo || aporte;
   const fase = faseAtual(saldoCdb);
   const hojeResumo = resumoDoDia(linhas, hoje);
   const bancaAtual = Math.round((fase.banca + (Number(lucroLivro) || 0) - (Number(saldoCdb) || 0)) * 100) / 100;
@@ -95,6 +121,19 @@ export function PainelMetodo({ linhas, hoje, saldoCdb, onSaldo, lucroLivro }) {
 
   return (
     <div className="space-y-3">
+      <CardAporteBlindado
+        mes={leitura.mes}
+        bancaInicialMes={leitura.bancaInicialMes}
+        bancaAtual={leitura.bancaAtual}
+        lucroMes={leitura.lucroMes}
+        fase={leitura.fase}
+        stakeCongelada={leitura.stake}
+        risco80={leitura.risco80}
+        cliquesUsados={leitura.cliquesUsados}
+        limiteCliques={leitura.limiteCliques || 10}
+        aportes={leitura.aportes || []}
+        onRegistrarAporte={onRegistrarAporte}
+      />
       <section className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
         <h3 className="text-sm font-bold text-white">Status do dia</h3>
         <p className="text-[11px] text-gray-400 mt-1">Limite recomendado: 3 a 4 entradas. Stop diário: {reais(STOP_LOSS_DIARIO)}.</p>
