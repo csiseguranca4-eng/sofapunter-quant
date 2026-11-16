@@ -1957,7 +1957,14 @@ function placarAbertoSniper(casa, fora) {
 
 function sniperLiberado(jogo) {
   if (!jogo?.tempo) return false;
-  if (jogo.tempo === '2T') return Number(jogo.golsCasa) === Number(jogo.golsFora);
+  if (jogo.tempo === '2T') {
+    const casa = Number(jogo.golsCasa);
+    const fora = Number(jogo.golsFora);
+    const minuto = Number(jogo.minuto);
+    if (casa === 0 && fora === 0) return minuto >= 55 && minuto <= 75;
+    if (casa === 1 && fora === 1) return minuto >= 55 && minuto <= 67;
+    return false;
+  }
   return placarAbertoSniper(jogo.golsCasa, jogo.golsFora);
 }
 
@@ -1972,19 +1979,20 @@ function classificarMetodoSniper(jogo, pressao) {
   const minuto = Number(jogo?.minuto);
   const xg = Number(pressao?.xgTotal);
   const noAlvo = Number(pressao?.chutesTotal);
-  const finalizacoes = Number(pressao?.finalizacoes);
   if (jogo?.tempo === '1T' && minuto >= 22 && minuto <= 35 && xg >= 1.15 && noAlvo >= 5) return 'B';
-  if (jogo?.tempo !== '2T' || Number(jogo?.golsCasa) !== Number(jogo?.golsFora)) return null;
-  if (minuto >= 55 && minuto <= 67 && xg >= 1.6 && (finalizacoes >= 6 || noAlvo >= 6)) return 'A+';
-  if (minuto >= 55 && minuto <= 75 && xg >= 1.5 && finalizacoes >= 5) return 'A';
+  const casa = Number(jogo?.golsCasa);
+  const fora = Number(jogo?.golsFora);
+  if (jogo?.tempo !== '2T' || !(xg >= 1.5) || !(noAlvo >= 5)) return null;
+  if (casa === 1 && fora === 1 && minuto >= 55 && minuto <= 67) return 'A+';
+  if (casa === 0 && fora === 0 && minuto >= 55 && minuto <= 75) return 'A';
   return null;
 }
 
 function textoMetodoSniper(metodo, jogo, pressao) {
   const titulo = {
     B: '⚡ MÉTODO B — TÁTICO 1º TEMPO (Over FT)',
-    'A+': '🔥💎 MÉTODO A+ — JOGO DE OURO / ELITE (2º Tempo) 💎🔥',
-    A: '🎯 MÉTODO A — SNIPER xG PADRÃO (2º Tempo)'
+    'A+': '🔥💎 MÉTODO A+ — OURO MÁXIMO (1x1 • ROI Histórico +36,9%) 💎🔥',
+    A: '🎯 MÉTODO A — EMPATE 0x0 VALIDADO (ROI Histórico +15,2%)'
   }[metodo];
   const protocolo = {
     B: [
@@ -1995,17 +2003,13 @@ function textoMetodoSniper(metodo, jogo, pressao) {
     ],
     'A+': [
       '📋 PROTOCOLO DE EXECUÇÃO (MÉTODO A+):',
-      '• Mercado: Over Gols FT (Odd alvo: 1.55 – 1.70)',
       '• Gestão: Stake US$ 4,00 | Custo: 1.0 clique',
-      '• ✅ Liberado pré-meta e pós-meta (+8%)',
-      '• 🛑 STOP OBRIGATÓRIO: Corte frio aos 80\' (Risco est. -US$ 1,80)'
+      '⚡ Posicionar ordem em 1.50–1.52 logo aos 55\'–60\' para capturar gols entre 61\'–65\' | 🛑 Stop obrigatório aos 80\''
     ],
     A: [
       '📋 PROTOCOLO DE EXECUÇÃO (MÉTODO A):',
-      '• Mercado: Over Gols FT (Odd alvo: 1.50 – 1.70)',
       '• Gestão: Stake US$ 4,00 | Custo: 1.0 clique',
-      '• ⚠️ Usar preferencialmente antes de bater a meta de +8%',
-      '• 🛑 STOP OBRIGATÓRIO: Corte frio aos 80\' (Risco est. -US$ 1,80)'
+      '⚡ Posicionar ordem em 1.50–1.52 logo aos 55\'–60\' para capturar gols entre 61\'–65\' | 🛑 Stop obrigatório aos 80\''
     ]
   }[metodo];
   return [
