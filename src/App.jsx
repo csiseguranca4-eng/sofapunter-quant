@@ -2400,49 +2400,53 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex border-b border-gray-800 mt-6 gap-x-6 text-sm font-semibold overflow-x-auto overscroll-x-contain touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="relative mt-6">
+        <div className="flex flex-nowrap md:flex-wrap items-end gap-x-2 gap-y-1 border-b border-gray-800 px-0 text-xs sm:text-sm font-semibold overflow-x-auto overscroll-x-contain touch-pan-x snap-x md:overflow-visible md:snap-none [scrollbar-width:thin] [scrollbar-color:#4b5563_transparent] md:[scrollbar-width:none] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-600 md:[&::-webkit-scrollbar]:hidden">
           <button
             type="button"
             onClick={() => setActiveTab('opps')}
-            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'opps' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center px-3 snap-start transition ${activeTab === 'opps' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             Radar de Valor (+EV) ({displayedGames.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('sheet')}
-            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'sheet' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center px-3 snap-start transition ${activeTab === 'sheet' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             Planilha Diária ({linhasFinanceiras.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('markets')}
-            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'markets' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center px-3 snap-start transition ${activeTab === 'markets' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             📊 Mercados & Win Rate ({marketPerformance.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('desempenho')}
-            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'desempenho' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center px-3 snap-start transition ${activeTab === 'desempenho' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             📊 Desempenho por Mercado
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('shadow')}
-            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'shadow' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center px-3 snap-start transition ${activeTab === 'shadow' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             🔬 Laboratório Shadow
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('performance')}
-            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'performance' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center px-3 snap-start transition ${activeTab === 'performance' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
           >
             Performance & Ligas
           </button>
+        </div>
+        <div className="pointer-events-none absolute bottom-1.5 right-0 top-0 w-8 bg-gradient-to-l from-[#0d1117] to-transparent md:hidden" aria-hidden="true" />
+        <p className="md:hidden mt-1 text-[10px] text-gray-500">Deslize para ver todas as abas</p>
         </div>
 
         {/* ABA 1: OPORTUNIDADES + AUDITORIA 1WIN + RADAR LIVE */}
