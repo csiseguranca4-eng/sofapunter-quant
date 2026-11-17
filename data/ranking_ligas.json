@@ -1,0 +1,342 @@
+{
+  "geradoEm": "2026-11-17T22:35:56.331Z",
+  "estrategia": {
+    "janela": "56-80",
+    "placar55": [
+      "0x0",
+      "1x1"
+    ],
+    "xgMinimo": 1.5,
+    "chutesNoAlvoMinimo": 5,
+    "stake": 4,
+    "green": 2,
+    "stop80": -1.8
+  },
+  "requisicoes": 2547,
+  "motivo": "ligas-varridas",
+  "saldo": {
+    "remaining": 1946,
+    "limit": 7500
+  },
+  "ranking": [
+    {
+      "ligaId": 2,
+      "liga": "Champions League",
+      "jogos": 21,
+      "greens": 20,
+      "stops": 1,
+      "taxaAcerto": 95.2,
+      "lucro": 38.2,
+      "roiPercentual": 45.5,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 135,
+      "liga": "Serie A",
+      "jogos": 27,
+      "greens": 21,
+      "stops": 6,
+      "taxaAcerto": 77.8,
+      "lucro": 31.2,
+      "roiPercentual": 28.9,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 62,
+      "liga": "Ligue 2",
+      "jogos": 4,
+      "greens": 3,
+      "stops": 1,
+      "taxaAcerto": 75,
+      "lucro": 4.2,
+      "roiPercentual": 26.3,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 78,
+      "liga": "Bundesliga",
+      "jogos": 19,
+      "greens": 14,
+      "stops": 5,
+      "taxaAcerto": 73.7,
+      "lucro": 19,
+      "roiPercentual": 25,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 61,
+      "liga": "Ligue 1",
+      "jogos": 18,
+      "greens": 13,
+      "stops": 5,
+      "taxaAcerto": 72.2,
+      "lucro": 17,
+      "roiPercentual": 23.6,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 88,
+      "liga": "Eredivisie",
+      "jogos": 32,
+      "greens": 22,
+      "stops": 10,
+      "taxaAcerto": 68.8,
+      "lucro": 26,
+      "roiPercentual": 20.3,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 13,
+      "liga": "Libertadores",
+      "jogos": 22,
+      "greens": 15,
+      "stops": 7,
+      "taxaAcerto": 68.2,
+      "lucro": 17.4,
+      "roiPercentual": 19.8,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 39,
+      "liga": "Premier League",
+      "jogos": 28,
+      "greens": 19,
+      "stops": 9,
+      "taxaAcerto": 67.9,
+      "lucro": 21.8,
+      "roiPercentual": 19.5,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 94,
+      "liga": "Primeira Liga",
+      "jogos": 28,
+      "greens": 18,
+      "stops": 10,
+      "taxaAcerto": 64.3,
+      "lucro": 18,
+      "roiPercentual": 16.1,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 197,
+      "liga": "Super League 1",
+      "jogos": 14,
+      "greens": 9,
+      "stops": 5,
+      "taxaAcerto": 64.3,
+      "lucro": 9,
+      "roiPercentual": 16.1,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 71,
+      "liga": "Brasileirão Série A",
+      "jogos": 39,
+      "greens": 25,
+      "stops": 14,
+      "taxaAcerto": 64.1,
+      "lucro": 24.8,
+      "roiPercentual": 15.9,
+      "veredito": "APROVADA ROI >= 15%"
+    },
+    {
+      "ligaId": 136,
+      "liga": "Serie B",
+      "jogos": 27,
+      "greens": 17,
+      "stops": 10,
+      "taxaAcerto": 63,
+      "lucro": 16,
+      "roiPercentual": 14.8,
+      "veredito": "SELETIVA ROI 8-14%"
+    },
+    {
+      "ligaId": 262,
+      "liga": "Liga MX",
+      "jogos": 35,
+      "greens": 22,
+      "stops": 13,
+      "taxaAcerto": 62.9,
+      "lucro": 20.6,
+      "roiPercentual": 14.7,
+      "veredito": "SELETIVA ROI 8-14%"
+    },
+    {
+      "ligaId": 40,
+      "liga": "Championship",
+      "jogos": 24,
+      "greens": 15,
+      "stops": 9,
+      "taxaAcerto": 62.5,
+      "lucro": 13.8,
+      "roiPercentual": 14.4,
+      "veredito": "SELETIVA ROI 8-14%"
+    },
+    {
+      "ligaId": 3,
+      "liga": "Europa League",
+      "jogos": 13,
+      "greens": 8,
+      "stops": 5,
+      "taxaAcerto": 61.5,
+      "lucro": 7,
+      "roiPercentual": 13.5,
+      "veredito": "SELETIVA ROI 8-14%"
+    },
+    {
+      "ligaId": 141,
+      "liga": "La Liga 2",
+      "jogos": 23,
+      "greens": 14,
+      "stops": 9,
+      "taxaAcerto": 60.9,
+      "lucro": 11.8,
+      "roiPercentual": 12.8,
+      "veredito": "SELETIVA ROI 8-14%"
+    },
+    {
+      "ligaId": 72,
+      "liga": "Brasileirão Série B",
+      "jogos": 32,
+      "greens": 19,
+      "stops": 13,
+      "taxaAcerto": 59.4,
+      "lucro": 14.6,
+      "roiPercentual": 11.4,
+      "veredito": "SELETIVA ROI 8-14%"
+    },
+    {
+      "ligaId": 253,
+      "liga": "MLS",
+      "jogos": 26,
+      "greens": 15,
+      "stops": 11,
+      "taxaAcerto": 57.7,
+      "lucro": 10.2,
+      "roiPercentual": 9.8,
+      "veredito": "SELETIVA ROI 8-14%"
+    },
+    {
+      "ligaId": 848,
+      "liga": "Conference League",
+      "jogos": 18,
+      "greens": 10,
+      "stops": 8,
+      "taxaAcerto": 55.6,
+      "lucro": 5.6,
+      "roiPercentual": 7.8,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 128,
+      "liga": "Liga Profesional",
+      "jogos": 29,
+      "greens": 16,
+      "stops": 13,
+      "taxaAcerto": 55.2,
+      "lucro": 8.6,
+      "roiPercentual": 7.4,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 239,
+      "liga": "Primera A",
+      "jogos": 35,
+      "greens": 19,
+      "stops": 16,
+      "taxaAcerto": 54.3,
+      "lucro": 9.2,
+      "roiPercentual": 6.6,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 5,
+      "liga": "Nations League",
+      "jogos": 30,
+      "greens": 16,
+      "stops": 14,
+      "taxaAcerto": 53.3,
+      "lucro": 6.8,
+      "roiPercentual": 5.7,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 265,
+      "liga": "Primera División",
+      "jogos": 15,
+      "greens": 8,
+      "stops": 7,
+      "taxaAcerto": 53.3,
+      "lucro": 3.4,
+      "roiPercentual": 5.7,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 203,
+      "liga": "Süper Lig",
+      "jogos": 21,
+      "greens": 11,
+      "stops": 10,
+      "taxaAcerto": 52.4,
+      "lucro": 4,
+      "roiPercentual": 4.8,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 140,
+      "liga": "La Liga",
+      "jogos": 35,
+      "greens": 18,
+      "stops": 17,
+      "taxaAcerto": 51.4,
+      "lucro": 5.4,
+      "roiPercentual": 3.9,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 79,
+      "liga": "2. Bundesliga",
+      "jogos": 25,
+      "greens": 12,
+      "stops": 13,
+      "taxaAcerto": 48,
+      "lucro": 0.6,
+      "roiPercentual": 0.6,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 11,
+      "liga": "Sul-Americana",
+      "jogos": 24,
+      "greens": 11,
+      "stops": 13,
+      "taxaAcerto": 45.8,
+      "lucro": -1.4,
+      "roiPercentual": -1.5,
+      "veredito": "BLOQUEADA ROI < 8%"
+    },
+    {
+      "ligaId": 32,
+      "liga": "Eliminatórias Europa",
+      "jogos": 0,
+      "greens": 0,
+      "stops": 0,
+      "taxaAcerto": null,
+      "lucro": 0,
+      "roiPercentual": null,
+      "veredito": "SEM AMOSTRA"
+    },
+    {
+      "ligaId": 34,
+      "liga": "Eliminatórias Sul-América",
+      "jogos": 0,
+      "greens": 0,
+      "stops": 0,
+      "taxaAcerto": null,
+      "lucro": 0,
+      "roiPercentual": null,
+      "veredito": "SEM AMOSTRA"
+    }
+  ]
+}

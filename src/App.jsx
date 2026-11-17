@@ -4,6 +4,10 @@ import { API_BASE, apiUrl, emLocal, grupoCompativel, grupoDaLiga, OPCOES_LIGA, u
 import { assinarCanal, supabase as supabaseMonitor } from './lib/supabaseClient.js';
 import RadarLive from './RadarLive.jsx';
 import LaboratorioShadow from './LaboratorioShadow.jsx';
+import PerformanceLigas from './PerformanceLigas.jsx';
+import { SeletorLiga, SeletorMetodo } from './SeletorMetodo.jsx';
+import { badgeMetodo, casarLigaRanking, classeBadgeMetodo, normalizarMetodo } from './metodosEntrada.js';
+import { LIGAS_RANKING } from './rankingLigas.js';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
 import AuditoriaRoi from './AuditoriaRoi.jsx';
 import { MODOS_ENTRADA, avaliarStatusMensal, avisoStop, cabeModo, calcularProtocoloMensal, contarCliquesMes, gravarModoProtocolo, lerModosProtocolo, modoEntrada } from './utils/gestaoSniperEngine.js';
@@ -85,9 +89,23 @@ function base1win() {
     .replace(/\/pt(?:\/betting)?$/i, '');
 }
 
-function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqueMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass }) {
+function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqueMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass, metodo, onMetodo, ligaRotulo }) {
   return (
     <div className="mt-2 space-y-2 min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <label className="block text-[10px] text-gray-400">
+          Método
+          <SeletorMetodo
+            valor={metodo || 'MANUAL'}
+            onChange={onMetodo}
+            className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 text-xs text-white rounded px-2 outline-none"
+          />
+        </label>
+        <div className="text-[10px] text-gray-400 sm:pt-1">
+          Liga
+          <div className="mt-1 min-h-[42px] flex items-center text-xs font-semibold text-gray-200">{ligaRotulo || 'não identificada'}</div>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="relative min-w-0">
           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 font-semibold">US$</span>
@@ -356,6 +374,7 @@ function apostaDaNuvem(linha) {
     id: linha.id != null ? String(linha.id) : '',
     match: linha.jogo || linha.partida || linha.match || '',
     league: linha.league || linha.liga || '',
+    metodo: normalizarMetodo(linha.metodo),
     market: linha.mercado || linha.market || '',
     marketType: linha.marketType || linha.mercado || linha.market || '',
     odd: Number.isFinite(odd) ? odd : 0,
@@ -385,6 +404,8 @@ function unirAposta(atual, nova) {
     id: atual.id || nova.id,
     match: atual.match || nova.match,
     market: atual.market || nova.market,
+    league: atual.league || nova.league || '',
+    metodo: atual.metodo || nova.metodo || '',
     status,
     odd,
     stake,
@@ -806,7 +827,7 @@ function DetalheQuantExtra({ quant, home, away }) {
   );
 }
 
-const ABAS_VALIDAS = ['opps', 'sheet', 'markets', 'desempenho', 'shadow'];
+const ABAS_VALIDAS = ['opps', 'sheet', 'markets', 'desempenho', 'shadow', 'performance'];
 
 function lerAbaSalva() {
   try {
@@ -925,7 +946,8 @@ export default function App() {
       semApi: aposta.semApi === true,
       fixtureId: aposta.semApi ? null : (aposta.fixtureId || null),
       league: aposta.league || '',
-      liga: aposta.league || ''
+      liga: aposta.league || '',
+      metodo: normalizarMetodo(aposta.metodo) || 'MANUAL'
     });
     for (const destino of destinos) {
       try {
@@ -945,6 +967,7 @@ export default function App() {
             returnedAmount: aposta.returnedAmount,
             semApi: aposta.semApi === true || data.aposta.semApi === true,
             league: aposta.league || data.aposta.league || '',
+            metodo: normalizarMetodo(data.aposta.metodo) || normalizarMetodo(aposta.metodo) || 'MANUAL',
             marketType: aposta.marketType || data.aposta.marketType,
             gameLink: aposta.gameLink || data.aposta.gameLink || '',
             date: dataCalendarioLocal(data.aposta.date || data.aposta.created_at || aposta.date)
@@ -1065,6 +1088,7 @@ export default function App() {
   const entradaManualVazia = () => ({
     jogo: '',
     mercado: '',
+    metodo: 'MANUAL',
     liga: '',
     odd: '',
     stake: recommendedStake.toFixed(2),
@@ -1423,6 +1447,13 @@ export default function App() {
     }));
   };
 
+  const handleMetodoChange = (marketId, value) => {
+    setCustomInputs(prev => ({
+      ...prev,
+      [marketId]: { ...prev[marketId], metodo: normalizarMetodo(value) || 'MANUAL' }
+    }));
+  };
+
   const handleAddToSheet = async (game, market, originOdd = null, gameLink = '') => {
     const currentInput = customInputs[market.id] || { stake: recommendedStake, odd: market.defaultOdd || market.odd1win };
     const finalOdd = Number(originOdd) > 1
@@ -1444,7 +1475,8 @@ export default function App() {
     const newBet = {
       id: 'bet_' + Date.now() + Math.random().toString(36).substring(2, 5),
       match: `${game.home} x ${game.away}`,
-      league: String(game.league || '').trim(),
+      league: casarLigaRanking(game.league, LIGAS_RANKING),
+      metodo: normalizarMetodo(currentInput.metodo) || 'MANUAL',
       market: formattedName,
       marketType: categoriaMercado(formattedName, market.marketType) || market.marketType || 'Outro',
       fairOdd: Number(market.fairOdd) || 0,
@@ -1464,7 +1496,7 @@ export default function App() {
 
     const gravada = await gravarApostaNaNuvem(newBet);
     const salva = gravada
-      ? { ...newBet, ...gravada, gameLink: newBet.gameLink, league: newBet.league || gravada.league, marketType: newBet.marketType }
+      ? { ...newBet, ...gravada, gameLink: newBet.gameLink, league: newBet.league || gravada.league, metodo: newBet.metodo || gravada.metodo, marketType: newBet.marketType }
       : newBet;
     const updated = [salva, ...sheetBets.filter((item) => identidadeAposta(item) !== identidadeAposta(salva))];
     setSheetBets(updated);
@@ -1521,7 +1553,8 @@ export default function App() {
     const newBet = {
       id: `bet_${Date.now()}${Math.random().toString(36).substring(2, 5)}`,
       match: jogo.replace(/\s+vs\.?\s+/gi, ' x '),
-      league: String(entradaManual.liga || '').replace(/\s+/g, ' ').trim(),
+      league: casarLigaRanking(entradaManual.liga, LIGAS_RANKING),
+      metodo: normalizarMetodo(entradaManual.metodo) || 'MANUAL',
       market: mercado,
       marketType: categoriaMercado(mercado) || 'Outro',
       odd: Number(odd.toFixed(2)),
@@ -1537,7 +1570,7 @@ export default function App() {
     setEntradaManual((atual) => ({ ...atual, salvando: true, erro: '' }));
     const gravada = await gravarApostaNaNuvem(newBet);
     const salva = gravada
-      ? { ...newBet, ...gravada, status: newBet.status, realProfit: newBet.realProfit, returnedAmount: newBet.returnedAmount, semApi: newBet.semApi, league: newBet.league || gravada.league || '', modoProtocolo: newBet.modoProtocolo }
+      ? { ...newBet, ...gravada, status: newBet.status, realProfit: newBet.realProfit, returnedAmount: newBet.returnedAmount, semApi: newBet.semApi, league: newBet.league || gravada.league || '', metodo: newBet.metodo || gravada.metodo || 'MANUAL', modoProtocolo: newBet.modoProtocolo }
       : newBet;
     setModosProtocolo(gravarModoProtocolo([newBet.id, salva.id, salva.nuvemId], modo.id));
     const updated = [salva, ...sheetBets.filter((item) => identidadeAposta(item) !== identidadeAposta(salva))];
@@ -1771,6 +1804,38 @@ export default function App() {
     setSheetBets(updated);
     persistToDisk(updated, bancoMetodo);
     if (resultadoNuvem) sincronizarResultadoNuvem(resultadoNuvem);
+  };
+
+  const atualizarMarcacao = (id, patch) => {
+    const metodo = patch.metodo == null ? undefined : (normalizarMetodo(patch.metodo) || '');
+    const league = patch.league == null ? undefined : casarLigaRanking(patch.league, LIGAS_RANKING);
+    let alvo = null;
+    const updated = sheetBets.map((aposta) => {
+      if (aposta.id !== id) return aposta;
+      alvo = {
+        ...aposta,
+        ...(metodo === undefined ? {} : { metodo }),
+        ...(league === undefined ? {} : { league })
+      };
+      return alvo;
+    });
+    if (!alvo) return;
+    setSheetBets(updated);
+    persistToDisk(updated, currentBankroll);
+    fetch(apiUrl('/api/apostas/marcar'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: alvo.id,
+        jogo: alvo.match,
+        mercado: alvo.market,
+        metodo: alvo.metodo || '',
+        liga: alvo.league || '',
+        league: alvo.league || ''
+      })
+    }).catch((erro) => {
+      console.warn('Marcação de método/liga:', erro?.message || erro);
+    });
   };
 
   const handleCashoutPrompt = (id) => {
@@ -2371,6 +2436,13 @@ export default function App() {
           >
             🔬 Laboratório Shadow
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('performance')}
+            className={`shrink-0 whitespace-nowrap min-h-[42px] inline-flex items-center transition ${activeTab === 'performance' ? 'text-[#00c853] border-b-2 border-[#00c853]' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            Performance & Ligas
+          </button>
         </div>
 
         {/* ABA 1: OPORTUNIDADES + AUDITORIA 1WIN + RADAR LIVE */}
@@ -2611,6 +2683,9 @@ export default function App() {
                             <AcoesMercado
                               stake={stakeValue}
                               onStake={(valor) => handleStakeChange(m.id, valor)}
+                              metodo={customInputs[m.id]?.metodo || 'MANUAL'}
+                              onMetodo={(valor) => handleMetodoChange(m.id, valor)}
+                              ligaRotulo={casarLigaRanking(game.league, LIGAS_RANKING)}
                               onSheet={() => handleAddToSheet(game, m, null, linkDireto)}
                               onMultipla={() => toggleMultipla(game, m, m.odd1win, m.fairOdd)}
                               naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
@@ -2680,6 +2755,9 @@ export default function App() {
                           <AcoesMercado
                             stake={inputState.stake}
                             onStake={(valor) => handleStakeChange(m.id, valor)}
+                            metodo={inputState.metodo || 'MANUAL'}
+                            onMetodo={(valor) => handleMetodoChange(m.id, valor)}
+                            ligaRotulo={casarLigaRanking(game.league, LIGAS_RANKING)}
                             onSheet={() => handleAddToSheet(game, m, null, linkDireto)}
                             onMultipla={() => toggleMultipla(game, m, inputState.odd, m.fairOdd)}
                             naMultipla={bilheteMultipla.some((item) => item.id === `${game.id}:${m.id}`)}
@@ -2838,6 +2916,13 @@ export default function App() {
                     className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
                   />
                 </label>
+                <label className="block text-[11px] text-gray-400">
+                  Método
+                  <SeletorMetodo
+                    valor={entradaManual.metodo}
+                    onChange={(valor) => setEntradaManual((atual) => ({ ...atual, metodo: valor }))}
+                  />
+                </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {Object.values(MODOS_ENTRADA).map((item) => {
                     const cabe = cabeModo(protocoloRef.current.usados, item.id);
@@ -2857,11 +2942,9 @@ export default function App() {
                 </div>
                 <label className="block text-[11px] text-gray-400">
                   Liga
-                  <input
-                    value={entradaManual.liga}
-                    onChange={(event) => setEntradaManual((atual) => ({ ...atual, liga: event.target.value }))}
-                    placeholder="Eredivisie, Champions League, Premier League"
-                    className="mt-1 w-full min-h-[42px] bg-[#0d1117] border border-gray-700 rounded-lg px-3 text-sm text-white outline-none"
+                  <SeletorLiga
+                    valor={entradaManual.liga}
+                    onChange={(valor) => setEntradaManual((atual) => ({ ...atual, liga: valor }))}
                   />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -3010,12 +3093,32 @@ export default function App() {
                 apostasDaPlanilha.map(b => (
                   <div key={b.id} className="bg-[#161b22] border border-gray-800 rounded-xl p-3.5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-bold text-sm text-white">{b.match}</h4>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${classeBadgeMetodo(b.metodo)}`}>{badgeMetodo(b.metodo)}</span>
                         <span className="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-semibold">{b.marketType}</span>
                         <span className="text-[10px] text-gray-500">({normalizeDate(b.date)})</span>
                       </div>
                       <div className="text-xs text-[#00c853] font-medium mt-0.5">{b.market} (Odd: {b.odd})</div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md">
+                        <label className="block text-[10px] text-gray-500">
+                          Método
+                          <SeletorMetodo
+                            incluirVazio
+                            valor={b.metodo || ''}
+                            onChange={(valor) => atualizarMarcacao(b.id, { metodo: valor })}
+                            className="mt-1 w-full min-h-[36px] bg-[#0d1117] border border-gray-800 text-[11px] text-gray-200 rounded px-2 outline-none"
+                          />
+                        </label>
+                        <label className="block text-[10px] text-gray-500">
+                          Liga
+                          <SeletorLiga
+                            valor={b.league || ''}
+                            onChange={(valor) => atualizarMarcacao(b.id, { league: valor })}
+                            className="mt-1 w-full min-h-[36px] bg-[#0d1117] border border-gray-800 text-[11px] text-gray-200 rounded px-2 outline-none"
+                          />
+                        </label>
+                      </div>
                       <div className="mt-2 space-y-1.5">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {b.minutoAtual != null && (
@@ -3275,6 +3378,8 @@ export default function App() {
         )}
 
         {activeTab === 'shadow' && <LaboratorioShadow />}
+
+        {activeTab === 'performance' && <PerformanceLigas apostas={sheetBets} />}
       </div>
 
       {bilheteMultipla.length >= 2 && (

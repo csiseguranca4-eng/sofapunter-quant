@@ -256,6 +256,7 @@ function linhaParaPlanilha(linha) {
     id: linha.id != null ? String(linha.id) : '',
     match: jogo,
     league: linha.league || linha.liga || '',
+    metodo: String(linha.metodo || '').trim(),
     market: mercado,
     marketType: linha.marketType || mercado || 'Outro',
     odd: Number.isFinite(odd) ? odd : 0,
@@ -282,6 +283,28 @@ async function inserirLinhaAposta(campos) {
   for (let tentativa = 0; tentativa < 5; tentativa += 1) {
     const resultado = await supabase.from(TABELA_APOSTAS).insert(payload).select('id').single();
     if (!resultado.error) return resultado.data;
+    ultimo = resultado.error.message || ultimo;
+    const citada = String(ultimo).match(/'([^']+)'/);
+    const coluna = citada ? citada[1] : '';
+    if (!coluna || !Object.prototype.hasOwnProperty.call(payload, coluna)) break;
+    delete payload[coluna];
+  }
+  throw new Error(ultimo);
+}
+
+function metodoPlanilhaPedido(valor) {
+  const texto = String(valor || '').trim().toUpperCase();
+  if (['A+', 'A', 'B', 'F', 'MANUAL'].includes(texto)) return texto;
+  return '';
+}
+
+async function atualizarLinhaAposta(id, campos) {
+  const payload = { ...campos };
+  let ultimo = 'Não foi possível atualizar a aposta.';
+  for (let tentativa = 0; tentativa < 5; tentativa += 1) {
+    if (!Object.keys(payload).length) return false;
+    const resultado = await supabase.from(TABELA_APOSTAS).update(payload).eq('id', id);
+    if (!resultado.error) return true;
     ultimo = resultado.error.message || ultimo;
     const citada = String(ultimo).match(/'([^']+)'/);
     const coluna = citada ? citada[1] : '';
@@ -320,6 +343,7 @@ async function registrarApostaPlanilha(corpo) {
   const stake = Number(corpo?.stake);
   const semApi = corpo?.semApi === true || corpo?.sem_api === true;
   const liga = nomeLiga(corpo);
+  const metodo = metodoPlanilhaPedido(corpo?.metodo);
   const chave = chavePlanilha({ match: jogo, market: mercado });
   if (status === 'PENDENTE') {
     const existentes = await lerTabelaPlanilha(TABELA_APOSTAS);
@@ -330,8 +354,12 @@ async function registrarApostaPlanilha(corpo) {
     if (aberta) {
       if (semApi) marcarSemApi({ match: jogo, market: mercado });
       if (liga && !String(aberta.league || '').trim()) await complementarLiga(aberta.id, liga);
+      if (metodo && !metodoPlanilhaPedido(aberta.metodo) && /^\d+$/.test(String(aberta.id || ''))) {
+        await atualizarLinhaAposta(Number(aberta.id), { metodo });
+      }
       return {
         ...aberta,
+        metodo: metodoPlanilhaPedido(aberta.metodo) || metodo,
         league: aberta.league || liga,
         criado: false,
         semApi: semApi || apostaSemApi({ match: jogo, market: mercado })
@@ -355,6 +383,7 @@ async function registrarApostaPlanilha(corpo) {
     campos.league = liga;
     campos.liga = liga;
   }
+  if (metodo) campos.metodo = metodo;
   const gravada = await inserirLinhaAposta(campos);
   if (semApi) marcarSemApi({ match: jogo, market: mercado });
   const aposta = linhaParaPlanilha({
@@ -367,9 +396,41 @@ async function registrarApostaPlanilha(corpo) {
     lucro,
     created_at: new Date().toISOString(),
     fixture_id: campos.fixture_id || null,
-    league: liga
+    league: liga,
+    metodo
   });
   return { ...aposta, criado: true, semApi };
+}
+
+async function marcarApostaPlanilha(corpo) {
+  const metodo = metodoPlanilhaPedido(corpo?.metodo);
+  const liga = nomeLiga(corpo);
+  if (!metodo && !liga) throw new Error('Informe o método ou a liga.');
+  const campos = {};
+  if (metodo) campos.metodo = metodo;
+  if (liga) {
+    campos.league = liga;
+    campos.liga = liga;
+  }
+  const idTexto = String(corpo?.id || '').trim();
+  let id = /^\d+$/.test(idTexto) ? Number(idTexto) : null;
+  if (id == null) {
+    const jogo = nomeConfronto(corpo?.jogo || corpo?.match || corpo?.partida);
+    const mercado = String(corpo?.mercado || corpo?.market || '').trim();
+    if (!jogo || !mercado) return { atualizado: false, metodo, league: liga };
+    const consulta = await supabase
+      .from(TABELA_APOSTAS)
+      .select('id')
+      .eq('jogo', jogo)
+      .eq('mercado', mercado)
+      .order('id', { ascending: false })
+      .limit(1);
+    if (consulta.error) throw new Error(consulta.error.message);
+    id = consulta.data?.[0]?.id ?? null;
+  }
+  if (id == null) return { atualizado: false, metodo, league: liga };
+  await atualizarLinhaAposta(id, campos);
+  return { atualizado: true, id: String(id), metodo, league: liga };
 }
 
 async function lerTabelaPlanilha(nome) {
@@ -378,7 +439,7 @@ async function lerTabelaPlanilha(nome) {
     if (ordem) consulta = consulta.order(ordem, { ascending: false });
     return consulta;
   };
-  let resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, league, liga', 'created_at');
+  let resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, league, liga, metodo', 'created_at');
   if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, league', 'created_at');
   if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, liga', 'created_at');
   if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id', 'created_at');
@@ -445,6 +506,7 @@ app.get(comESemApi('/api/saved-data'), async (req, res) => {
       odd,
       realProfit: lucroNuvem !== 0 ? lucroNuvem : (Number.isFinite(lucroLocal) ? lucroLocal : 0),
       league: aposta.league || local.league || '',
+      metodo: aposta.metodo || local.metodo || '',
       marketType: local.marketType || aposta.marketType,
       gameLink: local.gameLink || aposta.gameLink || '',
       fixtureId: aposta.fixtureId || local.fixtureId || null,
@@ -461,6 +523,15 @@ app.get(comESemApi('/api/saved-data'), async (req, res) => {
 app.post(comESemApi('/api/apostas/registrar'), async (req, res) => {
   try {
     const aposta = await registrarApostaPlanilha(req.body || {});
+    res.json({ success: true, aposta });
+  } catch (erro) {
+    res.status(500).json({ success: false, message: erro.message });
+  }
+});
+
+app.post(comESemApi('/api/apostas/marcar'), async (req, res) => {
+  try {
+    const aposta = await marcarApostaPlanilha(req.body || {});
     res.json({ success: true, aposta });
   } catch (erro) {
     res.status(500).json({ success: false, message: erro.message });

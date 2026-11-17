@@ -1988,7 +1988,51 @@ function classificarMetodoSniper(jogo, pressao) {
   return null;
 }
 
-function textoMetodoSniper(metodo, jogo, pressao) {
+const ARQUIVO_RANKING_LIGAS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'data', 'ranking_ligas.json');
+
+function mapaRankingLigas() {
+  const mapa = new Map();
+  try {
+    const salvo = JSON.parse(fs.readFileSync(ARQUIVO_RANKING_LIGAS, 'utf8'));
+    for (const linha of Array.isArray(salvo?.ranking) ? salvo.ranking : []) {
+      const id = Number(linha?.ligaId);
+      if (Number.isFinite(id)) mapa.set(id, linha);
+    }
+  } catch (erro) {
+    console.warn(`[SNIPER] ranking de ligas indisponível: ${erro?.message || erro}`);
+  }
+  return mapa;
+}
+
+const rankingLigas = mapaRankingLigas();
+
+function cabecalhoRoiHistorico(linha) {
+  const roi = Number(linha?.roiPercentual);
+  if (!Number.isFinite(roi)) return '';
+  const sinal = roi > 0 ? '+' : '';
+  return `🏆 Liga Tier 1 • ROI Histórico: ${sinal}${roi.toFixed(1).replace('.', ',')}%`;
+}
+
+function decisaoMetodoRanking(linha, metodo) {
+  if (!linha) return { enviar: true, cabecalho: '' };
+  if (linha.veredito === 'BLOQUEADA ROI < 8%') return { enviar: false, cabecalho: '' };
+  const metodoEmpate = metodo === 'A' || metodo === 'A+';
+  if (!metodoEmpate) return { enviar: true, cabecalho: '' };
+  if (linha.veredito === 'SEM AMOSTRA' || !Number(linha.jogos)) return { enviar: false, cabecalho: '' };
+  if (linha.veredito === 'SELETIVA ROI 8-14%' || Number(linha.jogos) < 10) {
+    return { enviar: metodo === 'A+', cabecalho: '' };
+  }
+  if (linha.veredito === 'APROVADA ROI >= 15%' && Number(linha.jogos) >= 10) {
+    return { enviar: true, cabecalho: cabecalhoRoiHistorico(linha) };
+  }
+  return { enviar: false, cabecalho: '' };
+}
+
+function ligaBloqueadaRanking(jogo) {
+  return rankingLigas.get(Number(jogo?.idLiga))?.veredito === 'BLOQUEADA ROI < 8%';
+}
+
+function textoMetodoSniper(metodo, jogo, pressao, cabecalho = '') {
   const titulo = {
     B: '⚡ MÉTODO B — TÁTICO 1º TEMPO (Over FT)',
     'A+': '🔥💎 MÉTODO A+ — OURO MÁXIMO (1x1 • ROI Histórico +36,9%) 💎🔥',
@@ -2013,6 +2057,7 @@ function textoMetodoSniper(metodo, jogo, pressao) {
     ]
   }[metodo];
   return [
+    ...(cabecalho ? [cabecalho, ''] : []),
     titulo,
     `🏆 Liga: ${jogo.liga}`,
     `⚽ Times: ${jogo.casa} x ${jogo.fora}`,
@@ -2484,14 +2529,18 @@ async function cicloSniperXG() {
         }
         const aberto = sniperLiberado(jogo);
         const tier1 = ehTier1(jogo);
-        const metodo = tier1 && aberto ? classificarMetodoSniper(jogo, pressao) : null;
+        const metodoBruto = tier1 && aberto ? classificarMetodoSniper(jogo, pressao) : null;
+        const politica = metodoBruto
+          ? decisaoMetodoRanking(rankingLigas.get(Number(jogo.idLiga)), metodoBruto)
+          : { enviar: false, cabecalho: '' };
+        const metodo = politica.enviar ? metodoBruto : null;
         if (metodo) {
           const chaveAlerta = `${jogo.id}_${jogo.tempo}`;
           const jaEnviado = alertasSniperEnviados.has(chaveAlerta);
           await dispararAlerta(
             chaveAlerta,
             alertasSniperEnviados,
-            textoMetodoSniper(metodo, jogo, pressao),
+            textoMetodoSniper(metodo, jogo, pressao, politica.cabecalho),
             `[SNIPER ${metodo}] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
           );
           if (metodo === 'B' && !jaEnviado && alertasSniperEnviados.has(chaveAlerta)) {
@@ -2503,7 +2552,7 @@ async function cicloSniperXG() {
         const lado = ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora);
         const favorito = lado ? pressao.lado[lado] : null;
         const naJanelaZebra = minutoNoIntervalo(jogo.status, jogo.minuto, 10, 65, ['1H', 'HT', '2H', 'LIVE']);
-        const zebraLiberada = tier1 || zebraForaDaEuropa(jogo);
+        const zebraLiberada = (tier1 || zebraForaDaEuropa(jogo)) && !ligaBloqueadaRanking(jogo);
         if (zebraLiberada && naJanelaZebra && favorito && favorito.vermelhos === 0 && favorito.xg >= 0.55 && favorito.chutes >= 3) {
           const odd = lado === 'casa' ? oddsPreJogoMap.get(jogo.id).oddHome : oddsPreJogoMap.get(jogo.id).oddAway;
           const nome = lado === 'casa' ? jogo.casa : jogo.fora;
@@ -2519,7 +2568,7 @@ async function cicloSniperXG() {
             `[ZEBRA] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
           );
         }
-        if (tier1 && minutoNoIntervalo(jogo.status, jogo.minuto, 73, 78, ['2H']) && jogo.golsCasa === jogo.golsFora && pressao.xgTotal >= 2.25 && pressao.chutesTotal >= 8) {
+        if (!ligaBloqueadaRanking(jogo) && tier1 && minutoNoIntervalo(jogo.status, jogo.minuto, 73, 78, ['2H']) && jogo.golsCasa === jogo.golsFora && pressao.xgTotal >= 2.25 && pressao.chutesTotal >= 8) {
           await dispararAlerta(
             jogo.id,
             alertasAbafaEnviados,
