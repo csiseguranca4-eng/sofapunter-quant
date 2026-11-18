@@ -141,6 +141,7 @@ function montarShadowAudit(entradas) {
   const doMetodo = (metodo) => lista.filter((item) => item?.metodo === metodo);
   const f = doMetodo('F');
   const b = doMetodo('B');
+  const u = doMetodo('U');
   const greensF = f.filter((item) => item.status === 'green').length;
   const redsF = f.filter((item) => item.status === 'red').length;
   const pendentesF = f.filter((item) => item.status === 'aberta').length;
@@ -166,6 +167,21 @@ function montarShadowAudit(entradas) {
       greens: greensB,
       semGol: semGolB,
       taxaAcerto: percentualShadow(greensB, fechadasB)
+    },
+    metodoU: {
+      total: u.length,
+      pendentes: u.filter((item) => item.status === 'aberta').length,
+      greens: u.filter((item) => item.status === 'green').length,
+      reds: u.filter((item) => item.status === 'red').length,
+      taxaAcerto: percentualShadow(
+        u.filter((item) => item.status === 'green').length,
+        u.filter((item) => item.status === 'green' || item.status === 'red').length
+      ),
+      lucroVirtual: Number(u.reduce((soma, item) => soma + (item.status === 'aberta' ? 0 : Number(item.lucro) || 0), 0).toFixed(2)),
+      roiPercentual: percentualShadow(
+        u.reduce((soma, item) => soma + (item.status === 'aberta' ? 0 : Number(item.lucro) || 0), 0),
+        u.filter((item) => item.status === 'green' || item.status === 'red').length * 4
+      )
     },
     entradas: [...lista]
       .sort((a, bItem) => String(bItem?.em || '').localeCompare(String(a?.em || '')))

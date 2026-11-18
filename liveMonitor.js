@@ -12,7 +12,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { supabase as supabaseApostas } from './lib/supabase.js';
-import { lerEntradasShadow, salvarEntradasShadow } from './lib/shadowLab.js';
+import { lerEntradasShadow, qualificaShadowU, resultadoShadowU, salvarEntradasShadow } from './lib/shadowLab.js';
 import { createClient } from '@supabase/supabase-js';
 import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 const getLaybackMarketData = async () => null;
@@ -2390,6 +2390,13 @@ function resumoShadow() {
   const abertasB = entradas.filter((item) => item.metodo === 'B' && item.status === 'aberta').length;
   console.log(`[SHADOW F] ${greens} green / ${reds} red | lucro ${dinheiroShadow(lucro)} | ROI ${roi.toFixed(1)}% | abertas ${abertasF}`);
   console.log(`[SHADOW B] ${comGol} com gol no HT / ${fechadasB.length - comGol} sem gol | abertas ${abertasB}`);
+  const fechadasU = entradas.filter((item) => item.metodo === 'U' && item.status !== 'aberta');
+  const greensU = fechadasU.filter((item) => item.status === 'green').length;
+  const lucroU = fechadasU.reduce((soma, item) => soma + Number(item.lucro || 0), 0);
+  const apostadoU = fechadasU.length * 4;
+  const roiU = apostadoU ? (lucroU / apostadoU) * 100 : 0;
+  const abertasU = entradas.filter((item) => item.metodo === 'U' && item.status === 'aberta').length;
+  console.log(`[SHADOW U] ${greensU} green / ${fechadasU.length - greensU} red | lucro ${dinheiroShadow(lucroU)} | ROI ${roiU.toFixed(1)}% | abertas ${abertasU}`);
 }
 
 async function registrarShadowF(jogo, pressao) {
@@ -2445,6 +2452,35 @@ async function registrarShadowB(jogo, pressao) {
   gravarShadow();
 }
 
+async function registrarShadowU(jogo, pressao) {
+  await shadowPronto;
+  if (!qualificaShadowU(jogo, pressao)) return;
+  const livro = auditoriaShadow();
+  if (livro.entradas.some((item) => item.metodo === 'U' && item.fixtureId === jogo.id)) return;
+  const casa = Number(jogo.golsCasa);
+  const fora = Number(jogo.golsFora);
+  livro.entradas.push({
+    id: `U-${jogo.id}`,
+    metodo: 'U',
+    fixtureId: jogo.id,
+    liga: jogo.liga,
+    casa: jogo.casa,
+    fora: jogo.fora,
+    minuto: jogo.minuto,
+    placar: `${casa}x${fora}`,
+    mercado: casa === 0 && fora === 0 ? 'Under 0.5 HT' : 'Under 1.5 HT',
+    gols: casa + fora,
+    xg: Number(Number(pressao.xgTotal).toFixed(2)),
+    noAlvo: Number(pressao.chutesTotal),
+    stake: 4,
+    status: 'aberta',
+    lucro: null,
+    placarIntervalo: null,
+    em: new Date().toISOString()
+  });
+  gravarShadow();
+}
+
 async function acompanharShadow(jogos) {
   await shadowPronto;
   const livro = auditoriaShadow();
@@ -2454,6 +2490,17 @@ async function acompanharShadow(jogos) {
   let fechou = false;
   for (const item of abertas) {
     const aoVivo = porId.get(item.fixtureId);
+    if (item.metodo === 'U' && aoVivo && String(aoVivo.status || '').toUpperCase() === 'HT') {
+      const resultado = resultadoShadowU(item.gols, aoVivo.golsCasa, aoVivo.golsFora);
+      item.status = resultado.status;
+      item.lucro = resultado.lucro;
+      item.stake = 4;
+      item.placarIntervalo = `${aoVivo.golsCasa}x${aoVivo.golsFora}`;
+      item.placarFinal = item.placarIntervalo;
+      item.fechadoEm = new Date().toISOString();
+      fechou = true;
+      continue;
+    }
     if (item.metodo === 'B' && aoVivo && String(aoVivo.status || '').toUpperCase() === 'HT') {
       const gols = aoVivo.golsCasa + aoVivo.golsFora;
       item.golIntervalo = gols > item.gols;
@@ -2559,6 +2606,9 @@ async function cicloSniperXG() {
         if (!pressao) continue;
         try { await registrarShadowF(jogo, pressao); } catch (erro) {
           console.warn(`[SHADOW] registro F ignorado: ${erro?.message || erro}`);
+        }
+        try { await registrarShadowU(jogo, pressao); } catch (erro) {
+          console.warn(`[SHADOW] registro U ignorado: ${erro?.message || erro}`);
         }
         const aberto = sniperLiberado(jogo);
         const tier1 = ehTier1(jogo);

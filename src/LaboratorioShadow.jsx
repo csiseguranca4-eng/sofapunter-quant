@@ -6,6 +6,7 @@ const ROI_VALIDACAO = 12;
 const VAZIO = {
   metodoF: { total: 0, pendentes: 0, greens: 0, reds: 0, taxaAcerto: 0, lucroVirtual: 0, roiPercentual: 0 },
   metodoB: { total: 0, pendentes: 0, greens: 0, semGol: 0, taxaAcerto: 0 },
+  metodoU: { total: 0, pendentes: 0, greens: 0, reds: 0, taxaAcerto: 0, lucroVirtual: 0, roiPercentual: 0 },
   entradas: []
 };
 
@@ -52,6 +53,8 @@ export function badgeShadow(item) {
   if (item?.metodo === 'F' && item?.status === 'green') return { texto: 'GREEN +US$ 5,20', classe: 'bg-[#00c853]/20 text-[#00c853]' };
   if (item?.metodo === 'F' && item?.status === 'red') return { texto: 'RED -US$ 4,00', classe: 'bg-red-500/20 text-red-400' };
   if (item?.metodo === 'B' && item?.status === 'green') return { texto: 'GREEN', classe: 'bg-[#00c853]/20 text-[#00c853]' };
+  if (item?.metodo === 'U' && item?.status === 'green') return { texto: 'GREEN +US$ 0,48', classe: 'bg-[#00c853]/20 text-[#00c853]' };
+  if (item?.metodo === 'U' && item?.status === 'red') return { texto: 'RED -US$ 4,00', classe: 'bg-red-500/20 text-red-400' };
   if (item?.status === 'sem-gol') return { texto: 'SEM GOL NO HT', classe: 'bg-gray-800 text-gray-300' };
   return { texto: 'EM ANDAMENTO', classe: 'bg-amber-500/15 text-amber-300' };
 }
@@ -81,6 +84,7 @@ export default function LaboratorioShadow() {
       setAuditoria({
         metodoF: { ...VAZIO.metodoF, ...(dados.metodoF || {}) },
         metodoB: { ...VAZIO.metodoB, ...(dados.metodoB || {}) },
+        metodoU: { ...VAZIO.metodoU, ...(dados.metodoU || {}) },
         entradas: Array.isArray(dados.entradas) ? dados.entradas : []
       });
     } catch {
@@ -96,9 +100,13 @@ export default function LaboratorioShadow() {
 
   const f = auditoria.metodoF;
   const b = auditoria.metodoB;
+  const u = auditoria.metodoU;
   const validacao = validacaoMetodoF(f);
+  const validacaoU = validacaoMetodoF(u);
   const lucroPositivo = numero(f.lucroVirtual) >= 0;
   const roiPositivo = numero(f.roiPercentual) >= 0;
+  const lucroUPositivo = numero(u.lucroVirtual) >= 0;
+  const roiUPositivo = numero(u.roiPercentual) >= 0;
 
   return (
     <div className="mt-5 space-y-4">
@@ -121,7 +129,7 @@ export default function LaboratorioShadow() {
         <div className="bg-[#161b22] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-amber-300">{erro}</div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className={`bg-[#161b22] border rounded-xl p-3.5 ${validacao.validado ? 'border-[#00c853]/50' : 'border-gray-800'}`}>
           <div className="text-sm font-bold text-white">Método F — Tiro Curto 75'–90'+ (0x0 / 1x1 • Stake Virtual US$ 4,00)</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3 text-[11px]">
@@ -180,6 +188,43 @@ export default function LaboratorioShadow() {
             </div>
           </div>
         </div>
+
+        <div className={`bg-[#161b22] border rounded-xl p-3.5 ${validacaoU.validado ? 'border-[#00c853]/50' : 'border-gray-800'}`}>
+          <div className="text-sm font-bold text-white">Método U — Under HT Frio 35'–45' (0x0 / 1x0 • Stake Virtual US$ 4,00)</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3 text-[11px]">
+            <div>
+              <div className="text-gray-500">Entradas</div>
+              <div className="font-bold text-white">{numero(u.total)}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Greens</div>
+              <div className="font-bold text-[#00c853]">{numero(u.greens)}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Reds</div>
+              <div className="font-bold text-red-400">{numero(u.reds)}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Taxa de Acerto</div>
+              <div className="font-bold text-white">{percentual(u.taxaAcerto, false)}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Lucro Virtual</div>
+              <div className={`font-bold ${lucroUPositivo ? 'text-[#00c853]' : 'text-red-400'}`}>{dinheiro(u.lucroVirtual)}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">ROI</div>
+              <div className={`font-bold ${roiUPositivo ? 'text-[#00c853]' : 'text-red-400'}`}>{percentual(u.roiPercentual, true)}</div>
+            </div>
+          </div>
+          <div className="text-[11px] text-gray-300 mt-3">{validacaoU.fechados} / {META_JOGOS} jogos para validação</div>
+          <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mt-1.5">
+            <div className={`h-full ${validacaoU.validado ? 'bg-[#00c853]' : 'bg-amber-400'}`} style={{ width: `${validacaoU.progresso}%` }} />
+          </div>
+          {validacaoU.validado && (
+            <div className="mt-2 text-[11px] font-bold text-[#00c853]">VALIDADO PARA OPERAR</div>
+          )}
+        </div>
       </div>
 
       <div className="bg-[#161b22] border border-gray-800 rounded-xl p-4">
@@ -204,7 +249,7 @@ export default function LaboratorioShadow() {
                   return (
                     <tr key={`${item.metodo}-${item.jogo}-${item.registradoEm || indice}`} className="hover:bg-gray-800/20">
                       <td className="py-3 pr-3 whitespace-nowrap text-gray-300">{dataHora(item.registradoEm)}</td>
-                      <td className="py-3 pr-3 font-bold text-white">{item.metodo === 'B' ? 'B' : 'F'}</td>
+                      <td className="py-3 pr-3 font-bold text-white">{item.metodo || '—'}</td>
                       <td className="py-3 pr-3 text-white">
                         <div>{item.jogo || '—'}</div>
                         {item.liga ? <div className="text-[10px] text-gray-500">{item.liga}</div> : null}
