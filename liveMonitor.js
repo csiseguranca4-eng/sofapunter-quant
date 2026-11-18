@@ -12,6 +12,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { supabase as supabaseApostas } from './lib/supabase.js';
+import { lerEntradasShadow, salvarEntradasShadow } from './lib/shadowLab.js';
 import { createClient } from '@supabase/supabase-js';
 import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 const getLaybackMarketData = async () => null;
@@ -2325,6 +2326,8 @@ function resultadoShadowF(golsEntrada, golsCasa, golsFora) {
   return { status: green ? 'green' : 'red', lucro: green ? 5.2 : -4 };
 }
 
+let shadowPronto = Promise.resolve();
+
 function auditoriaShadow() {
   if (shadowAudit) return shadowAudit;
   try {
@@ -2337,8 +2340,35 @@ function auditoriaShadow() {
 }
 
 function gravarShadow() {
-  fs.mkdirSync(path.dirname(ARQUIVO_SHADOW), { recursive: true });
-  fs.writeFileSync(ARQUIVO_SHADOW, JSON.stringify(auditoriaShadow(), null, 2));
+  const livro = auditoriaShadow();
+  try {
+    fs.mkdirSync(path.dirname(ARQUIVO_SHADOW), { recursive: true });
+    fs.writeFileSync(ARQUIVO_SHADOW, JSON.stringify(livro, null, 2));
+  } catch (erro) {
+    console.warn(`[SHADOW] cache local: ${erro?.message || erro}`);
+  }
+  const entradas = livro.entradas.slice();
+  shadowPronto = shadowPronto
+    .then(() => salvarEntradasShadow(entradas))
+    .catch((erro) => console.warn(`[SHADOW] nuvem: ${erro?.message || erro}`));
+}
+
+shadowPronto = lerEntradasShadow()
+  .then((entradas) => {
+    if (!entradas.length) return;
+    const local = auditoriaShadow().entradas;
+    const mapa = new Map(entradas.map((item) => [String(item.id), item]));
+    for (const item of local) {
+      const anterior = mapa.get(String(item.id));
+      const anteriorFechado = anterior && anterior.status && anterior.status !== 'aberta';
+      mapa.set(String(item.id), anteriorFechado && item.status === 'aberta' ? anterior : { ...anterior, ...item });
+    }
+    shadowAudit = { entradas: [...mapa.values()] };
+  })
+  .catch((erro) => console.warn(`[SHADOW] hidratação: ${erro?.message || erro}`));
+
+export function sombrasEmMemoria() {
+  return auditoriaShadow().entradas.slice();
 }
 
 function dinheiroShadow(valor) {
@@ -2362,7 +2392,8 @@ function resumoShadow() {
   console.log(`[SHADOW B] ${comGol} com gol no HT / ${fechadasB.length - comGol} sem gol | abertas ${abertasB}`);
 }
 
-function registrarShadowF(jogo, pressao) {
+async function registrarShadowF(jogo, pressao) {
+  await shadowPronto;
   if (!qualificaShadowF(jogo, pressao)) return;
   const livro = auditoriaShadow();
   if (livro.entradas.some((item) => item.metodo === 'F' && item.fixtureId === jogo.id)) return;
@@ -2389,7 +2420,8 @@ function registrarShadowF(jogo, pressao) {
   gravarShadow();
 }
 
-function registrarShadowB(jogo, pressao) {
+async function registrarShadowB(jogo, pressao) {
+  await shadowPronto;
   const livro = auditoriaShadow();
   if (livro.entradas.some((item) => item.metodo === 'B' && item.fixtureId === jogo.id)) return;
   livro.entradas.push({
@@ -2413,7 +2445,8 @@ function registrarShadowB(jogo, pressao) {
   gravarShadow();
 }
 
-function acompanharShadow(jogos) {
+async function acompanharShadow(jogos) {
+  await shadowPronto;
   const livro = auditoriaShadow();
   const abertas = livro.entradas.filter((item) => item.status === 'aberta');
   if (!abertas.length || !Array.isArray(jogos) || !jogos.length) return;
@@ -2485,7 +2518,7 @@ async function cicloSniperXG() {
     if (daRede) consumoSniper.total += 1;
     if (!aoVivo) return;
     const jogos = (Array.isArray(aoVivo.response) ? aoVivo.response : []).map(jogoAoVivo).filter(Boolean);
-    try { acompanharShadow(jogos); } catch (erro) {
+    try { await acompanharShadow(jogos); } catch (erro) {
       console.warn(`[SHADOW] acompanhamento ignorado: ${erro?.message || erro}`);
     }
     const agora = Date.now();
@@ -2524,7 +2557,7 @@ async function cicloSniperXG() {
         if (!corpo) break;
         const pressao = resumoPressao(corpo.response, jogo);
         if (!pressao) continue;
-        try { registrarShadowF(jogo, pressao); } catch (erro) {
+        try { await registrarShadowF(jogo, pressao); } catch (erro) {
           console.warn(`[SHADOW] registro F ignorado: ${erro?.message || erro}`);
         }
         const aberto = sniperLiberado(jogo);
@@ -2544,7 +2577,7 @@ async function cicloSniperXG() {
             `[SNIPER ${metodo}] ${jogo.casa} x ${jogo.fora} ${jogo.minuto}'`
           );
           if (metodo === 'B' && !jaEnviado && alertasSniperEnviados.has(chaveAlerta)) {
-            try { registrarShadowB(jogo, pressao); } catch (erro) {
+            try { await registrarShadowB(jogo, pressao); } catch (erro) {
               console.warn(`[SHADOW] registro B ignorado: ${erro?.message || erro}`);
             }
           }

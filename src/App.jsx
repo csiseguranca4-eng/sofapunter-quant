@@ -6,7 +6,7 @@ import RadarLive from './RadarLive.jsx';
 import LaboratorioShadow from './LaboratorioShadow.jsx';
 import PerformanceLigas from './PerformanceLigas.jsx';
 import { SeletorLiga, SeletorMetodo } from './SeletorMetodo.jsx';
-import { badgeMetodo, casarLigaRanking, classeBadgeMetodo, normalizarMetodo } from './metodosEntrada.js';
+import { badgeMetodo, casarLigaRanking, classeBadgeMetodo, metodoSeguro, normalizarMetodo } from './metodosEntrada.js';
 import { LIGAS_RANKING } from './rankingLigas.js';
 import { CalendarioMes, PainelMetodo, ResultadoAposta } from './MetodoBanca.jsx';
 import AuditoriaRoi from './AuditoriaRoi.jsx';
@@ -356,14 +356,19 @@ function dataCalendarioLocal(dStr) {
   return iso ? iso[1] : texto.slice(0, 10);
 }
 
+function ehSentinelaShadow(item) {
+  const mercado = String(item?.market || item?.mercado || '');
+  const jogo = String(item?.match || item?.jogo || item?.partida || '');
+  return mercado === '__shadow_lab__' || jogo === '__shadow_lab__';
+}
+
 function listaDeApostas(valor) {
-  if (Array.isArray(valor)) return valor.filter((item) => item && typeof item === 'object');
-  if (Array.isArray(valor?.bets)) return valor.bets.filter((item) => item && typeof item === 'object');
-  return [];
+  const bruta = Array.isArray(valor) ? valor : (Array.isArray(valor?.bets) ? valor.bets : []);
+  return bruta.filter((item) => item && typeof item === 'object' && !ehSentinelaShadow(item));
 }
 
 function apostaDaNuvem(linha) {
-  if (!linha || typeof linha !== 'object') return null;
+  if (!linha || typeof linha !== 'object' || ehSentinelaShadow(linha)) return null;
   const statusBruto = String(linha.status || 'PENDING').toUpperCase();
   const status = statusBruto === 'PENDENTE' ? 'PENDING' : statusBruto;
   const odd = Number(linha.odd);
@@ -405,7 +410,7 @@ function unirAposta(atual, nova) {
     match: atual.match || nova.match,
     market: atual.market || nova.market,
     league: atual.league || nova.league || '',
-    metodo: atual.metodo || nova.metodo || '',
+    metodo: metodoSeguro(nova.metodo, atual.metodo),
     status,
     odd,
     stake,
@@ -880,7 +885,21 @@ export default function App() {
         date: dataCalendarioLocal(aposta.date || aposta.created_at)
       }));
       lista.sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
-      setSheetBets(lista);
+      setSheetBets((atual) => {
+        const prev = Array.isArray(atual) ? atual : [];
+        if (!prev.length) return lista;
+        const porId = new Map(prev.map((aposta) => [String(aposta.id), aposta]));
+        const porChave = new Map(prev.map((aposta) => [identidadeAposta(aposta), aposta]));
+        return lista.map((item) => {
+          const antigo = porId.get(String(item.id)) || porChave.get(identidadeAposta(item));
+          if (!antigo) return item;
+          return {
+            ...item,
+            metodo: metodoSeguro(item.metodo, antigo.metodo),
+            league: item.league || antigo.league || ''
+          };
+        });
+      });
       setCurrentBankroll(bancaConsolidada(lista));
       const hoje = getTodayLocal();
       const temHoje = lista.some((aposta) => dataCalendarioLocal(aposta.date) === hoje);
@@ -967,7 +986,7 @@ export default function App() {
             returnedAmount: aposta.returnedAmount,
             semApi: aposta.semApi === true || data.aposta.semApi === true,
             league: aposta.league || data.aposta.league || '',
-            metodo: normalizarMetodo(data.aposta.metodo) || normalizarMetodo(aposta.metodo) || 'MANUAL',
+            metodo: metodoSeguro(data.aposta.metodo, aposta.metodo) || 'MANUAL',
             marketType: aposta.marketType || data.aposta.marketType,
             gameLink: aposta.gameLink || data.aposta.gameLink || '',
             date: dataCalendarioLocal(data.aposta.date || data.aposta.created_at || aposta.date)
@@ -1205,11 +1224,25 @@ export default function App() {
         }));
         setSheetBets((atual) => {
           const lista = Array.isArray(atual) ? atual : [];
-          const ids = new Set(lista.map((item) => String(item.id)));
-          const chaves = new Set(lista.map(identidadeAposta));
+          const porId = new Map(remotas.map((item) => [String(item.id), item]));
+          const porChave = new Map(remotas.map((item) => [identidadeAposta(item), item]));
+          let mudou = false;
+          const fundidos = lista.map((item) => {
+            const remoto = porId.get(String(item.id)) || porChave.get(identidadeAposta(item));
+            if (!remoto) return item;
+            const metodo = metodoSeguro(remoto.metodo, item.metodo);
+            const league = item.league || remoto.league || '';
+            if (metodo !== (normalizarMetodo(item.metodo) || '') || (league && league !== (item.league || ''))) {
+              mudou = true;
+              return { ...item, metodo, league };
+            }
+            return item;
+          });
+          const ids = new Set(fundidos.map((item) => String(item.id)));
+          const chaves = new Set(fundidos.map(identidadeAposta));
           const novas = remotas.filter((item) => item && !ids.has(String(item.id)) && !chaves.has(identidadeAposta(item)));
-          if (!novas.length) return lista;
-          return [...novas, ...lista].sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
+          if (!novas.length && !mudou) return lista;
+          return [...novas, ...fundidos].sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
         });
       } catch (_) { /* a próxima leitura tenta de novo */ }
     };
@@ -1807,33 +1840,50 @@ export default function App() {
   };
 
   const atualizarMarcacao = (id, patch) => {
-    const metodo = patch.metodo == null ? undefined : (normalizarMetodo(patch.metodo) || '');
+    const metodo = patch.metodo == null ? undefined : normalizarMetodo(patch.metodo);
     const league = patch.league == null ? undefined : casarLigaRanking(patch.league, LIGAS_RANKING);
-    let alvo = null;
-    const updated = sheetBets.map((aposta) => {
-      if (aposta.id !== id) return aposta;
-      alvo = {
-        ...aposta,
-        ...(metodo === undefined ? {} : { metodo }),
-        ...(league === undefined ? {} : { league })
-      };
-      return alvo;
-    });
-    if (!alvo) return;
+    if (patch.metodo != null && !metodo && league === undefined) return;
+    const anterior = sheetBets.find((aposta) => aposta.id === id);
+    if (!anterior) return;
+    const alvo = {
+      ...anterior,
+      ...(metodo ? { metodo } : {}),
+      ...(league === undefined ? {} : { league })
+    };
+    const updated = sheetBets.map((aposta) => (aposta.id === id ? alvo : aposta));
     setSheetBets(updated);
     persistToDisk(updated, currentBankroll);
+    const corpo = {
+      id: alvo.id,
+      jogo: alvo.match,
+      mercado: alvo.market,
+      liga: alvo.league || '',
+      league: alvo.league || ''
+    };
+    if (metodo) corpo.metodo = metodo;
     fetch(apiUrl('/api/apostas/marcar'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: alvo.id,
-        jogo: alvo.match,
-        mercado: alvo.market,
-        metodo: alvo.metodo || '',
-        liga: alvo.league || '',
-        league: alvo.league || ''
-      })
+      body: JSON.stringify(corpo)
+    }).then(async (resp) => {
+      const data = await resp.json().catch(() => null);
+      const salva = data?.aposta;
+      if (!resp.ok || data?.success === false || salva?.atualizado === false) {
+        setSheetBets((atual) => atual.map((aposta) => (
+          aposta.id === id ? { ...aposta, metodo: anterior.metodo || '', league: anterior.league || '' } : aposta
+        )));
+        console.warn('Marcação de método/liga:', data?.message || 'o Supabase não confirmou o método');
+        return;
+      }
+      const metodoSalvo = metodoSeguro(salva?.metodo, metodo || anterior.metodo);
+      const idSalvo = salva?.id != null ? String(salva.id) : alvo.id;
+      setSheetBets((atual) => atual.map((aposta) => (
+        aposta.id === id ? { ...aposta, id: idSalvo, metodo: metodoSalvo || aposta.metodo, league: salva?.league || aposta.league || '' } : aposta
+      )));
     }).catch((erro) => {
+      setSheetBets((atual) => atual.map((aposta) => (
+        aposta.id === id ? { ...aposta, metodo: anterior.metodo || '', league: anterior.league || '' } : aposta
+      )));
       console.warn('Marcação de método/liga:', erro?.message || erro);
     });
   };

@@ -13,6 +13,10 @@ export function normalizarMetodo(valor) {
   return IDS_METODO.has(texto) ? texto : '';
 }
 
+export function metodoSeguro(principal, reserva) {
+  return normalizarMetodo(principal) || normalizarMetodo(reserva) || '';
+}
+
 export function rotuloMetodo(valor) {
   const id = normalizarMetodo(valor);
   return METODOS_ENTRADA.find((item) => item.id === id)?.rotulo || 'Sem método';

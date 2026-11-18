@@ -7,8 +7,9 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 import { aceitarPartidaReal, codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
-import { apostaSemApi, garantirFixtureId, iniciarMonitorCarpina, marcarSemApi } from './liveMonitor.js';
+import { apostaSemApi, garantirFixtureId, iniciarMonitorCarpina, marcarSemApi, sombrasEmMemoria } from './liveMonitor.js';
 import { supabase, TABELA_APOSTAS } from './lib/supabase.js';
+import { ehSentinelaShadow, lerEntradasShadow, mesclarEntradas } from './lib/shadowLab.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
@@ -184,8 +185,14 @@ function montarShadowAudit(entradas) {
   };
 }
 
-app.get(comESemApi('/api/shadow-audit'), (_req, res) => {
-  res.json(montarShadowAudit(lerShadowAudit()));
+app.get(comESemApi('/api/shadow-audit'), async (_req, res) => {
+  try {
+    const entradas = mesclarEntradas([lerShadowAudit(), await lerEntradasShadow(), sombrasEmMemoria()]);
+    res.json(montarShadowAudit(entradas));
+  } catch (erro) {
+    console.warn(`[SHADOW] leitura da rota: ${erro?.message || erro}`);
+    res.json(montarShadowAudit(mesclarEntradas([lerShadowAudit(), sombrasEmMemoria()])));
+  }
 });
 
 function chavePlanilha(aposta) {
@@ -245,6 +252,7 @@ function fixtureNumerico(valor) {
 
 function linhaParaPlanilha(linha) {
   if (!linha || typeof linha !== 'object') return null;
+  if (ehSentinelaShadow(linha)) return null;
   const jogo = linha.jogo || linha.partida || linha.match || '';
   const mercado = linha.mercado || linha.market || '';
   if (!jogo && !mercado) return null;
@@ -429,8 +437,23 @@ async function marcarApostaPlanilha(corpo) {
     id = consulta.data?.[0]?.id ?? null;
   }
   if (id == null) return { atualizado: false, metodo, league: liga };
-  await atualizarLinhaAposta(id, campos);
-  return { atualizado: true, id: String(id), metodo, league: liga };
+  if (campos.metodo) await atualizarLinhaAposta(id, { metodo: campos.metodo });
+  if (campos.liga || campos.league) {
+    const ligaCampos = {};
+    if (campos.liga) ligaCampos.liga = campos.liga;
+    if (campos.league) ligaCampos.league = campos.league;
+    try {
+      await atualizarLinhaAposta(id, ligaCampos);
+    } catch (erro) {
+      console.warn(`[planilha] liga: ${erro?.message || erro}`);
+    }
+  }
+  const lido = await supabase.from(TABELA_APOSTAS).select('id, metodo, liga').eq('id', id).maybeSingle();
+  if (lido.error) throw new Error(lido.error.message);
+  const metodoSalvo = metodoPlanilhaPedido(lido.data?.metodo);
+  const ligaSalva = String(lido.data?.liga || liga || '').trim();
+  if (metodo && metodoSalvo !== metodo) return { atualizado: false, id: String(id), metodo: metodoSalvo, league: ligaSalva };
+  return { atualizado: true, id: String(id), metodo: metodoSalvo || metodo, league: ligaSalva };
 }
 
 async function lerTabelaPlanilha(nome) {
@@ -439,11 +462,8 @@ async function lerTabelaPlanilha(nome) {
     if (ordem) consulta = consulta.order(ordem, { ascending: false });
     return consulta;
   };
-  let resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, league, liga, metodo', 'created_at');
-  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, league', 'created_at');
-  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, liga', 'created_at');
-  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id', 'created_at');
-  if (resultado.error) resultado = await tentar('id, jogo, mercado, odd, status, created_at', 'created_at');
+  let resultado = await tentar('id, jogo, mercado, odd, stake, status, lucro, created_at, fixture_id, liga, metodo', 'created_at');
+  if (resultado.error) resultado = await tentar('*', 'created_at');
   if (resultado.error) resultado = await tentar('*', 'id');
   if (resultado.error) {
     console.warn(`[planilha] ${nome}: ${resultado.error.message}`);
@@ -506,7 +526,7 @@ app.get(comESemApi('/api/saved-data'), async (req, res) => {
       odd,
       realProfit: lucroNuvem !== 0 ? lucroNuvem : (Number.isFinite(lucroLocal) ? lucroLocal : 0),
       league: aposta.league || local.league || '',
-      metodo: aposta.metodo || local.metodo || '',
+      metodo: metodoPlanilhaPedido(aposta.metodo) || metodoPlanilhaPedido(local.metodo) || '',
       marketType: local.marketType || aposta.marketType,
       gameLink: local.gameLink || aposta.gameLink || '',
       fixtureId: aposta.fixtureId || local.fixtureId || null,

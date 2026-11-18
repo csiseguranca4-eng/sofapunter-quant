@@ -131,7 +131,7 @@ Cada rota existe com e sem o prefixo `/api` (`comESemApi`).
 | Método | Caminho | Função |
 |---|---|---|
 | GET | `/api/apostas` | Lista linhas ao vivo do monitor. |
-| GET | `/api/shadow-audit` | Lê `logs/shadow_audit.json`. Arquivo ausente ou inválido devolve zeros. Sem API-Football. |
+| GET | `/api/shadow-audit` | Lê a tabela `shadow_lab` (ou a sentinela `__shadow_lab__` em `apostas`, se a tabela ainda não existir) e mescla com a memória do monitor. Sem API-Football. |
 | GET | `/api/saved-data` | Une Supabase `apostas` com `bets_database.json`. |
 | POST | `/api/apostas/registrar` | Insert em `apostas` (`registrarApostaPlanilha`). |
 | POST | `/api/apostas/marcar` | Atualiza `metodo`, `league` e `liga` (`marcarApostaPlanilha`). |
@@ -197,7 +197,8 @@ Supabase:
 
 | Tabela | Uso |
 |---|---|
-| `apostas` | Livro de futebol. Colunas usadas: `id`, `jogo`, `mercado`, `odd`, `stake`, `status` (`PENDENTE`, `GREEN`, `RED`, `CASHOUT`), `lucro`, `created_at`, `fixture_id` (bigint; id `bet_...` não entra), `league`, `liga`, `metodo` (`A+`, `A`, `B`, `F`, `MANUAL`). Coluna desconhecida citada pelo PostgREST é removida e o insert/update tenta de novo. `sem_api` é tentado e descartado se não existir; o flag local fica em `layback_sem_api.json`. |
+| `shadow_lab` | Auditoria silenciosa dos Métodos F e B. DDL em `supabase/shadow_lab.sql`. Enquanto a tabela não existir, o mesmo livro fica na sentinela de `apostas`. |
+| `apostas` | Livro de futebol. Colunas usadas: `id`, `jogo`, `mercado`, `odd`, `stake`, `status` (`PENDENTE`, `GREEN`, `RED`, `CASHOUT`), `lucro`, `created_at`, `fixture_id` (bigint; id `bet_...` não entra), `liga`, `metodo` (`A+`, `A`, `B`, `F`, `MANUAL`). `league` é enviada e removida se o PostgREST não a tiver. Um `metodo` já gravado não é substituído por vazio. A linha `mercado = __shadow_lab__` guarda a auditoria shadow enquanto `shadow_lab` não existe e não entra na planilha. |
 | `match_timeline` | Upsert por `fixture_id,minute` no monitor. Insert também em `registarMinutoLive`. |
 | `trade_signals` | Insert de `auditarLaybackOverHT`. |
 
@@ -210,7 +211,7 @@ Arquivos:
 | `bets_database.json` | `{ bets, bankroll }` da planilha local. |
 | `carpina_monitor.json` | Watches do Over. |
 | `public/live_status.json` | Snapshot ao vivo lido pelo painel. |
-| `logs/shadow_audit.json` | `{ entradas: [...] }` dos Métodos F e B. |
+| `logs/shadow_audit.json` | Cache local da auditoria F e B. A fonte durável é `shadow_lab` (`supabase/shadow_lab.sql`); sem a tabela, o livro fica em `apostas.metricas_resumo` da sentinela `__shadow_lab__`. |
 | `data/ranking_ligas.json` | `geradoEm`, `estrategia`, `requisicoes`, `motivo`, `saldo`, `ranking[]` com `ligaId`, `liga`, `jogos`, `greens`, `stops`, `taxaAcerto`, `lucro`, `roiPercentual`, `veredito`. |
 | `layback_sem_api.json` | Lista de chaves `jogo\|mercado` sem nova chamada. |
 | `scripts/cache_backtest_*.json` | Corpos de fixtures já baixados. Reexecução não refaz o que já está no arquivo. |
