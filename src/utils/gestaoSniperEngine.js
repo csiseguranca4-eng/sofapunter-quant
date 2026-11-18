@@ -1,7 +1,7 @@
 const META_BANCA = 5000;
 const APORTE_MENSAL = 35;
 const TAXA_MENSAL = 0.08;
-const LIMITE_CLIQUES = 10;
+const LIMITE_CLIQUES = 30;
 const MARCOS = [1, 6, 12, 24, 32, 36, 48, 55];
 export const DATA_INICIO_CICLO_OFICIAL = '2026-11-15';
 

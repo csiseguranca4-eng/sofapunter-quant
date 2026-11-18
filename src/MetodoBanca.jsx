@@ -120,7 +120,7 @@ export function PainelMetodo({ linhas, hoje, protocolo, onRegistrarAporte }) {
         stakeCongelada={leitura.stake}
         risco80={leitura.risco80}
         cliquesUsados={leitura.cliquesUsados}
-        limiteCliques={leitura.limiteCliques || 10}
+        limiteCliques={leitura.limiteCliques || 30}
         aportes={leitura.aportes || []}
         onRegistrarAporte={onRegistrarAporte}
       />

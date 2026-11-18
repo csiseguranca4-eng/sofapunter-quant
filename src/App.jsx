@@ -1569,7 +1569,7 @@ export default function App() {
     }
     const modo = modoEntrada(entradaManual.modo);
     if (protocoloRef.current.teto || !cabeModo(protocoloRef.current.usados, modo.id)) {
-      setEntradaManual((atual) => ({ ...atual, erro: 'Limite mensal de 10 entradas atingido' }));
+      setEntradaManual((atual) => ({ ...atual, erro: 'Limite mensal de 30 entradas atingido' }));
       return;
     }
     const stakeTravada = Number(protocoloRef.current.stake) || stake;
@@ -2945,7 +2945,7 @@ export default function App() {
               className={`mb-3 min-h-[42px] w-full px-3 py-2 rounded-lg text-sm font-bold whitespace-normal text-left sm:text-center ${protocoloRef.current.teto ? 'bg-slate-800 text-rose-300 cursor-not-allowed' : 'sm:w-auto bg-[#00c853] text-black'}`}
             >
               {protocoloRef.current.teto
-                ? 'Limite mensal de 10 entradas atingido'
+                ? 'Limite mensal de 30 entradas atingido'
                 : '+ Registrar Entrada Manual (Ao Vivo)'}
             </button>
             {entradaManualAberta && (

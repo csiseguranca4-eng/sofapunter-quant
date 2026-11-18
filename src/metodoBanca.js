@@ -83,7 +83,7 @@ export function agruparDias(linhas, monthKey) {
   return mapa;
 }
 
-export const LIMITE_CLIQUES_MES = 10;
+export const LIMITE_CLIQUES_MES = 30;
 export const APORTE_PROTOCOLO = 35;
 export const META_PROTOCOLO = 5000;
 const CHAVE_APORTES = 'sp_protocolo_aportes';
