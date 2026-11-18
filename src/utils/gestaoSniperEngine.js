@@ -44,7 +44,7 @@ export function formatarCota(valor) {
 
 export function avisoStop(modoId, stake) {
   const modo = modoEntrada(modoId);
-  const risco = (Math.round((Number(stake) || 0) * modo.riscoPct * 100) / 100).toFixed(2).replace('.', ',');
+  const risco = (Math.round((Number(stake) || 0) * 0.5 * 100) / 100).toFixed(2).replace('.', ',');
   if (modo.id === 'TATICO_1T') {
     return `Cashout obrigatório no intervalo 45' — não voltar no 2T (Risco est. -US$ ${risco})`;
   }
@@ -109,7 +109,7 @@ export function calcularProtocoloMensal(bancaInicialMes) {
   const stakeCongelada = base > 0
     ? Math.max(0.5, Math.round((base * percentual) / 0.5) * 0.5)
     : 0;
-  const riscoRealCorte80 = arredondar(stakeCongelada * 0.45);
+  const riscoRealCorte80 = arredondar(stakeCongelada * 0.5);
   const riscoRealPctBanca = base > 0 ? arredondar((riscoRealCorte80 / base) * 100) : 0;
   return {
     fase,

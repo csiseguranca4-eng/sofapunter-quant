@@ -89,6 +89,10 @@ function base1win() {
     .replace(/\/pt(?:\/betting)?$/i, '');
 }
 
+function perdaMeiaStake(stake) {
+  return (Math.round((Number(stake) || 0) * 50) / 100).toFixed(2).replace('.', ',');
+}
+
 function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqueMultipla, onTelegram, telegramLabel, telegramDisabled, inputClass, metodo, onMetodo, ligaRotulo }) {
   return (
     <div className="mt-2 space-y-2 min-w-0">
@@ -125,6 +129,7 @@ function AcoesMercado({ stake, onStake, onSheet, onMultipla, naMultipla, destaqu
           Enviar para Planilha
         </button>
       </div>
+      <p className="text-[10px] font-semibold text-amber-300">Perda máxima: -US$ {perdaMeiaStake(stake)}</p>
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"

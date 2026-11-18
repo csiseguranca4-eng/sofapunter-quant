@@ -77,8 +77,8 @@ export default function CardAporteBlindado({
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-2">
               <div className="text-[10px] text-slate-400">Corte aos 80'</div>
-              <div className="text-sm font-bold text-amber-300">{reais(protocolo.riscoRealCorte80)}</div>
-              <div className="text-[10px] text-slate-400">~45% da stake</div>
+              <div className="text-sm font-bold text-amber-300">-{reais(protocolo.riscoRealCorte80)}</div>
+              <div className="text-[10px] text-slate-400">Meia stake</div>
             </div>
           </div>
           <p className="text-[11px] text-slate-300 mt-3 leading-relaxed">

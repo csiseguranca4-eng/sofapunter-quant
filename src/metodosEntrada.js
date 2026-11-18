@@ -3,6 +3,7 @@ export const METODOS_ENTRADA = [
   { id: 'A', rotulo: 'Método A (0x0)', badge: 'A' },
   { id: 'B', rotulo: 'Método B (1T)', badge: 'B' },
   { id: 'F', rotulo: "Método F (75'-90')", badge: 'F' },
+  { id: 'ABAFA', rotulo: 'Abafa Final', badge: 'Abafa' },
   { id: 'MANUAL', rotulo: 'Manual (Fora de Padrão)', badge: 'Manual' }
 ];
 
@@ -33,6 +34,7 @@ export function classeBadgeMetodo(valor) {
   if (id === 'A') return 'bg-emerald-500/10 text-emerald-200';
   if (id === 'B') return 'bg-sky-500/15 text-sky-300';
   if (id === 'F') return 'bg-violet-500/15 text-violet-200';
+  if (id === 'ABAFA') return 'bg-amber-500/15 text-amber-200';
   if (id === 'MANUAL') return 'bg-gray-800 text-gray-300';
   return 'bg-gray-800/80 text-gray-500';
 }
@@ -189,7 +191,19 @@ export function montarPerformance(apostas, ranking, { periodo = 'historico', fil
     }
     acumular(porLiga.get(nome), aposta);
   }
-  const ordem = ['A+', 'A', 'B', 'F', 'MANUAL', ''];
+  const ordem = ['A+', 'A', 'B', 'F', 'ABAFA', 'MANUAL', ''];
+  if (!porMetodo.has('ABAFA')) {
+    porMetodo.set('ABAFA', {
+      id: 'ABAFA',
+      nome: rotuloMetodo('ABAFA'),
+      jogos: 0,
+      greens: 0,
+      stops: 0,
+      reds: 0,
+      apostado: 0,
+      lucro: 0
+    });
+  }
   const metodos = [...porMetodo.values()]
     .map(fechar)
     .sort((a, b) => ordem.indexOf(a.id) - ordem.indexOf(b.id));
