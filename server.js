@@ -318,6 +318,7 @@ async function inserirLinhaAposta(campos) {
 
 function metodoPlanilhaPedido(valor) {
   const texto = String(valor || '').trim().toUpperCase();
+  if (texto === 'ABAFA' || texto === 'ABAFA FINAL') return 'ABAFA';
   if (['A+', 'A', 'B', 'F', 'MANUAL'].includes(texto)) return texto;
   return '';
 }
