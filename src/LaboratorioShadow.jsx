@@ -45,7 +45,10 @@ function snapshot(item) {
   const placar = item?.placarEntrada || '—';
   const xg = item?.xgEntrada == null ? '—' : Number(item.xgEntrada).toFixed(2).replace('.', ',');
   const alvos = item?.chutesAlvoEntrada == null ? '—' : item.chutesAlvoEntrada;
-  return `${minuto} • ${placar} • xG ${xg} • ${alvos} no alvo`;
+  const odd = item?.metodo === 'U' && item?.odd != null
+    ? ` • odd ${Number(item.odd).toFixed(2).replace('.', ',')}`
+    : '';
+  return `${minuto} • ${placar} • xG ${xg} • ${alvos} no alvo${odd}`;
 }
 
 export function badgeShadow(item) {
@@ -53,8 +56,8 @@ export function badgeShadow(item) {
   if (item?.metodo === 'F' && item?.status === 'green') return { texto: 'GREEN +US$ 5,20', classe: 'bg-[#00c853]/20 text-[#00c853]' };
   if (item?.metodo === 'F' && item?.status === 'red') return { texto: 'RED -US$ 4,00', classe: 'bg-red-500/20 text-red-400' };
   if (item?.metodo === 'B' && item?.status === 'green') return { texto: 'GREEN', classe: 'bg-[#00c853]/20 text-[#00c853]' };
-  if (item?.metodo === 'U' && item?.status === 'green') return { texto: 'GREEN +US$ 0,48', classe: 'bg-[#00c853]/20 text-[#00c853]' };
-  if (item?.metodo === 'U' && item?.status === 'red') return { texto: 'RED -US$ 4,00', classe: 'bg-red-500/20 text-red-400' };
+  if (item?.metodo === 'U' && item?.status === 'green') return { texto: `GREEN ${dinheiro(item.lucroVirtual)}`, classe: 'bg-[#00c853]/20 text-[#00c853]' };
+  if (item?.metodo === 'U' && item?.status === 'red') return { texto: 'RED -US$ 2,00', classe: 'bg-red-500/20 text-red-400' };
   if (item?.status === 'sem-gol') return { texto: 'SEM GOL NO HT', classe: 'bg-gray-800 text-gray-300' };
   return { texto: 'EM ANDAMENTO', classe: 'bg-amber-500/15 text-amber-300' };
 }
@@ -190,7 +193,7 @@ export default function LaboratorioShadow() {
         </div>
 
         <div className={`bg-[#161b22] border rounded-xl p-3.5 ${validacaoU.validado ? 'border-[#00c853]/50' : 'border-gray-800'}`}>
-          <div className="text-sm font-bold text-white">Método U — Under HT Frio 35'–45' (0x0 / 1x0 • Stake Virtual US$ 4,00)</div>
+          <div className="text-sm font-bold text-white">Método U — Under 0.5 HT Frio 35'–36' (0x0 • Stake Virtual US$ 4,00)</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3 text-[11px]">
             <div>
               <div className="text-gray-500">Entradas</div>

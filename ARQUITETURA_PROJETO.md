@@ -159,7 +159,7 @@ Cada rota existe com e sem o prefixo `/api` (`comESemApi`).
 - Over Carpina: `iniciarMonitorCarpina`, `decidirCarpina`, `decidirPrimeiroTempo`, `marcoDevido` (48 em `[48,50)`, 70 em `[70,72)`), `garantirFixtureId`, `gravarMarcoNoSupabase`, `gravarStatusAoVivo`.
 - Liquidação: `encerrarApostaNuvem`, `garantirApostaPendente`. GREEN só na ação `green`. Stop só em `cashout-intervalo`, `stop-60`, `stop-65`. Ações de 1T (`take-profit-1t`, `stop-loss-1t`, `pressao-1t`) não encerram o watch.
 - Sniper: `cicloSniperXG`, `sniperLiberado`, `classificarMetodoSniper` (B no 1T 22'–35'; A+ 1x1 55'–67'; A 0x0 55'–75'), `decisaoMetodoRanking`, `textoMetodoSniper`, `dispararAlerta`.
-- Shadow: `registrarShadowF` (75'–77', 0x0/1x1, xG ≥ 1.50 e ≥ 5 no alvo, stake 4, odd 2.30, green +5.20 / red −4), `registrarShadowB` (só depois do Telegram real do Método B), `registrarShadowU` (1T 34'–36', 0x0/1x0/0x1, xG ≤ 0.45 e ≤ 2 no alvo, stake 4, green no HT +0.48 / red −4, sem Telegram), `acompanharShadow`, `resumoShadow`.
+- Shadow: `registrarShadowF` (75'–77', 0x0/1x1, xG ≥ 1.50 e ≥ 5 no alvo, stake 4, odd 2.30, green +5.20 / red −4), `registrarShadowB` (só depois do Telegram real do Método B), `registrarShadowU` (1T só 35'–36', só 0x0, telemetria ativa e jogo frio xG ≤ 0.45 e ≤ 1 no alvo, bloqueia Tercera División RFEF, Serie D, III Liga e a liga genérica Cup, stake 4, odd ao vivo do Under 0.5 HT entre 1.15 e 1.80 ou fallback 1.28, green no HT `4 × (odd − 1)` / red −2, sem Telegram), `acompanharShadow`, `resumoShadow`.
 - Ranking: `mapaRankingLigas` lê `data/ranking_ligas.json`. Liga `BLOQUEADA` não dispara Telegram. `SELETIVA` ou amostra `< 10` só dispara A+. `APROVADA` com `>= 10` jogos dispara A e A+ com o ROI no topo.
 
 Estado de módulo do sniper: `alertasSniperEnviados`, `alertasZebraEnviados`, `alertasAbafaEnviados`, `oddsPreJogoMap`, `cooldownEstatisticaSniper`, `consumoSniper` (`dia`, `total`, teto 3750/dia no fuso `America/Sao_Paulo`), `shadowAudit`.
@@ -197,7 +197,7 @@ Supabase:
 
 | Tabela | Uso |
 |---|---|
-| `shadow_lab` | Auditoria silenciosa dos Métodos F, B e U. DDL em `supabase/shadow_lab.sql`. Enquanto a tabela não existir, o mesmo livro fica na sentinela de `apostas`. |
+| `shadow_lab` | Auditoria silenciosa dos Métodos F, B e U. DDL em `supabase/shadow_lab.sql`. Se a tabela recusar a gravação, o mesmo livro fica na sentinela `__shadow_lab__` de `apostas`, que é a origem lida pelo card. Amostra antiga do Método U não entra na contagem. |
 | `apostas` | Livro de futebol. Colunas usadas: `id`, `jogo`, `mercado`, `odd`, `stake`, `status` (`PENDENTE`, `GREEN`, `RED`, `CASHOUT`), `lucro`, `created_at`, `fixture_id` (bigint; id `bet_...` não entra), `liga`, `metodo` (`A+`, `A`, `B`, `F`, `MANUAL`). `league` é enviada e removida se o PostgREST não a tiver. Um `metodo` já gravado não é substituído por vazio. A linha `mercado = __shadow_lab__` guarda a auditoria shadow enquanto `shadow_lab` não existe e não entra na planilha. |
 | `match_timeline` | Upsert por `fixture_id,minute` no monitor. Insert também em `registarMinutoLive`. |
 | `trade_signals` | Insert de `auditarLaybackOverHT`. |
@@ -211,7 +211,7 @@ Arquivos:
 | `bets_database.json` | `{ bets, bankroll }` da planilha local. |
 | `carpina_monitor.json` | Watches do Over. |
 | `public/live_status.json` | Snapshot ao vivo lido pelo painel. |
-| `logs/shadow_audit.json` | Cache local da auditoria F, B e U. A fonte durável é `shadow_lab` (`supabase/shadow_lab.sql`); sem a tabela, o livro fica em `apostas.metricas_resumo` da sentinela `__shadow_lab__`. |
+| `logs/shadow_audit.json` | Cache local da auditoria F, B e U. A fonte durável é o mesmo livro da sentinela `__shadow_lab__` (e `shadow_lab`, quando a gravação é aceita). |
 | `data/ranking_ligas.json` | `geradoEm`, `estrategia`, `requisicoes`, `motivo`, `saldo`, `ranking[]` com `ligaId`, `liga`, `jogos`, `greens`, `stops`, `taxaAcerto`, `lucro`, `roiPercentual`, `veredito`. |
 | `layback_sem_api.json` | Lista de chaves `jogo\|mercado` sem nova chamada. |
 | `scripts/cache_backtest_*.json` | Corpos de fixtures já baixados. Reexecução não refaz o que já está no arquivo. |

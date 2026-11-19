@@ -12,7 +12,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { supabase as supabaseApostas } from './lib/supabase.js';
-import { lerEntradasShadow, qualificaShadowU, resultadoShadowU, salvarEntradasShadow } from './lib/shadowLab.js';
+import { entradaUCalibrada, lerEntradasShadow, oddEntradaShadowU, qualificaShadowU, resultadoShadowU, salvarEntradasShadow } from './lib/shadowLab.js';
 import { createClient } from '@supabase/supabase-js';
 import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 const getLaybackMarketData = async () => null;
@@ -2095,9 +2095,26 @@ function oddsPreJogoDe(corpo) {
     };
     const oddHome = ler('home', '1');
     const oddAway = ler('away', '2');
-    if (oddHome && oddAway) return { oddHome, oddAway };
+    if (oddHome && oddAway) return { oddHome, oddAway, oddUnder05Ht: null };
   }
-  return { oddHome: null, oddAway: null };
+  return { oddHome: null, oddAway: null, oddUnder05Ht: null };
+}
+
+function oddUnder05HtDe(corpo) {
+  const livros = Array.isArray(corpo?.response?.[0]?.bookmakers) ? corpo.response[0].bookmakers : [];
+  for (const livro of livros) {
+    const apostas = Array.isArray(livro?.bets) ? livro.bets : [];
+    for (const aposta of apostas) {
+      const nome = String(aposta?.name || '');
+      const primeiroTempo = /first half|1st half|1º tempo|primeiro tempo/i.test(nome);
+      if (!primeiroTempo || !/under|over|goal/i.test(nome)) continue;
+      const valores = Array.isArray(aposta.values) ? aposta.values : [];
+      const item = valores.find((valor) => /^under\s*0\.5(?:0)?$/i.test(String(valor?.value || '').trim()));
+      const odd = Number(item?.odd);
+      if (odd >= 1.15 && odd <= 1.8) return Number(odd.toFixed(2));
+    }
+  }
+  return null;
 }
 
 function lerNumeroSniper(lista, nomes) {
@@ -2359,6 +2376,7 @@ shadowPronto = lerEntradasShadow()
     const local = auditoriaShadow().entradas;
     const mapa = new Map(entradas.map((item) => [String(item.id), item]));
     for (const item of local) {
+      if (item?.metodo === 'U' && !entradaUCalibrada(item)) continue;
       const anterior = mapa.get(String(item.id));
       const anteriorFechado = anterior && anterior.status && anterior.status !== 'aberta';
       mapa.set(String(item.id), anteriorFechado && item.status === 'aberta' ? anterior : { ...anterior, ...item });
@@ -2459,6 +2477,9 @@ async function registrarShadowU(jogo, pressao) {
   if (livro.entradas.some((item) => item.metodo === 'U' && item.fixtureId === jogo.id)) return;
   const casa = Number(jogo.golsCasa);
   const fora = Number(jogo.golsFora);
+  const oddAoVivo = oddsPreJogoMap.get(jogo.id)?.oddUnder05Ht;
+  const odd = oddEntradaShadowU(oddAoVivo);
+  const oddLida = Number.isFinite(Number(oddAoVivo)) && odd === Number(Number(oddAoVivo).toFixed(2));
   livro.entradas.push({
     id: `U-${jogo.id}`,
     metodo: 'U',
@@ -2468,11 +2489,13 @@ async function registrarShadowU(jogo, pressao) {
     fora: jogo.fora,
     minuto: jogo.minuto,
     placar: `${casa}x${fora}`,
-    mercado: casa === 0 && fora === 0 ? 'Under 0.5 HT' : 'Under 1.5 HT',
+    mercado: 'Under 0.5 HT',
     gols: casa + fora,
     xg: Number(Number(pressao.xgTotal).toFixed(2)),
     noAlvo: Number(pressao.chutesTotal),
     stake: 4,
+    odd,
+    oddFonte: oddLida ? 'ao-vivo' : 'fallback',
     status: 'aberta',
     lucro: null,
     placarIntervalo: null,
@@ -2491,7 +2514,7 @@ async function acompanharShadow(jogos) {
   for (const item of abertas) {
     const aoVivo = porId.get(item.fixtureId);
     if (item.metodo === 'U' && aoVivo && String(aoVivo.status || '').toUpperCase() === 'HT') {
-      const resultado = resultadoShadowU(item.gols, aoVivo.golsCasa, aoVivo.golsFora);
+      const resultado = resultadoShadowU(item.gols, aoVivo.golsCasa, aoVivo.golsFora, item.odd);
       item.status = resultado.status;
       item.lucro = resultado.lucro;
       item.stake = 4;
@@ -2589,7 +2612,9 @@ async function cicloSniperXG() {
     for (const jogo of precisaOdds.slice(0, MAX_ODDS_POR_CICLO)) {
       const corpo = await pedirApiSniper(`/odds?fixture=${jogo.id}`);
       if (!corpo) break;
-      oddsPreJogoMap.set(jogo.id, oddsPreJogoDe(corpo));
+      const oddsLidas = oddsPreJogoDe(corpo);
+      oddsLidas.oddUnder05Ht = oddUnder05HtDe(corpo);
+      oddsPreJogoMap.set(jogo.id, oddsLidas);
       const lado = ladoFavoritoPerdendo(oddsPreJogoMap.get(jogo.id), jogo.golsCasa, jogo.golsFora);
       const livre = agora - (cooldownEstatisticaSniper.get(jogo.id) || 0) >= COOLDOWN_ESTATISTICA_MS;
       if (lado && !alertasZebraEnviados.has(jogo.id) && livre && !candidatos.some((item) => item.id === jogo.id)) {

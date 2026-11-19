@@ -9,7 +9,7 @@ import { LIGAS_OFICIAIS } from './ligasOficiais.js';
 import { aceitarPartidaReal, codigoDuplaChance, fetch1WinMatchOdds } from './1win-client.js';
 import { apostaSemApi, garantirFixtureId, iniciarMonitorCarpina, marcarSemApi, sombrasEmMemoria } from './liveMonitor.js';
 import { supabase, TABELA_APOSTAS } from './lib/supabase.js';
-import { ehSentinelaShadow, lerEntradasShadow, mesclarEntradas } from './lib/shadowLab.js';
+import { ehSentinelaShadow, lerEntradasShadow, mesclarEntradas, semAmostraAntigaU } from './lib/shadowLab.js';
 import { registrarResultadoNaNuvem } from './lib/apostasSupabase.js';
 
 const require = createRequire(import.meta.url);
@@ -193,6 +193,7 @@ function montarShadowAudit(entradas) {
         placarEntrada: item?.placar || '',
         xgEntrada: item?.xg ?? null,
         chutesAlvoEntrada: item?.noAlvo ?? null,
+        odd: item?.metodo === 'U' ? (item?.odd ?? null) : null,
         placarFinal: item?.placarFinal || item?.placarIntervalo || null,
         status: item?.status || 'aberta',
         lucroVirtual: item?.status === 'aberta' || item?.lucro == null ? null : Number(item.lucro),
@@ -203,11 +204,11 @@ function montarShadowAudit(entradas) {
 
 app.get(comESemApi('/api/shadow-audit'), async (_req, res) => {
   try {
-    const entradas = mesclarEntradas([lerShadowAudit(), await lerEntradasShadow(), sombrasEmMemoria()]);
+    const entradas = semAmostraAntigaU(mesclarEntradas([lerShadowAudit(), await lerEntradasShadow(), sombrasEmMemoria()]));
     res.json(montarShadowAudit(entradas));
   } catch (erro) {
     console.warn(`[SHADOW] leitura da rota: ${erro?.message || erro}`);
-    res.json(montarShadowAudit(mesclarEntradas([lerShadowAudit(), sombrasEmMemoria()])));
+    res.json(montarShadowAudit(semAmostraAntigaU(mesclarEntradas([lerShadowAudit(), sombrasEmMemoria()]))));
   }
 });
 
